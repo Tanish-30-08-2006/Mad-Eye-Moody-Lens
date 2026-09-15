@@ -604,4 +604,236 @@ At the end, provide a summary table:
 |---|---|---|---|
 
 Do not provide generic legal information. Base the analysis on the actual authoritative documents cited or provided.
+---
+## ML/data engineer 
+You are performing **document analysis for a university software engineering requirements-gathering project**.
 
+The stakeholder being analyzed is:
+
+**ML / Data Engineer**
+
+Our project is a **Deepfake Detection Web App** that uses AI models to detect potentially manipulated image, video, and audio content.
+
+The ML/Data Engineer is responsible for training and maintaining the **CNN-based image/video model** and **spectrogram-based audio model**, and for deciding appropriate accuracy and confidence thresholds.
+
+### Your task
+
+Analyze authoritative technical documents such as:
+
+* Research papers on deepfake detection
+* Deepfake detection benchmarks
+* CNN-based detection approaches
+* Spectrogram/audio deepfake detection approaches
+* Dataset documentation where relevant
+* Technical documentation or published information from tools such as Deepware, Sensity, or Hive
+
+### Focus specifically on:
+
+1. **Model Approach**
+
+   * What CNN-based approaches are used for image/video deepfake detection?
+   * What approaches are used for detecting manipulated audio using spectrograms?
+
+2. **Dataset Requirements**
+
+   * What type and amount of training data is required?
+   * What formats or preprocessing steps are needed?
+
+3. **Accuracy / Performance**
+
+   * What accuracy or evaluation metrics are reported?
+   * What factors can cause false positives or false negatives?
+
+4. **Preprocessing**
+
+   * What preprocessing is required before inference?
+   * For video, are frame extraction or sampling techniques required?
+   * For audio, are spectrogram or other feature transformations required?
+
+5. **Inference / Response Time**
+
+   * What factors affect model inference time?
+   * What trade-offs exist between model accuracy and processing speed?
+
+6. **Confidence Score**
+
+   * How should model predictions or probabilities be interpreted?
+   * What limitations should be considered when showing a confidence percentage to users?
+
+7. **Model Limitations**
+
+   * What types of manipulation may be difficult for the model to detect?
+   * How well does the model generalize to unseen datasets or new deepfake generation methods?
+
+8. **Model Maintenance**
+
+   * Would retraining or updating the model be necessary as new deepfake techniques appear?
+   * What should be considered when introducing a new model version?
+
+### Important rules
+
+* Prefer **original research papers, benchmark papers, official dataset documentation, and authoritative technical sources**.
+* Do not invent accuracy values, model capabilities, or technical requirements.
+* Clearly distinguish between:
+
+  * **Facts stated in the source**
+  * **Reasonable technical inference for our project**
+* Do not assume that a reported benchmark accuracy will be achieved by our system.
+* Pay particular attention to **accuracy, preprocessing, inference time, generalization, and model limitations**.
+
+### Output format
+
+**Source / Paper:**
+[Title]
+
+**Model / Technique:**
+[CNN / Spectrogram / Other]
+
+**Key Findings:**
+
+* Model Approach:
+* Dataset Requirements:
+* Preprocessing:
+* Accuracy / Evaluation:
+* Inference / Performance:
+* Confidence / Prediction:
+* Limitations:
+* Maintenance / Updating:
+
+**Requirement / Constraint Derived:**
+[Clearly state what requirement or constraint this creates for our application]
+
+**Requirement Type:**
+
+* Functional
+* Non-functional
+* Technical Constraint
+* ML / Model Requirement
+
+**Confidence:**
+High / Medium / Low
+
+At the end, provide a summary table:
+
+| Source | Key Finding | Requirement / Constraint | Type |
+| ------ | ----------- | ------------------------ | ---- |
+
+Do not provide generic machine-learning information. Base the analysis on the actual technical documents provided or cited.
+
+---
+
+## Frontend and Backend Developer
+You are performing **document analysis for a university software engineering requirements-gathering project**.
+
+The stakeholder being analyzed is:
+
+**Frontend / Backend Developer**
+
+Our project is a **Deepfake Detection Web App** that allows users to upload images, videos, and audio and receive an AI-based detection result.
+
+The development team is responsible for building the **file upload flow, backend processing, result display, admin dashboard, and browser extension**.
+
+### Your task
+
+Analyze authoritative technical documentation relevant to developing this web application.
+
+Focus on documentation for technologies that may be used in the project, such as:
+
+* Frontend web framework documentation
+* Backend/API framework documentation
+* File upload handling
+* REST API documentation
+* Database documentation
+* Cloud/storage documentation
+* Browser extension documentation
+* Authentication and security documentation
+
+### Focus specifically on:
+
+1. **File Upload**
+
+   * What file sizes and formats can be supported?
+   * How should image, video, and audio uploads be handled?
+   * What validation is recommended?
+
+2. **API / Backend**
+
+   * How should the frontend communicate with the backend?
+   * What request/response structure is appropriate?
+   * How should long-running video/audio processing be handled?
+
+3. **Error Handling**
+
+   * How should the application respond to unsupported, corrupted, or excessively large files?
+   * What errors should be shown to users?
+
+4. **Performance**
+
+   * What technical factors could affect upload and processing time?
+   * What mechanisms can help handle multiple users or large files?
+
+5. **Security**
+
+   * What security practices should be followed for file uploads and APIs?
+   * How can malicious or unsafe files be handled?
+
+6. **Storage**
+
+   * What approach is appropriate for temporary uploaded-media storage?
+   * How can files be deleted after processing?
+
+7. **Frontend Requirements**
+
+   * What UI behavior is needed for upload progress, loading states, results, and errors?
+
+8. **Backend Requirements**
+
+   * What backend components or endpoints are required to support the application?
+   * How should the backend communicate with the ML inference pipeline?
+
+9. **Browser Extension**
+
+   * What technical restrictions or implementation requirements affect the planned browser extension?
+
+### Important rules
+
+* Prefer **official documentation** for the technologies and frameworks being analyzed.
+* Do not invent technical capabilities or limits.
+* Clearly distinguish between:
+
+  * **Facts stated in the documentation**
+  * **Reasonable implementation requirements inferred for our project**
+* Focus only on requirements relevant to our Deepfake Detection Web App.
+* Do not assume a specific technology stack unless it is stated in the project documentation.
+
+### Output format
+
+**Technology / Document:**
+[Name]
+
+**Relevant Area:**
+[Upload / API / Security / Storage / Frontend / Backend / Extension]
+
+**Key Finding:**
+[What the documentation states]
+
+**Requirement / Constraint Derived:**
+[What the developer should implement or consider]
+
+**Requirement Type:**
+
+* Functional
+* Non-functional
+* Technical Constraint
+* Security Requirement
+
+**Confidence:**
+High / Medium / Low
+
+At the end, provide a summary table:
+
+| Technology / Source | Key Finding | Requirement / Constraint | Type |
+| ------------------- | ----------- | ------------------------ | ---- |
+
+Do not provide generic software-development advice. Base the analysis on the actual technical documentation provided or cited.
+---
