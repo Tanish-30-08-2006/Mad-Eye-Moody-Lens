@@ -57,6 +57,24 @@
 | FR-25 | The system shall display a prominent disclaimer that results are automated/probabilistic and do not constitute legal proof or a definitive determination. | Compliance (GDPR Art. 22, EU AI Act) |
 | FR-26 | The frontend shall explicitly check HTTP response status and surface backend error payloads (e.g., file too large, unsupported type) as clear, non-technical messages, resetting the upload state for retry. | Frontend/Backend |
 | FR-27 | The "About"/Credits page shall display attribution for any dataset used under an attribution license (e.g., ASVspoof 2019, CC BY 4.0). | Dataset |
+### 1.7 Browser Extension 
+| ID | Requirement | Source |
+|---|---|---|
+| FR-28 | The browser extension shall scan the DOM of the active webpage for `<img>`, `<video>`, and `<audio>` elements, inject a "Verify with Deepfake Detector" overlay button on each, and — on click — send the media URL to the extension's background service worker, which calls the backend detection API and displays the result inline/in a popup. | Frontend/Backend (Chrome Extension analysis); original project brief ("simple browser extension … so people can quickly check content shared on social media/WhatsApp") — this behavior was previously only referenced as a technical constraint (see NFR-23) but never specified as a feature. |
+
+### 1.8 Additional Detection & Investigative Support 
+| ID | Requirement | Source |
+|---|---|---|
+| FR-29 | Frame-level predictions for video shall be explicitly aggregated into a single video-level verdict via averaging or majority voting across the sampled frames, and this aggregation method shall be disclosed in the XAI explanation. | ML Engineer (FaceForensics++/DFDC paper analysis) |
+| FR-30 | The system shall provide automated keyframe extraction and display basic file metadata (e.g., EXIF/container metadata) for uploaded images/videos, to support the journalist's manual investigative workflow alongside the automated verdict. | Journalist Q1 ("integrate automated keyframe extraction… and basic metadata analysis") |
+| FR-31 | An admin-only interface shall allow the ML engineering team to view and adjust the classifier's decision threshold (e.g., the LLR/probability cutoff) to balance false-alarm rate against missed-detection rate. | ML Engineer (ASVspoof analysis); Elicitation Technique Selection matrix ("threshold calibration FAR vs. FRR") |
+
+### 1.9 Additional Consent & Compliance Features 
+| ID | Requirement | Source |
+|---|---|---|
+| FR-32 | The pre-upload consent notice (FR-24) shall be available in at least English and Hindi. | Compliance (DPDPA Section 5 — multilingual notice) |
+| FR-33 | The system shall provide a mechanism for users to withdraw consent and submit grievance-redressal requests. | Compliance (DPDPA Section 5) |
+| FR-34 | Before submitting media, users must affirmatively accept a Terms of Service attesting they hold the rights/consent of any identifiable individual(s) depicted, and confirming the upload is not non-consensual intimate imagery or otherwise unlawful content. | Compliance (IT Rules 2021, BNS 2023) |
 
 ---
 
@@ -112,5 +130,52 @@
 | NFR-21 | Cloud storage and compute must scale to handle concurrent uploads and inference requests (e.g., via managed autoscaling compute and object storage). | Cloud Provider |
 | NFR-22 | The system should be cost-aware during development (e.g., capped upload sizes, CPU-tier inference) to operate within free-tier/limited-budget constraints typical of an academic project. | Cloud Provider |
 | NFR-23 | Browser-extension components (if built) must bundle all logic locally and declare explicit host permissions, per Manifest V3 constraints — no remotely hosted code. | Frontend/Backend |
+
+### 2.8 Observability & Availability 
+| ID | Requirement | Source |
+|---|---|---|
+| NFR-24 | The platform shall expose operational health telemetry (uptime, task-queue depth, error rates, average processing latency) to the platform admin team for monitoring and incident response. | Elicitation Technique Selection matrix (Platform Dev/Admin concerns — "health telemetry") |
+| NFR-25 | The system should maintain availability and degrade gracefully (rather than fail outright) during traffic spikes, such as surges in verification requests around breaking-news events. | Journalist Q2 (time pressure during breaking news) |
+
+
+---
+## 3. Domain Requirements (DR) 
+
+### 3.1 Media Format & Technical Domain Constraints
+| ID | Requirement | Source | Related item(s) |
+|---|---|---|---|
+| DR-1 | The system shall support, at minimum, JPG/PNG (images), MP4 (video), and WAV/MP3 (audio) as ingestible formats; other common formats seen on social media (e.g., MOV, M4A, OGG, WEBP) should be auto-converted where feasible or rejected with a clear message. | Original project brief; Dataset docs | — *(new — not previously stated anywhere)* |
+| DR-2 | The system must never issue an unqualified binary "real/fake" verdict; every output must be probabilistic, qualified, and may resolve to "Inconclusive." | EU AI Act Art. 52; both interviews | FR-13, FR-16, NFR-5, NFR-16 |
+
+### 3.2 Licensing & Attribution
+| ID | Requirement | Source | Related item(s) |
+|---|---|---|---|
+| DR-3 | Models and app functionality built on FaceForensics++ data must remain strictly non-commercial/academic; no paywalls, commercial licensing, or resale of derived models. | FF++ Terms of Use | NFR-18 |
+| DR-4 | A visible CC BY 4.0 attribution notice for ASVspoof 2019 (and any other attribution-licensed dataset) must appear on an About/Credits page. | ASVspoof license | FR-27 |
+| DR-5 | The system/models must not be used to identify, target, or profile specific individuals beyond a binary authenticity classification. | FF++ Terms of Use (ethical-use restriction) | — *(new)* |
+
+### 3.3 Legal & Regulatory Compliance
+| ID | Requirement | Source | Related item(s) |
+|---|---|---|---|
+| DR-6 | A DPDPA-compliant consent notice (data collected, purpose, rights) must be shown before upload. | DPDPA 2023 | FR-24, FR-32, FR-33 |
+| DR-7 | The app must operate as a private utility — uploaded media and results are visible only to the uploading session and must not be publicly hosted or indexed, to avoid "intermediary" classification under India's IT Rules, 2021. | IT Rules 2021 | NFR-14 |
+| DR-8 | Downloadable reports must carry an "as-is"/"Uncertified Academic AI Analysis" liability disclaimer, protecting against defamation/forgery exposure under BNS 2023. | BNS 2023 | FR-17, NFR-19 |
+| DR-9 | The UI and any marketing copy must never claim "100% accurate" or "foolproof" detection; only tested, validated accuracy figures may be stated. | Consumer Protection Act, 2019 | NFR-16 |
+| DR-10 | Explicit, separate consent is required before processing biometric-like signals (facial landmarks, voiceprints), particularly for EU users. | GDPR Art. 9 | NFR-13 |
+| DR-11 | Users must affirmatively accept a Terms of Service attesting they hold the rights/consent of any identifiable individual(s) in uploaded media, explicitly prohibiting non-consensual intimate imagery (NCII) and other unauthorized uploads. | IT Rules 2021, BNS 2023 | FR-34 *(new requirement; FR-34 is the new implementing feature)* |
+| DR-12 | The system must not disclose, sell, or share uploaded media, analysis results, or derived personal data with third parties, except where strictly necessary for infrastructure processing under a data-processing agreement (e.g., the cloud hosting provider). | DPDPA (Data Fiduciary obligations); Meta Developer Policies; public survey — "sharing data with third parties" was the 4th-highest concern (14/33 respondents) | NFR-12 (partial) — *new: explicit no-third-party-sharing rule* |
+| DR-13 | Users have a right to erasure (GDPR Art. 17). Since uploaded media is already deleted immediately post-analysis, the system must clearly disclose this deletion behavior to the user and provide a deletion confirmation where feasible. | GDPR Art. 17 | NFR-11 |
+
+### 3.4 Platform-Specific (WhatsApp) Constraints
+| ID | Requirement | Source | Related item(s) |
+|---|---|---|---|
+| DR-14 | WhatsApp integration must never attempt to intercept or scan private, end-to-end-encrypted user-to-user chats; any inbound "forward-to-verify" channel must operate only through the official WhatsApp Business Cloud API. | Social Media Platform analysis | FR-6 |
+| DR-15 | Because production access to the WhatsApp Business API requires Meta Business Verification and App Review, the project's WhatsApp integration must run within Meta's Developer Sandbox (limited to ~5 registered test numbers) for prototyping/demo purposes. | Social Media Platform analysis | — *(new)* |
+| DR-16 | The tool must be framed and operated strictly as a verification utility; per Meta Developer Policy, it must not be used to facilitate spam, deceptive behavior, or the spread of misinformation. | Meta Developer Policies | — *(new)* |
+
+### 3.5 Ethical / Fairness Domain Constraints
+| ID | Requirement | Source | Related item(s) |
+|---|---|---|---|
+| DR-17 | Detection models must be evaluated for demographic fairness (skin tone, gender, age) prior to deployment, to avoid biased false-positive/false-negative rates across groups. | DFDC dataset analysis (diverse-actor dataset design rationale) | — *(new)* |
 
 ---
