@@ -5,3 +5,5 @@ the survey result is still pending.
 
 i have generated few fr/nfr from the current elicitation result and update in future.
 
+https://docs.google.com/spreadsheets/d/1PIlVrcvsk6USqWDDiuDUF1s07eglz0XNdLrDpzPQoDE/edit?usp=sharing
+
