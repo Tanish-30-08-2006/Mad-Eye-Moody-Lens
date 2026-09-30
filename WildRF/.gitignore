@@ -1,0 +1,9 @@
+# Keep WildRF media and Colab results out of Git.
+/train/
+/val/
+/test/
+/WildRF/
+/*.zip
+/results/
+/results.zip
+
