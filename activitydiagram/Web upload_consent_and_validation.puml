@@ -1,0 +1,66 @@
+@startuml
+' Diagram 01 — Web upload: consent, validation, and secure intake
+' Requirements: FR-1–5, FR-24–26, FR-32, FR-34; NFR-7–9, NFR-12–14; DR-1, DR-6, DR-10–13
+
+' Requirements mapping is included in the title/comments of each file.
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #F6F8FB
+  BorderColor #52657A
+  FontColor #172B4D
+  DiamondBackgroundColor #FFF2CC
+  DiamondBorderColor #A07800
+  StartColor #246B57
+  EndColor #9C3434
+}
+skinparam ArrowColor #52657A
+skinparam DefaultFontName Arial
+skinparam DefaultFontSize 13
+title 01. Web upload: consent, validation, and secure intake
+start
+:Open verification page;
+:Choose English or Hindi;
+:Show consent notice, rights, retention/deletion behavior, and probabilistic-result disclaimer;
+if (Consent accepted?) then (yes)
+  :Confirm rights/consent for depicted people and lawful content;
+  if (Terms accepted?) then (yes)
+    if (Separate biometric consent required for this mode?) then (yes)
+      if (Biometric consent granted?) then (yes)
+      else (no)
+        :Cancel, or offer only a supported non-biometric mode;
+        stop
+      endif
+    else (no)
+    endif
+    :Select image, video, or audio;
+    if (Client type and size valid?) then (yes)
+      if (Large video/audio?) then (yes)
+        :Continue to pre-signed upload flow in Diagram 02;
+      else (no)
+        :Upload through web API over HTTPS;
+        :Server checks size, allowed format, and magic bytes;
+        if (Server validation passes?) then (yes)
+        else (no)
+          :Reject invalid file and safely discard it;
+          stop
+        endif
+      endif
+      :Assign UUID and store privately in isolated, encrypted storage;
+      :Training opt-in is separate and off by default;
+      :Create task and return task ID / Processing status;
+      stop
+    else (no)
+      :Show clear error and reset the upload control;
+      :Retry selection or cancel;
+      stop
+    endif
+  else (no)
+    :Reject submission; do not analyze;
+    stop
+  endif
+else (no)
+  :Block upload; explain that consent is required;
+  stop
+endif
+@enduml
