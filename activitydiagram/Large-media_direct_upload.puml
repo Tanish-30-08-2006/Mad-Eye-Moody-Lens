@@ -1,0 +1,44 @@
+@startuml
+' Diagram 02 — Large media: pre-signed direct-to-object-storage upload
+' Requirements: FR-2–5, FR-26; NFR-2, NFR-7–9, NFR-11, NFR-21–22; DR-1
+
+' Requirements mapping is included in the title/comments of each file.
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #F6F8FB
+  BorderColor #52657A
+  FontColor #172B4D
+  DiamondBackgroundColor #FFF2CC
+  DiamondBorderColor #A07800
+  StartColor #246B57
+  EndColor #9C3434
+}
+skinparam ArrowColor #52657A
+skinparam DefaultFontName Arial
+skinparam DefaultFontSize 13
+title 02. Large media: pre-signed direct upload
+start
+:Frontend requests short-lived, scoped pre-signed URL;
+if (URL issued?) then (yes)
+  :Browser uploads directly to private object storage over HTTPS;
+  if (Upload succeeded?) then (yes)
+    :Frontend confirms object key with backend;
+    :Backend rechecks ownership, size, format, and magic bytes;
+    if (Object valid?) then (yes)
+      :Assign internal UUID; keep object private and encrypted;
+      :Queue asynchronous task and return task ID;
+      stop
+    else (no)
+      :Reject and delete or quarantine invalid object;
+      stop
+    endif
+  else (no)
+    :Retry if URL remains valid, or request a fresh URL;
+    stop
+  endif
+else (no)
+  :Show backend error and allow retry;
+  stop
+endif
+@enduml
