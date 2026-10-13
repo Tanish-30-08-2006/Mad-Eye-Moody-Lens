@@ -343,31 +343,11 @@ Sprint 1 also carries a few zero-point tasks: repo and Slack setup, LICENSE file
 
 ---
 
-## 12. Next Steps
 
-1. Post the Section 7 summary in Slack and get the team's OK.
-2. Commit `conflict-resolution.md` and `sprints-revised.md` to GitHub, from whoever merged them.
-3. Update `User-Stories.md` so each changed story's acceptance criteria match Section 9.
-4. Start Sprint 1 and build the concept poster.
-
-### Open points for the team
-
-- Confirm the upload limits (10 / 50 / 20 MB) with whoever sets up the cloud.
-- Confirm that moderation actions stay **simulated** (C-03). If the instructor wants a real integration, we revisit.
-- Choose who owns the single "uncertain band" value (C-05).
-- Agree on the sandbox label wording for the WhatsApp bot (C-08).
-- When the general-public survey and the media-subject ethics session finish, run any new stories through Section 4.
 
 ---
 
-## 13. Viva in 30 Seconds
 
-- **What's a conflict?** Two stories (or two people) that can't both be built as written.
-- **How did we find them?** Compared every epic and persona against each other, checked stories against the fixed rules, and checked the numbers and sprint order.
-- **How did we decide?** Six simple rules: law first, privacy over extras, must-have first, keep it simple, user decides, middle path.
-- **Biggest example?** Share links. Journalists want links that last days, but privacy says delete in 24 hours. We share only the report, never the original file.
-- **What changed?** 49 stories became 42, points went from 199 to 163, and the sprints were rebalanced to 46 / 47 / 38 / 32.
-- **What did we drop?** Auto-scaling, and we shrank the company-style infra stories to student-sized versions.
 
 ---
 *End of Task 6 document.*
