@@ -1,5 +1,5 @@
-# Task 6 — Conflict Identification & Resolution
-**Project:** Mad-Eye Moody Lens — Deepfake AI Detector · **Course:** IT314 Software Engineering · **Group:** 35
+# Task 6 - Conflict Identification & Resolution
+**Project:** Mad-Eye Moody Lens - Deepfake AI Detector · **Course:** IT314 Software Engineering · **Group:** 35
 **Inputs:** `User-Stories.md` (49 stories, 11 epics), `sprints.md` (4 sprints), stakeholder list, Task 3 requirements report
 **Outputs:** this file (conflicts + refined backlog + revised sprint plan) and `sprints-revised.md`
 
@@ -67,12 +67,12 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 
 | Rule | Meaning |
 |---|---|
-| **R1 — Law first** | Legal rule involved? Law wins over convenience. |
-| **R2 — Privacy over extras** | A nice feature that needs extra personal data gets cut or limited. |
-| **R3 — Must-have beats nice-to-have** | P0 beats P1, P1 beats P2. |
-| **R4 — Keep it simple** | It's an academic prototype. If a small version does the job, build that. |
-| **R5 — User decides, system warns** | The user makes the final call; the tool just warns. |
-| **R6 — Middle path** | If both sides have a fair point, give each most of what it needs. |
+| **R1 - Law first** | Legal rule involved? Law wins over convenience. |
+| **R2 - Privacy over extras** | A nice feature that needs extra personal data gets cut or limited. |
+| **R3 - Must-have beats nice-to-have** | P0 beats P1, P1 beats P2. |
+| **R4 - Keep it simple** | It's an academic prototype. If a small version does the job, build that. |
+| **R5 - User decides, system warns** | The user makes the final call; the tool just warns. |
+| **R6 - Middle path** | If both sides have a fair point, give each most of what it needs. |
 
 ### 4.2 Method
 
@@ -146,77 +146,77 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 
 ## 8. Conflicts in Detail
 
-### C-01 — Delete media now vs. feedback and PDF evidence
+### C-01 - Delete media now vs. feedback and PDF evidence
 - **Clash:** US-NFR-08/09 say the file is gone as soon as the result is ready. US-FR-21 (feedback for retraining) and US-FR-17 (PDF with image crops) seem to need it.
 - **Who/where:** Priya, Mehta (EPIC-10) vs. Dr. Chen, Alex, Sarah (EPIC-05, EPIC-03).
 - **Decision:** Delete the file, keep only small non-personal data: task ID, model version, thumbs up/down, optional comment. Build the PDF *before* deleting; the crops live only inside the PDF the user downloads. No retraining on user media in this project.
 - **Rule:** R1, R2 · **Stories:** US-FR-21, US-FR-17, US-NFR-08 · **Status:** Resolved
 
-### C-02 — Share links last days vs. 24h deletion and "private"
+### C-02 - Share links last days vs. 24h deletion and "private"
 - **Clash:** US-FR-18 allows 7-day links. US-NFR-08/11 say nothing stays past 24 hours and results stay private. US-FR-33 says erase on request.
 - **Who/where:** Sarah (EPIC-04) vs. Mehta, Priya (EPIC-10, EPIC-06).
 - **Decision:** A link opens a read-only **report** (score, reason, heatmap image), never the original file. Random token, optional password, expiry 2h/24h/7 days, creator can revoke, report is deleted at expiry, erasure requests kill the links too. Pages carry `noindex`.
 - **Rule:** R1, R6 · **Stories:** US-FR-18, US-FR-33 · **Status:** Resolved
 
-### C-03 — Moderation queue holds items vs. "private utility"
+### C-03 - Moderation queue holds items vs. "private utility"
 - **Clash:** A shared queue (US-FR-20, 22) looks like a shared content store, which US-NFR-11 forbids so we don't count as a social platform under IT Rules 2021.
 - **Who/where:** Alex (EPIC-05) vs. Mehta (EPIC-10).
 - **Decision:** The queue holds **job info only** (job ID, score, status, notes), never media. Moderator login required. Entries expire in 24h. Since we don't own a real platform, the action buttons are **simulated**: they log the action and show a confirmation.
 - **Rule:** R1, R4 · **Stories:** US-FR-20, US-FR-22, US-NFR-11 · **Status:** Resolved
 
-### C-04 — Fast takedown vs. "never a bare verdict, humans decide"
+### C-04 - Fast takedown vs. "never a bare verdict, humans decide"
 - **Clash:** Moderators have 30–60 seconds per ticket and like clear answers. Legal and journalists want likelihoods only, with a human in charge.
 - **Who/where:** Alex (EPIC-05) vs. Mehta, Sarah (EPIC-03, EPIC-06).
 - **Decision:** The tool never acts alone; every action is a human click. Results always show score + reason + disclaimer, plus a green/amber/red band so they read in seconds. On an Inconclusive result the Takedown button is off; the moderator escalates or overrides with a written reason.
 - **Rule:** R1, R5, R6 · **Stories:** US-FR-20, US-FR-13 · **Status:** Resolved
 
-### C-05 — Two different "uncertain" ranges
+### C-05 - Two different "uncertain" ranges
 - **Clash:** US-FR-16 says Inconclusive is 40–60%. US-FR-22 says "needs senior review" is 45–65%. A 42% score would be treated two ways.
 - **Decision:** One band, one config value, default **40–60%**. Inside it the result says Inconclusive, and for moderators it also lands in the review queue. Same event, two views. The admin page (US-FR-31) edits that one value.
 - **Rule:** R4 · **Stories:** US-FR-16, US-FR-22, US-FR-31 · **Status:** Resolved
 
-### C-06 — Fast results vs. explanation and accuracy
+### C-06 - Fast results vs. explanation and accuracy
 - **Clash:** Speed targets (US-NFR-01) vs. heatmaps and full scans (US-FR-12, US-FR-14).
 - **Who/where:** Sarah, Alex (EPIC-08) vs. Dr. Chen (EPIC-02, EPIC-03).
-- **Decision:** Keep two modes: Rapid Triage and Deep Scan. The score shows first; the heatmap and detail load after. Triage is labelled "Quick check — not final". Time targets are goals; we measure on our hardware and report honestly.
+- **Decision:** Keep two modes: Rapid Triage and Deep Scan. The score shows first; the heatmap and detail load after. Triage is labelled "Quick check - not final". Time targets are goals; we measure on our hardware and report honestly.
 - **Rule:** R4, R6 · **Stories:** US-FR-14, US-FR-12, US-NFR-01 · **Status:** Resolved
 
-### C-07 — Reverse-image search sends images out
+### C-07 - Reverse-image search sends images out
 - **Clash:** US-FR-23 sends keyframes to Google Vision / TinEye. US-NFR-09 says nothing goes to third parties without opt-in.
 - **Decision:** Nothing is sent automatically. A "Check Historical Provenance" button warns "This opens an outside service" and then opens Google Lens / TinEye in a new tab, where the user uploads the frame themselves. No paid API.
 - **Rule:** R2, R4, R5 · **Stories:** US-FR-23 · **Status:** Resolved
 
-### C-08 — WhatsApp bot vs. consent, sandbox and privacy
+### C-08 - WhatsApp bot vs. consent, sandbox and privacy
 - **Clash:** The web consent pop-up can't appear in WhatsApp. The bot works only for sandbox test numbers. Rate limiting means remembering senders.
 - **Decision:** A new number gets a short consent message first; analysis starts only after the user replies **AGREE** (it includes the "I have the right to share this, nothing intimate or illegal" line). For rate limits we keep only a **hashed** number for one hour. Media is fetched at once (link expires in ~5 min) and deleted after analysis. The bot is labelled a sandbox demo.
 - **Rule:** R1, R2 · **Stories:** US-FR-06 (absorbs US-NFR-16) · **Status:** Resolved
 
-### C-09 — Extension scans every post vs. Chrome rules
+### C-09 - Extension scans every post vs. Chrome rules
 - **Clash:** US-FR-28 watches every media element on a feed. Chrome wants minimum permissions, and sending media out needs consent.
 - **Decision:** The extension does nothing until the user acts: right-click media → "Verify with Moody Lens", or click the icon on the current tab. It uses `activeTab` and the context menu only. A one-time consent box on first use. The hover badge is dropped.
 - **Rule:** R1, R3, R4 · **Stories:** US-FR-28 (absorbs US-NFR-14) · **Status:** Resolved
 
-### C-10 — Legal pop-ups every time vs. deadline users
+### C-10 - Legal pop-ups every time vs. deadline users
 - **Clash:** Consent + attestation on every upload slows people checking many files.
 - **Decision:** The full consent box (English/Hindi) shows **once per session**. The short rights checkbox stays on **every** upload (one click). Both stay mandatory; they just repeat less.
 - **Rule:** R1, R6 · **Stories:** US-FR-24, US-FR-34 · **Status:** Resolved
 
-### C-11 — Showing GPS/camera metadata vs. privacy
+### C-11 - Showing GPS/camera metadata vs. privacy
 - **Clash:** US-FR-30 shows metadata that can reveal location and device. US-NFR-10 wants minimal personal data; share links and PDFs could leak it.
 - **Decision:** Metadata is shown only to the uploader in their own session. If GPS is found, we show a flag ("location data found") and leave it out of PDFs and share links unless the user ticks a box. It's deleted with the file.
 - **Rule:** R2, R5 · **Stories:** US-FR-30, US-FR-17, US-FR-18 · **Status:** Resolved
 
-### C-12 — Video limit 100 MB vs. 50 MB cap
+### C-12 - Video limit 100 MB vs. 50 MB cap
 - **Clash:** US-FR-02 allows 100 MB video and US-FR-05 uses a 70 MB example, but our cloud analysis caps uploads at 50 MB for the free tier.
 - **Decision:** Limits: **image 10 MB, video 50 MB, audio 20 MB**. The error message names the exact limit. One config value if we ever raise it.
 - **Rule:** R4 · **Stories:** US-FR-02, US-FR-05 · **Status:** Resolved
 
-### C-13 — Accuracy target vs. honest claims
+### C-13 - Accuracy target vs. honest claims
 - **Clash:** US-NFR-04 aims for AUC above 0.82 on heavily compressed media, but our own research notes show accuracy can fall to about 81% there. US-NFR-12 bans over-claiming.
 - **Decision:** 0.82 stays a **goal**, not a promise. The app shows only numbers we measured ourselves, with the method linked. If we miss the goal, the limitations text says so and Inconclusive covers more cases. The claims wording rule (merged into US-FR-27) applies from Sprint 1.
 - **Rule:** R1, R4 · **Stories:** US-NFR-04, US-FR-27 · **Status:** Resolved
 
-### C-14 — Company-sized infra stories vs. student scope
+### C-14 - Company-sized infra stories vs. student scope
 - **Clash:** Several stories describe a company system. We have 11 students, 4 sprints and free-tier credits.
 - **Decision:** Keep each story's goal, build the small version. US-NFR-03 (auto-scaling) is removed and goes to Future Work.
 
@@ -237,12 +237,12 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 
 - **Rule:** R3, R4 · **Status:** Resolved
 
-### C-15 — `sprints.md` epic grouping vs. the stories
+### C-15 - `sprints.md` epic grouping vs. the stories
 - **Clash:** `sprints.md` puts all of EPIC-08 and EPIC-09 in Sprint 2, which would pull auto-scaling, model swap and the fairness audit in beside the queue and heatmaps. It also names EPIC-11 "Threshold Tuning & Governance", but US-FR-31 sits in EPIC-02 in the stories. And US-NFR-12/13 (honest claims, licence) sit in EPIC-11, which is Sprint 4, too late for legal rules.
 - **Decision:** US-NFR-03 removed. US-FR-31, US-NFR-05, US-NFR-06 move to EPIC-11 (S4) so the name fits. US-NFR-12/13 merge into US-FR-27 (EPIC-06, S3). The LICENSE file is added in Sprint 1 repo setup.
 - **Rule:** R3, R4 · **Status:** Resolved
 
-### C-16 — Sprint order: features needed before they exist
+### C-16 - Sprint order: features needed before they exist
 - **Clash:**
   - US-FR-05 (S1) triggers inference through the queue, which arrives in S2 (US-FR-10).
   - US-FR-22 (S3) needs thresholds, but the admin page (US-FR-31) is S4.
@@ -250,7 +250,7 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 - **Decision:** US-FR-05 moves to S2 with the queue; S1 uses a plain upload and a direct model call. In S3 thresholds come from a config file; the S4 page edits the same file. Consent, disclaimer and rights checkbox stay in S1.
 - **Rule:** R3 · **Stories:** US-FR-05, US-FR-22, US-FR-31 · **Status:** Resolved
 
-### C-17 — Sprint totals wrong and uneven
+### C-17 - Sprint totals wrong and uneven
 - **Clash:** `sprints.md` says 42 / 52 / 46 / 44 (184). Adding the real story points gives 47 / 57 / 48 / 47 (199), and Sprint 2 is overloaded.
 - **Decision:** Recalculate after refinement and rebalance: US-FR-12 and US-FR-15 move S2 → S3, US-FR-21 moves S3 → S4. New totals are in Section 10. Sprint 4 is deliberately lighter because the Meta sandbox and Chrome review can slow us down, and we need time for the final report and demo.
 - **Rule:** R4 · **Status:** Resolved
