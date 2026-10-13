@@ -7,7 +7,7 @@
 
 ## 1. What This Document Is
 
-- Our stories came from six personas and a few outside parties, so some of them pull against each other.
+- Our stories came from six user roles and a few outside parties, so some of them pull against each other.
 - Task 6 is where we find those clashes, fix them, and write the fixes down before anyone codes.
 - The order we're following:
   1. Stakeholders → 2. Elicitation → 3. Requirements → 4. User stories → 5. Epics + sprints → **6. Conflicts (this doc)** → refined stories → updated sprints → **7. Start Sprint 1.**
@@ -40,24 +40,24 @@
 
 ## 3. Fixed Rules & Requirements We Can't Break
 
-Conflicts get solved *around* these. If a story clashes with one of them, the story changes.
+Conflicts get solved *around* these. If a story clashes with one of them, the story changes. Each rule comes from one of four places: a **law**, a **licence**, a **platform rule**, or a **budget/tech limit**. In a viva, just say which one.
 
-| Rule | Source |
-|---|---|
-| Project stays non-commercial and academic (FaceForensics++ licence) | DLE01 |
-| Consent notice before any upload | DLE02 · DPDPA 2023 |
-| Delete media right after analysis; 24-hour storage rule as backup | DLE03 |
-| Results are private to the user. No public hosting, no public gallery | DLE05 · IT Rules 2021 |
-| Results are probabilities, always with the disclaimer. Never a bare "Real/Fake". Never "100% accurate" | NFR06, NFR07, DLE07 |
-| Reports carry the "Uncertified Academic AI Analysis" watermark | DLE09 |
-| User media is never used for training without opt-in | DLE12 |
-| No non-consensual intimate content: terms + checkbox | DLE04 |
-| Credit ASVspoof 2019 (CC BY 4.0) and the other datasets | DLE10 |
-| HTTPS, encrypted storage, magic-number check, UUID file names | SEC01–SEC05 |
-| Video/audio jobs return 202 + task ID (async) | FR12 |
-| Extension uses Manifest V3, `activeTab`, no remote code | TC07, SEC07 |
-| WhatsApp: sandbox only, forward-only, download media within 5 minutes | TC09, TC10 |
-| Uploads capped at 50 MB (AWS free tier) | TC06 |
+| Rule | Where it comes from | Type |
+|---|---|---|
+| Project stays non-commercial and academic | FaceForensics++ dataset licence | Licence |
+| Consent notice before any upload | India's data protection law (DPDPA 2023) | Law |
+| Delete media right after analysis; 24-hour storage rule as backup | DPDPA 2023 + our AWS storage setting | Law + tech |
+| Results are private to the user. No public hosting, no public gallery | India's IT Rules 2021 | Law |
+| Results are probabilities with a disclaimer. Never a bare "Real/Fake". Never "100% accurate" | EU AI Act, GDPR, India's Consumer Protection Act | Law |
+| Reports carry the "Uncertified Academic AI Analysis" watermark | India's criminal code (BNS 2023), to stop misuse as legal proof | Law |
+| User media is never used for training without opt-in | Meta/WhatsApp developer policy + our privacy promise | Platform rule |
+| No non-consensual intimate content: terms + checkbox | IT Rules 2021, BNS 2023 | Law |
+| Credit the datasets (ASVspoof 2019 needs credit) | ASVspoof 2019 licence (CC BY 4.0) | Licence |
+| HTTPS, encrypted storage, magic-number check, UUID file names | OWASP file-upload guidance + DPDPA 2023 | Security practice |
+| Video/audio jobs return a task ID straight away (async) | Servers time out after about 60 seconds | Tech limit |
+| Extension uses Manifest V3, `activeTab`, no remote code | Chrome Web Store policy | Platform rule |
+| WhatsApp: sandbox only, forward-only, fetch media within 5 minutes | Meta developer rules | Platform rule |
+| Uploads capped at 50 MB | AWS free tier | Budget |
 
 ---
 
@@ -90,12 +90,12 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 
 | Who | Wants | Worries about | Conflicts |
 |---|---|---|---|
-| **Sarah** (journalist) | Fast, explainable results; shareable PDF | Being unable to defend a result | C-02, C-04, C-06, C-07, C-11 |
-| **Alex** (moderator) | One-click actions, quick decisions | Queue speed, false positives | C-03, C-04, C-05, C-07 |
-| **Priya** (everyday user) | Easy WhatsApp / browser checks | Her media being kept or shared | C-01, C-02, C-08, C-09, C-12 |
-| **Dr. Chen** (ML engineer) | Good models, feedback data, tuning | Compressed media, weak accuracy | C-01, C-06, C-13, C-14 |
-| **Marcus** (infra) | Safe uploads, stable system | Cost, limits, complexity | C-12, C-14 |
-| **Advocate Mehta** (legal) | Consent, deletion, disclaimers | Liability, wrong claims | C-01–C-04, C-07–C-11, C-13 |
+| **Journalist** | Fast, explainable results; shareable PDF | Being unable to defend a result | C-02, C-04, C-06, C-07, C-11 |
+| **Moderator** | One-click actions, quick decisions | Queue speed, false positives | C-03, C-04, C-05, C-07 |
+| **Everyday user** | Easy WhatsApp / browser checks | Their media being kept or shared | C-01, C-02, C-08, C-09, C-12 |
+| **ML engineer** | Good models, feedback data, tuning | Compressed media, weak accuracy | C-01, C-06, C-13, C-14 |
+| **Infrastructure engineer** | Safe uploads, stable system | Cost, limits, complexity | C-12, C-14 |
+| **Legal officer** | Consent, deletion, disclaimers | Liability, wrong claims | C-01–C-04, C-07–C-11, C-13 |
 | Dataset providers | Licence followed, credit given | Commercial use | C-13, C-14 |
 | Chrome Web Store / Meta | Their policies followed | Over-broad access, spam | C-08, C-09 |
 | Course instructor | Prototype scope, all deliverables | Over-ambitious plan | C-14, C-15, C-17 |
@@ -148,25 +148,25 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 
 ### C-01 - Delete media now vs. feedback and PDF evidence
 - **Clash:** US-NFR-08/09 say the file is gone as soon as the result is ready. US-FR-21 (feedback for retraining) and US-FR-17 (PDF with image crops) seem to need it.
-- **Who/where:** Priya, Mehta (EPIC-10) vs. Dr. Chen, Alex, Sarah (EPIC-05, EPIC-03).
+- **Who/where:** Everyday user, legal officer (EPIC-10) vs. ML engineer, moderator, journalist (EPIC-05, EPIC-03).
 - **Decision:** Delete the file, keep only small non-personal data: task ID, model version, thumbs up/down, optional comment. Build the PDF *before* deleting; the crops live only inside the PDF the user downloads. No retraining on user media in this project.
 - **Rule:** R1, R2 · **Stories:** US-FR-21, US-FR-17, US-NFR-08 · **Status:** Resolved
 
 ### C-02 - Share links last days vs. 24h deletion and "private"
 - **Clash:** US-FR-18 allows 7-day links. US-NFR-08/11 say nothing stays past 24 hours and results stay private. US-FR-33 says erase on request.
-- **Who/where:** Sarah (EPIC-04) vs. Mehta, Priya (EPIC-10, EPIC-06).
+- **Who/where:** Journalist (EPIC-04) vs. legal officer, everyday user (EPIC-10, EPIC-06).
 - **Decision:** A link opens a read-only **report** (score, reason, heatmap image), never the original file. Random token, optional password, expiry 2h/24h/7 days, creator can revoke, report is deleted at expiry, erasure requests kill the links too. Pages carry `noindex`.
 - **Rule:** R1, R6 · **Stories:** US-FR-18, US-FR-33 · **Status:** Resolved
 
 ### C-03 - Moderation queue holds items vs. "private utility"
 - **Clash:** A shared queue (US-FR-20, 22) looks like a shared content store, which US-NFR-11 forbids so we don't count as a social platform under IT Rules 2021.
-- **Who/where:** Alex (EPIC-05) vs. Mehta (EPIC-10).
+- **Who/where:** Moderator (EPIC-05) vs. legal officer (EPIC-10).
 - **Decision:** The queue holds **job info only** (job ID, score, status, notes), never media. Moderator login required. Entries expire in 24h. Since we don't own a real platform, the action buttons are **simulated**: they log the action and show a confirmation.
 - **Rule:** R1, R4 · **Stories:** US-FR-20, US-FR-22, US-NFR-11 · **Status:** Resolved
 
 ### C-04 - Fast takedown vs. "never a bare verdict, humans decide"
 - **Clash:** Moderators have 30–60 seconds per ticket and like clear answers. Legal and journalists want likelihoods only, with a human in charge.
-- **Who/where:** Alex (EPIC-05) vs. Mehta, Sarah (EPIC-03, EPIC-06).
+- **Who/where:** Moderator (EPIC-05) vs. legal officer, journalist (EPIC-03, EPIC-06).
 - **Decision:** The tool never acts alone; every action is a human click. Results always show score + reason + disclaimer, plus a green/amber/red band so they read in seconds. On an Inconclusive result the Takedown button is off; the moderator escalates or overrides with a written reason.
 - **Rule:** R1, R5, R6 · **Stories:** US-FR-20, US-FR-13 · **Status:** Resolved
 
@@ -177,7 +177,7 @@ Conflicts get solved *around* these. If a story clashes with one of them, the st
 
 ### C-06 - Fast results vs. explanation and accuracy
 - **Clash:** Speed targets (US-NFR-01) vs. heatmaps and full scans (US-FR-12, US-FR-14).
-- **Who/where:** Sarah, Alex (EPIC-08) vs. Dr. Chen (EPIC-02, EPIC-03).
+- **Who/where:** Journalist, moderator (EPIC-08) vs. ML engineer (EPIC-02, EPIC-03).
 - **Decision:** Keep two modes: Rapid Triage and Deep Scan. The score shows first; the heatmap and detail load after. Triage is labelled "Quick check - not final". Time targets are goals; we measure on our hardware and report honestly.
 - **Rule:** R4, R6 · **Stories:** US-FR-14, US-FR-12, US-NFR-01 · **Status:** Resolved
 
@@ -357,6 +357,17 @@ Sprint 1 also carries a few zero-point tasks: repo and Slack setup, LICENSE file
 - Choose who owns the single "uncertain band" value (C-05).
 - Agree on the sandbox label wording for the WhatsApp bot (C-08).
 - When the general-public survey and the media-subject ethics session finish, run any new stories through Section 4.
+
+---
+
+## 13. Viva in 30 Seconds
+
+- **What's a conflict?** Two stories (or two people) that can't both be built as written.
+- **How did we find them?** Compared every epic and persona against each other, checked stories against the fixed rules, and checked the numbers and sprint order.
+- **How did we decide?** Six simple rules: law first, privacy over extras, must-have first, keep it simple, user decides, middle path.
+- **Biggest example?** Share links. Journalists want links that last days, but privacy says delete in 24 hours. We share only the report, never the original file.
+- **What changed?** 49 stories became 42, points went from 199 to 163, and the sprints were rebalanced to 46 / 47 / 38 / 32.
+- **What did we drop?** Auto-scaling, and we shrank the company-style infra stories to student-sized versions.
 
 ---
 *End of Task 6 document.*
