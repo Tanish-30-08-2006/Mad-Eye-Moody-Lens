@@ -3,7 +3,7 @@
 **Project:** Deepfake Detection Web App (academic, non-commercial prototype in India)
 
 **Scope:** WildRF images only; this report does not evaluate video or audio.
-**Evidence base:** Saved outputs in [`analysis/WildRF_Preliminary_EDA.ipynb`](analysis/WildRF_Preliminary_EDA.ipynb), inspected on 30 September 2026; authors' paper, project page, repository README, and repository license. The notebook was run in Google Colab by the user. I analyzed its saved outputs; I did not independently rerun the 6.4 GB dataset. The `results.zip` detail files and contact sheets were not present in this repository at report time.
+**Evidence base:** Saved outputs in [`analysis/WildRF_Preliminary_EDA.ipynb`](analysis/WildRF_Preliminary_EDA.ipynb), inspected on 30 September 2026; authors' paper, project page, repository README, and repository license. The notebook was run in Google Colab by us. I analyzed its saved outputs (did not independently rerun the 6.4 GB dataset). The `results.zip` detail files and contact sheets were not present in this repository at report time.
 
 ## Executive assessment
 
