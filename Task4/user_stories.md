@@ -1,28 +1,29 @@
 # Mad-Eye Moody Lens: Deepfake Detection Platform
-## Comprehensive Agile Requirements Specification: User Stories & Acceptance Criteria
+## Agile User Stories Specification
 **Document Version:** 1.0.0  
 **Project:** DA-IICT IT314 Software Engineering Course Project  
 **Repository:** [Mad-Eye-Moody-Lens](https://github.com/Tanish-30-08-2006/Mad-Eye-Moody-Lens)  
-**Standard:** Google Engineering Requirements & Agile User Story Framework  
-**Traceability:** Mapped directly to Task 3 Requirements (FR-1 to FR-34, NFR-1 to NFR-25, DR-1 to DR-17)
+**Standard:** Agile Alliance / Scrum User Story Framework (INVEST Criteria)  
+**Parent Epics Document:** [epics.md](./epics.md)  
+**Traceability:** Mapped 1:1 to Task 3 Requirements (FR-1 to FR-34, NFR-1 to NFR-25, DR-1 to DR-17)
 
 ---
 
-## 1. Stakeholder & Persona Taxonomy
+## Overview
 
-To ensure user stories are rooted in authentic user needs and operational contexts, the system defines six distinct primary and secondary personas derived from the Task 2 elicitation interviews and technical analyses:
+This document serves as the **dedicated, granular Agile User Stories catalog** for the *Mad-Eye Moody Lens* platform. Every user story encapsulates a discrete vertical slice of system value authored from the perspective of an authenticated or public persona, accompanied by priority ratings, Fibonacci story point estimates, and rigorous Gherkin () acceptance criteria.
 
-| Persona Name | Role / Title | Primary Goals & Context |
-|---|---|---|
-| **Sarah (The Fact-Checker)** | Investigative Journalist / Newsroom Fact-Checker | Needs rapid verification (<60s triage) during breaking news, interpretable forensic visual heatmaps, frame-by-frame scrutiny, and certified PDF evidence reports to protect editorial integrity. |
-| **Alex (The Trust & Safety Lead)** | Social Media Platform Moderator | Manages high-throughput queues, needs inline one-click moderation actions (demote, label, remove), false-positive reduction on compressed UGC, and audit-logged manual override workflows. |
-| **Priya (The Everyday Citizen)** | General Public / WhatsApp & Social Media Consumer | Receives suspicious viral forwards on messaging apps; requires frictionless browser/WhatsApp verification, simple non-jargon explanations, and strict privacy assurances. |
-| **Dr. Chen (The ML Detection Engineer)** | Applied AI / Computer Vision Specialist | Focuses on multi-modal model inference (RetinaFace, Xception, ASVspoof LFCC/CQCC), threshold calibration (FAR vs. FRR), demographic fairness, and modular zero-downtime hot-swapping. |
-| **Marcus (The Infrastructure / SRE Lead)** | Full-Stack & Cloud Systems Architect | Enforces async event-driven task distribution, AWS S3 pre-signed uploads, zero-trust ephemeral storage lifecycle (24h deletion), OWASP security, and burst traffic autoscaling. |
-| **Advocate Mehta (The Compliance & Legal Officer)** | Privacy, Regulatory & Ethics Counsel | Guarantees compliance with India's DPDPA 2023, EU AI Act, GDPR Art. 9/17/22, BNS 2023 defamation safeguards, CC BY 4.0 licensing, and mandatory academic liability watermarks. |
+For high-level business goals, architectural boundaries, and scope constraints, see [epics.md](./epics.md). For sprint task execution and backlog breakdowns, refer to Task 5 Sprint Planning.
+
+### Persona Key
+- **Sarah:** Investigative Journalist / Newsroom Fact-Checker (Accuracy, triage speed, evidence PDF)
+- **Alex:** Social Media Trust & Safety Moderator (Queue throughput, low false positives, dispute overrides)
+- **Priya:** Everyday Citizen / Public User (WhatsApp forwards, privacy, simple non-jargon explanations)
+- **Dr. Chen:** ML / Computer Vision Specialist (Multi-modal models, preprocessing, threshold calibration)
+- **Marcus:** SRE & Cloud Architect (Async queue, OWASP upload safety, 24h zero-retention storage)
+- **Advocate Mehta:** Legal, Privacy & Compliance Officer (DPDPA 2023, EU AI Act, BNS 2023, CC BY 4.0)
 
 ---
-
 ## 2. Functional User Stories (FR-1 through FR-34)
 
 ### Epic 1: Secure Media Ingestion & Multi-Channel Upload (FR-1 to FR-6)
@@ -678,109 +679,3 @@ In accordance with enterprise agile software engineering practices, non-function
 
 ---
 
-## 4. Traceability & Coverage Matrix
-
-The following matrix provides comprehensive bi-directional traceability between Task 3 Requirements and the formalized User Stories:
-
-| Requirement Category | Task 3 Requirement ID | User Story ID | Persona / Stakeholder | Priority | Sprint Estimate |
-|---|---|---|---|---|---|
-| **Media Ingestion** | FR-1 | `US-FR-01` | Sarah / Priya | P0 | 3 pts |
-| | FR-2 | `US-FR-02` | Priya | P0 | 2 pts |
-| | FR-3 | `US-FR-03` | Marcus | P0 | 5 pts |
-| | FR-4 | `US-FR-04` | Marcus | P0 | 3 pts |
-| | FR-5 | `US-FR-05` | Marcus / Full-Stack | P0 | 5 pts |
-| | FR-6, DR-14, DR-15 | `US-FR-06`, `US-NFR-16` | Priya / Integration Dev | P1 | 8 pts + 3 pts |
-| **Detection Engine** | FR-7 | `US-FR-07` | Dr. Chen | P0 | 5 pts |
-| | FR-8 | `US-FR-08` | Dr. Chen | P0 | 5 pts |
-| | FR-9 | `US-FR-09` | Dr. Chen | P0 | 5 pts |
-| | FR-10 | `US-FR-10` | Sarah / Marcus | P0 | 5 pts |
-| | FR-11 | `US-FR-11` | Sarah / Alex | P1 | 5 pts |
-| | FR-12 | `US-FR-12` | Sarah | P0 | 5 pts |
-| | FR-29 | `US-FR-29` | Sarah / Dr. Chen | P0 | 3 pts |
-| | FR-31 | `US-FR-31` | Dr. Chen | P1 | 5 pts |
-| **Explainability (XAI)** | FR-13, DR-2 | `US-FR-13` | Sarah / Alex | P0 | 5 pts |
-| | FR-14 | `US-FR-14` | Sarah | P0 | 8 pts |
-| | FR-15 | `US-FR-15` | Alex | P1 | 5 pts |
-| | FR-16 | `US-FR-16` | Sarah / Priya | P0 | 3 pts |
-| | FR-17, DR-8 | `US-FR-17` | Sarah / Adv. Mehta | P0 | 5 pts |
-| | FR-30 | `US-FR-30` | Sarah | P1 | 5 pts |
-| **Sharing & Collab** | FR-18, NFR-10 | `US-FR-18` | Sarah | P1 | 3 pts |
-| | FR-19 | `US-FR-19` | Priya | P2 | 2 pts |
-| **Moderation Queue** | FR-20 | `US-FR-20` | Alex | P0 | 5 pts |
-| | FR-21 | `US-FR-21` | Alex / Dr. Chen | P1 | 3 pts |
-| | FR-22 | `US-FR-22` | Alex | P1 | 5 pts |
-| | FR-23 | `US-FR-23` | Sarah / Alex | P1 | 5 pts |
-| **Consent & Governance**| FR-24, FR-32, DR-6 | `US-FR-24` | Priya / Adv. Mehta | P0 | 3 pts |
-| | FR-25 | `US-FR-25` | Adv. Mehta | P0 | 2 pts |
-| | FR-26 | `US-FR-26` | Priya | P1 | 3 pts |
-| | FR-27, DR-4 | `US-FR-27` | Adv. Mehta / Dataset | P1 | 1 pt |
-| | FR-33, DR-13 | `US-FR-33` | Priya / Adv. Mehta | P1 | 3 pts |
-| | FR-34, DR-11 | `US-FR-34` | Adv. Mehta | P0 | 2 pts |
-| **Browser Extension** | FR-28, NFR-23 | `US-FR-28`, `US-NFR-14` | Priya / Sarah | P1 | 8 pts + 3 pts |
-| **Performance & Scale** | NFR-1, NFR-2 | `US-NFR-01` | Marcus | P0 | 5 pts |
-| | NFR-3, NFR-22 | `US-NFR-02` | Marcus | P1 | 5 pts |
-| | NFR-21, NFR-25 | `US-NFR-03` | Marcus | P1 | 5 pts |
-| **Robustness & Ethics** | NFR-4, NFR-5 | `US-NFR-04` | Dr. Chen | P0 | 8 pts |
-| | NFR-6 | `US-NFR-05` | Dr. Chen | P1 | 5 pts |
-| | DR-17 | `US-NFR-06` | Adv. Mehta / Dr. Chen | P1 | 5 pts |
-| **Security & Privacy** | NFR-7 | `US-NFR-07` | Marcus | P0 | 3 pts |
-| | NFR-8, NFR-9 | Covered in `US-FR-03`, `US-FR-04`, `US-FR-05` | Marcus | P0 | — |
-| | NFR-11, DR-13 | `US-NFR-08` | Priya / Adv. Mehta | P0 | 3 pts |
-| | NFR-12, DR-12 | `US-NFR-09` | Priya / Adv. Mehta | P0 | 2 pts |
-| | NFR-13, DR-5, DR-10 | `US-NFR-10` | Adv. Mehta | P0 | 3 pts |
-| | NFR-14, DR-7 | `US-NFR-11` | Adv. Mehta | P0 | 3 pts |
-| **Observability & Usability** | NFR-15, NFR-16, DR-9 | `US-NFR-12` | Sarah / Priya | P0 | 2 pts |
-| | NFR-17 | Embedded in `US-NFR-04` | Dr. Chen | P0 | — |
-| | NFR-18, DR-3 | `US-NFR-13` | Adv. Mehta | P0 | 1 pt |
-| | NFR-19, DR-8 | Embedded in `US-FR-17` | Adv. Mehta | P0 | — |
-| | NFR-20 | Embedded in `US-FR-24`, `US-FR-33`, `US-NFR-10` | Adv. Mehta | P0 | — |
-| | NFR-24 | `US-NFR-15` | Marcus | P1 | 3 pts |
-
----
-
-## 5. Agile Scrum Release & Sprint Planning (Roadmap)
-
-To guide practical execution within the course semester, the stories are partitioned across four iterative two-week sprints:
-
-```mermaid
-gantt
-    title Mad-Eye Moody Lens Sprint Roadmap
-    dateFormat  YYYY-MM-DD
-    section Sprint 1: Foundation & Pipeline
-    Media Ingestion (US-FR-01 to 05)     :active, s1_1, 2026-10-01, 7d
-    Core Models & Audio (US-FR-07 to 09) :active, s1_2, 2026-10-04, 10d
-    Security & Privacy (US-NFR-07 to 11) :active, s1_3, 2026-10-06, 8d
-    section Sprint 2: Async & Detection
-    Async Queue & SSE (US-FR-10 to 12)   :s2_1, 2026-10-15, 8d
-    XAI & Timeline Heatmaps (US-FR-13, 14):s2_2, 2026-10-18, 10d
-    Taxonomy & Inconclusive (US-FR-15, 16):s2_3, 2026-10-22, 6d
-    section Sprint 3: Governance & Moderation
-    Legal Consent & Attestation (US-FR-24, 32, 34):s3_1, 2026-10-29, 6d
-    PDF Evidence Watermark (US-FR-17, 30):s3_2, 2026-11-02, 7d
-    Moderation Console (US-FR-20 to 23)  :s3_3, 2026-11-05, 8d
-    section Sprint 4: Extensions & Polish
-    Browser Extension (US-FR-28, NFR-14) :s4_1, 2026-11-12, 9d
-    WhatsApp Cloud Bot (US-FR-06, NFR-16):s4_2, 2026-11-15, 8d
-    Telemetry, Tuning & Fairness (US-FR-31, NFR-06, 15):s4_3, 2026-11-18, 7d
-```
-
-### Sprint Distribution Breakdown
-- **Sprint 1 (Weeks 1–2): Core Ingestion & Security Foundation**
-  - *Focus:* OWASP secure upload pipeline (magic numbers, UUIDv4, pre-signed S3), RetinaFace & ASVspoof preprocessing baseline, zero-trust 24h ephemeral lifecycle.
-  - *Delivered Stories:* US-FR-01, US-FR-02, US-FR-03, US-FR-04, US-FR-05, US-FR-07, US-FR-08, US-FR-09, US-NFR-07, US-NFR-08, US-NFR-09, US-NFR-10, US-NFR-11.
-  - *Sprint Commitment:* 42 Story Points.
-- **Sprint 2 (Weeks 3–4): Asynchronous Engine & Explainable AI (XAI)**
-  - *Focus:* Celery/Redis task distribution, Server-Sent Events progress reporting, dual-tier triage scanning, Grad-CAM saliency heatmaps, video timeline scrubbers, inconclusive fallback logic.
-  - *Delivered Stories:* US-FR-10, US-FR-11, US-FR-12, US-FR-13, US-FR-14, US-FR-15, US-FR-16, US-FR-29, US-NFR-01, US-NFR-02, US-NFR-04.
-  - *Sprint Commitment:* 52 Story Points.
-- **Sprint 3 (Weeks 5–6): Legal Compliance, PDF Evidence & Moderation Console**
-  - *Focus:* DPDPA multilingual consent, anti-NCII attestations, BNS 2023 watermarked PDF reports, metadata inspection, moderation queue integration and dispute override loops.
-  - *Delivered Stories:* US-FR-17, US-FR-18, US-FR-20, US-FR-21, US-FR-22, US-FR-23, US-FR-24, US-FR-25, US-FR-26, US-FR-27, US-FR-30, US-FR-32, US-FR-33, US-FR-34, US-NFR-12, US-NFR-13.
-  - *Sprint Commitment:* 46 Story Points.
-- **Sprint 4 (Weeks 7–8): Multi-Channel Integrations, Edge Extensions & Production Hardening**
-  - *Focus:* Chrome Extension (Manifest V3 DOM overlay), WhatsApp Business API sandbox integration, admin threshold calibration, demographic fairness auditing, Prometheus telemetry.
-  - *Delivered Stories:* US-FR-06, US-FR-19, US-FR-28, US-FR-31, US-NFR-03, US-NFR-05, US-NFR-06, US-NFR-14, US-NFR-15, US-NFR-16.
-  - *Sprint Commitment:* 44 Story Points.
-
----
-*End of Agile Requirements Specification — Mad-Eye Moody Lens*
