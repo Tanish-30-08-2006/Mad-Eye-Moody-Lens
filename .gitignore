@@ -1,0 +1,49 @@
+# Environment
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node / Frontend
+node_modules/
+dist/
+.npm
+.eslintcache
+
+# Media & Temp files
+*.tmp
+*.temp
+temp/
+uploads/
+frames/
+*.log
+
+# Checkpoints / weights (large binary files)
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.onnx
+*.bin
+*.ckpt
+vendor/
+models_weights/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
