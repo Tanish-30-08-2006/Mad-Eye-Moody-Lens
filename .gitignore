@@ -1,0 +1,68 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Python
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+
+# Node and Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/.turbo/
+**/dist/
+**/coverage/
+
+# Model checkpoints and weights
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.engine
+*.tflite
+*.pb
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+
+# Detection Studio generated data
+/detection-studio/artifacts/
+/detection-studio/checkpoints/
+/detection-studio/datasets/
+/detection-studio/data/
+/detection-studio/uploads/
+/detection-studio/outputs/
+/detection-studio/cache/
+
+# Model weight directories
+/detection-studio/models/*/weights/*
+!/detection-studio/models/*/weights/.gitkeep
+
+# Upstream research source
+/detection-studio/third_party/*
+!/detection-studio/third_party/README.md
+
+# Logs and local editor files
+**/*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

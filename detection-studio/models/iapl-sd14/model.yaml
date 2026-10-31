@@ -1,0 +1,41 @@
+id: iapl-sd14
+name: IAPL — Stable Diffusion 1.4
+short_name: IAPL
+version: sd14-official
+task: ai_generated_image
+description: Image-Adaptive Prompt Learning detector using the released Stable Diffusion 1.4 / GenImage checkpoint.
+enabled: true
+implemented: true
+
+# Adapter files live inside this folder. Add a model by adding another folder
+# with its own model.yaml and adapter.py:Detector.
+adapter: adapter.py:Detector
+
+# Paths are relative to this model folder. Shared files live in models/_shared/.
+artifacts:
+  repository: ../../third_party/IAPL
+  checkpoint: weights/checkpoint_best_acc_sd14.pth
+  clip: ../_shared/clip/ViT-L-14.pt
+required_artifacts: [repository, checkpoint, clip]
+
+# Keep the paper's standard GenImage TTA settings for reproducible inference.
+# Reducing these values changes the inference procedure and should be benchmarked separately.
+settings:
+  device: auto
+  cpu_threads: 6
+  tta_steps: 2
+  selection_fraction: 0.20
+  n_views: 31
+  image_size: 224
+  resize_size: 256
+  learning_rate: 0.005
+
+score_semantics: Raw sigmoid output from the IAPL detector; not a calibrated real-world probability.
+positive_label: Likely AI-generated
+negative_label: Likely real
+
+paper_title: Towards Generalizable AI-Generated Image Detection via Image-Adaptive Prompt Learning
+paper_url: https://openaccess.thecvf.com/content/CVPR2026/papers/Li_Towards_Generalizable_AI-Generated_Image_Detection_via_Image-Adaptive_Prompt_Learning_CVPR_2026_paper.pdf
+code_url: https://github.com/liyih/IAPL
+weights_url: https://www.modelscope.cn/models/yihengli/IAPL_pretrain
+license_note: Check the upstream code and checkpoint terms before redistribution or commercial use.

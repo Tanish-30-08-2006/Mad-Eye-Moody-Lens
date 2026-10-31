@@ -1,0 +1,71 @@
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Python environments, bytecode and test caches
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node.js / Next.js build output
+node_modules/
+.next/
+out/
+.turbo/
+dist/
+coverage/
+
+# Model weights, checkpoints, datasets and generated artifacts
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.tflite
+*.pb
+*.msgpack
+*.onnx
+*.engine
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.tar
+*.zip
+models/*/weights/*
+!models/*/weights/.gitkeep
+artifacts/
+checkpoints/
+datasets/
+data/
+uploads/
+outputs/
+cache/
+
+# Local logs and OS/editor files
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Upstream research repositories are cloned separately; don't vendor them here.
+third_party/*
+!third_party/README.md

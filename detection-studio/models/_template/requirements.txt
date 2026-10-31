@@ -1,0 +1,2 @@
+# List only this detector's additional Python packages here.
+# Install them into the project's .venv, unless the model needs an isolated runtime.
