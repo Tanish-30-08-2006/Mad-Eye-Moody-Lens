@@ -1,0 +1,21 @@
+# Keep private weights, datasets, generated results and local credentials out of Git
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.engine
+.env
+.env.*
+!.env.example
+**/credentials*.json
+**/token*.txt
+**/service-account*.json
+
+# Local outputs and caches
+__pycache__/
+.ipynb_checkpoints/
+*.log
+outputs/
+cache/
+uploads/
