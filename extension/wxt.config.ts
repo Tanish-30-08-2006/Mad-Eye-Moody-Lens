@@ -6,7 +6,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   runner: {
     binaries: {
-      chrome: '/usr/bin/google-chrome',
+      chrome: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     },
   },
   manifest: {
