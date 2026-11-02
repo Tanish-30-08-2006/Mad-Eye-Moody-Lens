@@ -1,0 +1,216 @@
+/**
+ * ui/styles.css – Scoped CSS rules for Moody Lens button and popover.
+ *
+ * Injected into shadow roots to ensure full encapsulation and zero bleed.
+ */
+
+:host {
+  all: initial;
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  color: #1a1a1b;
+  box-sizing: border-box;
+}
+
+/* ── Lens Button ─────────────────────────────────────────────────────────── */
+
+.moody-lens-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f6f7f8;
+  border: 1px solid #d3d6da;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1c1c1c;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+}
+
+.moody-lens-btn:hover {
+  background-color: #eaedef;
+  border-color: #878a8c;
+}
+
+.moody-lens-btn:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
+.moody-lens-btn-icon {
+  font-size: 13px;
+}
+
+/* ── Verdict Popover ─────────────────────────────────────────────────────── */
+
+.moody-lens-popover {
+  position: fixed;
+  z-index: 2147483647;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 14px;
+}
+
+.moody-lens-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.moody-lens-popover-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  color: #2d3748;
+}
+
+.moody-lens-popover-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: #a0aec0;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.moody-lens-popover-close:hover {
+  color: #4a5568;
+}
+
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+
+.moody-lens-spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 0;
+}
+
+.moody-lens-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #3182ce;
+  border-radius: 50%;
+  animation: moody-lens-spin 0.8s linear infinite;
+}
+
+@keyframes moody-lens-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.moody-lens-spinner-text {
+  font-size: 12px;
+  color: #718096;
+}
+
+/* ── Gauge ───────────────────────────────────────────────────────────────── */
+
+.moody-lens-gauge {
+  margin: 12px 0;
+}
+
+.moody-lens-gauge-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.moody-lens-gauge-track {
+  width: 100%;
+  height: 8px;
+  background-color: #edf2f7;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.moody-lens-gauge-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.gauge-real {
+  background-color: #38a169;
+  color: #38a169;
+}
+
+.gauge-inconclusive {
+  background-color: #d69e2e;
+  color: #d69e2e;
+}
+
+.gauge-fake {
+  background-color: #e53e3e;
+  color: #e53e3e;
+}
+
+/* ── Badges & Breakdown ──────────────────────────────────────────────────── */
+
+.moody-lens-verdict-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.moody-lens-verdict-badge.label-likely_real {
+  background-color: #c6f6d5;
+  color: #22543d;
+}
+
+.moody-lens-verdict-badge.label-likely_fake {
+  background-color: #fed7d7;
+  color: #742a2a;
+}
+
+.moody-lens-verdict-badge.label-inconclusive {
+  background-color: #fefcbf;
+  color: #744210;
+}
+
+.moody-lens-model-breakdown {
+  margin-top: 10px;
+  border-top: 1px solid #edf2f7;
+  padding-top: 8px;
+}
+
+.moody-lens-breakdown-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a5568;
+  margin: 0 0 6px 0;
+}
+
+.moody-lens-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 2px 0;
+  color: #718096;
+}
+
+.moody-lens-disclaimer {
+  margin-top: 12px;
+  font-size: 10px;
+  color: #a0aec0;
+  line-height: 1.3;
+}
