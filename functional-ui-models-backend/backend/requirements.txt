@@ -1,0 +1,33 @@
+# Runtime dependencies for the API and the workers (one image, see Dockerfile).
+# PyTorch is installed separately from the CPU wheel index (no GPU, design doc Section 9).
+
+# --- API
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+gunicorn>=22,<24
+python-multipart>=0.0.9
+pydantic>=2.7,<3
+pydantic-settings>=2.4,<3
+structlog>=24.1
+prometheus-client>=0.20
+filetype>=1.2
+
+# --- persistence and queueing
+sqlalchemy>=2.0.30,<2.1
+psycopg[binary]>=3.2,<4
+alembic>=1.13,<2
+celery[redis]>=5.4,<6
+redis>=5.0,<6
+
+# --- media and models (workers)
+pillow>=10.4
+numpy>=1.26,<3
+soundfile>=0.12
+librosa>=0.10.2
+opencv-python-headless>=4.10,<5   # 5.x no longer ships the Haar cascades
+transformers>=4.44,<5
+huggingface-hub>=0.24
+torchvision>=0.18                 # installed with torch from the CPU index
+
+# --- optional: S3 / MinIO upload store (MML_STORAGE_BACKEND=s3)
+boto3>=1.34
