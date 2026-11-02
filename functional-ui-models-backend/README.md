@@ -1,6 +1,6 @@
 # Mad-Eye Moody Lens
 
-Mad-Eye Moody Lens is the IT314 project at DA-IICT. It gives a probabilistic estimate of whether an image, a voice clip or a video is AI-generated or manipulated. It uses three pretrained detectors and shows Grad-CAM heatmaps for the face model.
+This is the Sprint 2 build of Mad-Eye Moody Lens: the production backend, the frontend integration and the local dev setup around three pretrained detectors. It gives a probabilistic estimate of whether an image, a voice clip or a video is AI-generated or manipulated.
 
 | Media | Model | What it checks |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ Install the system tools once, then let the launcher set up everything else:
 
 ```bash
 brew install python@3.12 redis ffmpeg node
-cd mad-eye-moody-lens
+cd Mad-Eye-Moody-Lens/functional-ui-models-backend
 chmod +x dev.sh
 ./dev.sh setup        # backend/.venv, Python + npm packages, backend/.env, SQLite database
 ```
@@ -77,8 +77,6 @@ Frontend:
 ```bash
 cd frontend && npm ci && npm run dev
 ```
-
-See [`CLAUDE.md`](CLAUDE.md) for the architecture rules, the API contract and the privacy rules. The full design is in the *Production Backend Design* doc.
 
 ## Licences
 
