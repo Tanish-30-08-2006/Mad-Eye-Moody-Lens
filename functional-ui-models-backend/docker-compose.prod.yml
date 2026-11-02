@@ -1,0 +1,122 @@
+# Mad-Eye Moody Lens — laptop demo stack (8 GB RAM, CPU only). Design doc Section 11.
+#
+#   cp .env.example .env
+#   docker compose -f docker-compose.prod.yml run --rm -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 \
+#       worker-fast python -m scripts.download_models        # once, needs internet
+#   docker compose -f docker-compose.prod.yml up -d
+#   open http://localhost:8080   (wait for /api/v1/ready = 200)
+#
+# Memory limits follow the budget in the design doc (≈ 5.2 GB total).
+
+x-backend: &backend
+  build: ./backend
+  image: mml-backend:latest
+  env_file: .env
+  restart: unless-stopped
+  read_only: true                       # writable paths are the volumes + tmpfs below
+  tmpfs:
+    - /tmp:size=1g
+  volumes:
+    - uploads:/data/uploads              # shared upload store (MML_STORAGE_BACKEND=local)
+    - models:/models                     # HF + torch caches, filled by download_models
+  security_opt:
+    - no-new-privileges:true
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  proxy:
+    build: ./frontend
+    image: mml-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"              # laptop only: not reachable from the network
+    depends_on: [api]
+    mem_limit: 64m
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    mem_limit: 256m
+
+  api:
+    <<: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    mem_limit: 512m
+
+  worker-fast:
+    <<: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "-Q", "inference.fast",
+              "--concurrency=1", "--loglevel=INFO", "-n", "fast@%h"]
+    environment:
+      MML_WORKER_QUEUES: inference.fast
+    mem_limit: 2560m
+
+  worker-video:
+    <<: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "-Q", "inference.video,maintenance",
+              "--concurrency=1", "--loglevel=INFO", "-n", "video@%h"]
+    environment:
+      MML_WORKER_QUEUES: inference.video,maintenance
+    mem_limit: 1792m
+
+  beat:
+    <<: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=INFO",
+              "--schedule", "/tmp/celerybeat-schedule"]
+    mem_limit: 128m
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mml
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mml}
+      POSTGRES_DB: mml
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mml"]
+      interval: 5s
+      retries: 10
+    mem_limit: 256m
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "96mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    mem_limit: 128m
+
+volumes:
+  uploads:
+  models:
+  pgdata:
+  redisdata:
