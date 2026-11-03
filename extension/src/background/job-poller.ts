@@ -1,13 +1,14 @@
 /**
- * background/job-poller.ts – Polling mechanism for asynchronous backend detection jobs.
+ * background/job-poller.ts – Polling mechanism with exponential backoff and session checkpointing.
  *
- * Polls GET /api/v1/jobs/{id} with exponential backoff until the job
- * reaches a terminal status (completed or failed).
- *
- * TODO: Implement backoff loop and timeout controls in Phase 3.
+ * Repeatedly queries GET /api/v1/jobs/{id} with exponential backoff until
+ * a terminal state (completed or failed) is reached.
+ * Checkpoints current polling state into chrome.storage.session at every step.
  */
 
 import { createLogger } from '../core/logger';
+import { getJobStatus } from '../core/api-client';
+import { saveInFlightJob, clearInFlightJob } from './keepalive';
 import type { DetectionJob } from '../core/schema';
 
 const log = createLogger('job-poller');
@@ -17,26 +18,102 @@ export interface PollerOptions {
   maxDelayMs?: number;
   backoffFactor?: number;
   timeoutMs?: number;
+  postId?: string;
+  mediaType?: string;
+  abortSignal?: AbortSignal;
 }
 
-const DEFAULT_OPTIONS: Required<PollerOptions> = {
+export const DEFAULT_POLLER_OPTIONS: Required<Omit<PollerOptions, 'postId' | 'mediaType' | 'abortSignal'>> = {
   initialDelayMs: 1000,
-  maxDelayMs: 4000,
+  maxDelayMs: 8000,
   backoffFactor: 1.5,
   timeoutMs: 60000,
 };
 
+export class PollerError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'TIMEOUT' | 'ABORTED' | 'FAILED',
+    public readonly job?: DetectionJob,
+  ) {
+    super(message);
+    this.name = 'PollerError';
+  }
+}
+
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new PollerError('Polling aborted by caller', 'ABORTED'));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(new PollerError('Polling aborted by caller', 'ABORTED'));
+      },
+      { once: true },
+    );
+  });
+}
+
 /**
- * Poll for job completion with exponential backoff.
- * TODO: Implement in Phase 3 with abort signals.
+ * Polls for job completion with exponential backoff and session checkpointing.
  */
 export async function pollJobUntilComplete(
   jobId: string,
-  _options?: PollerOptions,
+  options: PollerOptions = {},
 ): Promise<DetectionJob> {
-  log.info(`pollJobUntilComplete started for job: ${jobId} (stub)`);
-  log.debug('Polling defaults:', DEFAULT_OPTIONS);
+  const initialDelayMs = options.initialDelayMs ?? DEFAULT_POLLER_OPTIONS.initialDelayMs;
+  const maxDelayMs = options.maxDelayMs ?? DEFAULT_POLLER_OPTIONS.maxDelayMs;
+  const backoffFactor = options.backoffFactor ?? DEFAULT_POLLER_OPTIONS.backoffFactor;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_POLLER_OPTIONS.timeoutMs;
+  const postId = options.postId || 'unknown_post';
+  const mediaType = options.mediaType || 'image';
 
-  // TODO: Phase 3 – Poll GET /api/v1/jobs/{id} with backoff until completed or failed
-  throw new Error('pollJobUntilComplete not implemented – Phase 3');
+  const startTime = Date.now();
+  let currentDelay = initialDelayMs;
+
+  log.info(`Started polling for job ${jobId} (timeout: ${timeoutMs}ms)`);
+
+  while (Date.now() - startTime < timeoutMs) {
+    if (options.abortSignal?.aborted) {
+      await clearInFlightJob(jobId);
+      throw new PollerError('Polling aborted', 'ABORTED');
+    }
+
+    // 1. Checkpoint state into session storage
+    await saveInFlightJob({
+      jobId,
+      postId,
+      mediaType,
+      startedAt: startTime,
+      lastPolledAt: Date.now(),
+      currentDelayMs: currentDelay,
+    });
+
+    // 2. Fetch current status
+    const job = await getJobStatus(jobId);
+
+    if (job.status === 'completed') {
+      log.info(`Job ${jobId} completed successfully (verdict: ${job.label})`);
+      await clearInFlightJob(jobId);
+      return job;
+    }
+
+    if (job.status === 'failed') {
+      log.warn(`Job ${jobId} failed with error: ${job.error}`);
+      await clearInFlightJob(jobId);
+      throw new PollerError(job.error || 'Job failed on backend', 'FAILED', job);
+    }
+
+    // 3. Sleep with backoff
+    await delay(currentDelay, options.abortSignal);
+    currentDelay = Math.min(Math.round(currentDelay * backoffFactor), maxDelayMs);
+  }
+
+  await clearInFlightJob(jobId);
+  throw new PollerError(`Job ${jobId} timed out after ${timeoutMs}ms`, 'TIMEOUT');
 }

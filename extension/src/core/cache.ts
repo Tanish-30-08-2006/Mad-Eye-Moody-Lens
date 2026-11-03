@@ -1,10 +1,8 @@
 /**
- * core/cache.ts – Result caching for scanned posts.
+ * core/cache.ts – Result caching for scanned media posts.
  *
- * Caches detection results by post ID and media hash to avoid redundant scans.
- * Uses chrome.storage.local for persistence across sessions.
- *
- * TODO: Implement cache eviction and size limits in Phase 7.
+ * Persists detection verdicts in chrome.storage.local keyed by postId and a media URL hash.
+ * Includes TTL expiration (default 1 hour) to ensure stale results are evicted.
  */
 
 import { createLogger } from './logger';
@@ -12,49 +10,113 @@ import type { DetectionJob } from './schema';
 
 const log = createLogger('cache');
 
-/** Cache entry with TTL metadata. */
+const CACHE_KEY_PREFIX = 'moody_cache:';
+export const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 export interface CacheEntry {
   jobId: string;
   postId: string;
+  mediaHash: string;
   result: DetectionJob;
   cachedAt: number;
   expiresAt: number;
 }
 
-/** Default cache TTL: 1 hour. */
-const DEFAULT_TTL_MS = 60 * 60 * 1000;
+/**
+ * Deterministic hash of a media URL string.
+ */
+export function hashUrl(url: string): string {
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    hash = (hash << 5) - hash + url.charCodeAt(i);
+    hash |= 0;
+  }
+  return (hash >>> 0).toString(16);
+}
 
 /**
- * Get a cached result for a post ID.
- * TODO: Implement in Phase 7.
+ * Generate a composite storage key for post and media URL.
+ */
+export function makeCacheKey(postId: string, mediaUrl: string): string {
+  return `${CACHE_KEY_PREFIX}${postId}:${hashUrl(mediaUrl)}`;
+}
+
+/**
+ * Retrieve cached detection result if present and unexpired.
  */
 export async function getCachedResult(
-  _postId: string,
+  postId: string,
+  mediaUrl: string,
 ): Promise<CacheEntry | null> {
-  log.debug('getCachedResult called (stub)');
-  // TODO: Read from chrome.storage.local in Phase 7
+  const key = makeCacheKey(postId, mediaUrl);
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const items = await chrome.storage.local.get(key);
+      const entry: CacheEntry | undefined = items[key];
+
+      if (!entry) {
+        return null;
+      }
+
+      if (Date.now() > entry.expiresAt) {
+        log.debug(`Cache entry for ${postId} expired; evicting.`);
+        await chrome.storage.local.remove(key);
+        return null;
+      }
+
+      log.debug(`Cache hit for post: ${postId}`);
+      return entry;
+    }
+  } catch (err) {
+    log.warn('Error reading from storage cache:', err);
+  }
   return null;
 }
 
 /**
- * Store a detection result in the cache.
- * TODO: Implement in Phase 7.
+ * Store a detection result in the local storage cache with TTL.
  */
 export async function setCachedResult(
-  _postId: string,
-  _jobId: string,
-  _result: DetectionJob,
-  _ttl: number = DEFAULT_TTL_MS,
+  postId: string,
+  mediaUrl: string,
+  result: DetectionJob,
+  ttlMs: number = DEFAULT_CACHE_TTL_MS,
 ): Promise<void> {
-  log.debug('setCachedResult called (stub)');
-  // TODO: Write to chrome.storage.local in Phase 7
+  const key = makeCacheKey(postId, mediaUrl);
+  const now = Date.now();
+  const entry: CacheEntry = {
+    jobId: result.job_id,
+    postId,
+    mediaHash: hashUrl(mediaUrl),
+    result,
+    cachedAt: now,
+    expiresAt: now + ttlMs,
+  };
+
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await chrome.storage.local.set({ [key]: entry });
+      log.debug(`Cached verdict for post: ${postId} (expires in ${ttlMs / 1000}s)`);
+    }
+  } catch (err) {
+    log.warn('Error saving to storage cache:', err);
+  }
 }
 
 /**
- * Clear all cached results.
- * TODO: Implement in Phase 7.
+ * Clear all Moody Lens cache entries.
  */
 export async function clearCache(): Promise<void> {
-  log.debug('clearCache called (stub)');
-  // TODO: Clear chrome.storage.local in Phase 7
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const all = await chrome.storage.local.get(null);
+      const keysToRemove = Object.keys(all).filter((k) => k.startsWith(CACHE_KEY_PREFIX));
+      if (keysToRemove.length > 0) {
+        await chrome.storage.local.remove(keysToRemove);
+        log.info(`Cleared ${keysToRemove.length} cache entries.`);
+      }
+    }
+  } catch (err) {
+    log.warn('Error clearing storage cache:', err);
+  }
 }

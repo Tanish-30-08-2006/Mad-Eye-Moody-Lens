@@ -26,6 +26,9 @@ export const JobStatusEnum = z.enum([
   'processing',
   'completed',
   'failed',
+  'queued',
+  'running',
+  'done',
 ]);
 
 export type JobStatus = z.infer<typeof JobStatusEnum>;
@@ -35,19 +38,21 @@ export type JobStatus = z.infer<typeof JobStatusEnum>;
 export const DetectionJobSchema = z.object({
   job_id: z.string(),
   status: JobStatusEnum,
-  overall_score: z.number().min(0).max(1).optional(),
+  overall_score: z.number().min(0).max(1).nullable().optional(),
   label: z
     .enum(['likely_real', 'likely_fake', 'inconclusive'])
+    .nullable()
     .optional(),
   models: z
     .object({
-      image: ModelResultSchema.optional(),
-      face: ModelResultSchema.optional(),
-      audio: ModelResultSchema.optional(),
+      image: ModelResultSchema.nullable().optional(),
+      face: ModelResultSchema.nullable().optional(),
+      audio: ModelResultSchema.nullable().optional(),
     })
+    .nullable()
     .optional(),
-  model_versions: z.record(z.string(), z.string()).optional(),
-  error: z.string().optional(),
+  model_versions: z.record(z.string(), z.string()).nullable().optional(),
+  error: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -66,8 +71,8 @@ export type DetectResponse = z.infer<typeof DetectResponseSchema>;
 
 export const HealthResponseSchema = z.object({
   status: z.enum(['ok', 'degraded', 'down']),
-  version: z.string(),
-  models_available: z.array(z.string()),
+  version: z.string().optional().default('1.0.0'),
+  models_available: z.array(z.string()).optional().default([]),
 });
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
@@ -76,8 +81,8 @@ export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
 export const ApiErrorSchema = z.object({
   error: z.string(),
-  detail: z.string().optional(),
-  code: z.string().optional(),
+  detail: z.string().nullable().optional(),
+  code: z.string().nullable().optional(),
 });
 
 export type ApiError = z.infer<typeof ApiErrorSchema>;

@@ -76,6 +76,24 @@ This document defines the test plan and acceptance criteria across all developme
 | T3.3 | Polling Backoff | `job-poller` retry scheduling | Polling frequency throttles gracefully (e.g., 1s -> 2s -> 4s) up to maximum timeout. |
 | T3.4 | Worker Lifecycle Recovery | Service worker termination mid-job | Active jobs saved in `chrome.storage.session` resume polling when worker wakes up. |
 | T3.5 | Backend Disconnection | Unreachable API handling | Surface clear error response to caller; transitions job to `failed` without crashing. |
+| T3.6 | End-to-End Verdict | Full pipeline with test image | End-to-end against mock or real backend returns verdict for test image. |
+
+### Phase 3 Manual Check Verification Protocol
+
+1. **Worker Termination Mid-Job & Resumption**:
+   - *Test Procedure*: Initiate a long-running video scan, kill the background service worker process via `chrome://serviceworker-internals`, wake the worker.
+   - *Expected Result*: `restoreInFlightJobs()` reads active job records from `chrome.storage.session` and resumes polling without user re-intervention.
+   - *Automated Parity*: Covered in Vitest `tests/unit/job-poller.test.ts` via session storage mocking and restore loop.
+
+2. **Backend Stopped / Unreachable Error**:
+   - *Test Procedure*: Shut down backend port 8000, trigger lens button click.
+   - *Expected Result*: API client catches connection failure and maps cleanly to typed `ApiClientError(code: 'NETWORK_ERROR')`; UI displays clear error state without crashing.
+   - *Automated Parity*: Covered in Vitest `tests/unit/api-client.test.ts`.
+
+3. **Non-Allowlisted Host Refusal**:
+   - *Test Procedure*: Dispatch `SCAN_MEDIA` with `https://imgur.com/sample.jpg` or `http://i.redd.it/insecure.jpg`.
+   - *Expected Result*: Refused at media-fetcher boundary with `MediaFetchError(code: 'DISALLOWED_HOST')` before network request is issued.
+   - *Automated Parity*: Covered in Vitest `tests/unit/media-fetcher.test.ts`.
 
 ---
 

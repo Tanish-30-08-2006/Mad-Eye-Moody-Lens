@@ -2,8 +2,7 @@
  * ui/ModelBreakdown.tsx – Tabular / list view of individual detector model outputs.
  *
  * Displays individual scores and confidences for image, face, and audio models.
- *
- * TODO: Add model version tags and explainability links in Phase 5.
+ * Filters out unrun / null modalities.
  */
 
 import React from 'react';
@@ -11,10 +10,10 @@ import type { ModelResult } from '../core/schema';
 
 export interface ModelBreakdownProps {
   models?: {
-    image?: ModelResult;
-    face?: ModelResult;
-    audio?: ModelResult;
-  };
+    image?: ModelResult | null;
+    face?: ModelResult | null;
+    audio?: ModelResult | null;
+  } | null;
 }
 
 export const ModelBreakdown: React.FC<ModelBreakdownProps> = ({ models }) => {
@@ -22,7 +21,13 @@ export const ModelBreakdown: React.FC<ModelBreakdownProps> = ({ models }) => {
     return null;
   }
 
-  const entries = Object.entries(models) as [string, ModelResult][];
+  const entries = Object.entries(models).filter(
+    ([, result]) => result != null,
+  ) as [string, ModelResult][];
+
+  if (entries.length === 0) {
+    return null;
+  }
 
   return (
     <div className="moody-lens-model-breakdown">

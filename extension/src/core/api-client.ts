@@ -1,62 +1,233 @@
 /**
- * core/api-client.ts – HTTP client for communicating with the Moody Lens backend.
+ * core/api-client.ts – Typed HTTP client for the Moody Lens backend.
  *
- * Runs ONLY in the service worker context (MV3: content scripts cannot make
- * cross-origin requests). Validates responses with zod schemas from schema.ts.
- *
- * TODO: Implement full request/response cycle in Phase 3.
+ * Runs strictly in the service worker context. Validates all responses with
+ * Zod schemas from schema.ts. Emits typed errors for network failures,
+ * HTTP error statuses, and schema mismatches.
  */
 
 import {
   DetectResponseSchema,
   DetectionJobSchema,
   HealthResponseSchema,
+  ApiErrorSchema,
   type DetectResponse,
   type DetectionJob,
   type HealthResponse,
 } from './schema';
+import { loadSettings } from './settings';
 import { createLogger } from './logger';
 
 const log = createLogger('api-client');
 
-/** Base URL for the backend API. TODO: Read from settings in Phase 7. */
-export const API_BASE = 'http://localhost:8000';
+export const DEFAULT_API_BASE = 'http://localhost:8000';
+
+// ── Typed Error Classes ─────────────────────────────────────────────────────
+
+export type ApiErrorCode =
+  | 'NETWORK_ERROR'
+  | 'HTTP_ERROR'
+  | 'SCHEMA_ERROR'
+  | 'TIMEOUT_ERROR'
+  | 'NOT_FOUND';
+
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ApiErrorCode,
+    public readonly status?: number,
+    public readonly detail?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiClientError';
+  }
+}
 
 /**
- * Submit media for detection. Returns a job ID for polling.
- * TODO: Implement multipart upload in Phase 3.
+ * Retrieve the active backend base URL from synchronized settings.
+ */
+export async function getApiBaseUrl(): Promise<string> {
+  try {
+    const settings = await loadSettings();
+    return settings.apiUrl || DEFAULT_API_BASE;
+  } catch {
+    return DEFAULT_API_BASE;
+  }
+}
+
+// ── Client Methods ──────────────────────────────────────────────────────────
+
+/**
+ * Submit media for asynchronous detection via POST /api/v1/detect.
  */
 export async function submitDetection(
-  _media: Blob,
-  _audio?: Blob,
-  _metadata?: { postId: string; permalink: string; mediaType: string },
+  media: Blob,
+  audio?: Blob,
+  metadata?: { postId: string; permalink: string; mediaType: string },
 ): Promise<DetectResponse> {
-  log.info('submitDetection called (stub)');
-  // TODO: POST /api/v1/detect with FormData in Phase 3
-  throw new Error('submitDetection not implemented – Phase 3');
+  const baseUrl = await getApiBaseUrl();
+  const url = `${baseUrl}/api/v1/detect`;
+  log.info(`submitDetection calling ${url}`);
+
+  const formData = new FormData();
+  formData.append('media', media, 'media_upload');
+  if (audio) {
+    formData.append('audio', audio, 'audio_upload');
+  }
+  if (metadata) {
+    formData.append('media_type', metadata.mediaType);
+    formData.append('post_id', metadata.postId);
+    formData.append('source_url', metadata.permalink);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-Client': 'extension',
+      },
+      body: formData,
+    });
+  } catch (err) {
+    throw new ApiClientError(
+      `Failed to connect to backend at ${baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      'NETWORK_ERROR',
+    );
+  }
+
+  if (!res.ok) {
+    let errorDetail = res.statusText;
+    try {
+      const errJson = await res.json();
+      const parsedErr = ApiErrorSchema.safeParse(errJson);
+      if (parsedErr.success) {
+        errorDetail = parsedErr.data.detail || parsedErr.data.error;
+      }
+    } catch {
+      // Body was not JSON
+    }
+    throw new ApiClientError(
+      `Backend returned HTTP ${res.status}: ${errorDetail}`,
+      res.status === 404 ? 'NOT_FOUND' : 'HTTP_ERROR',
+      res.status,
+      errorDetail,
+    );
+  }
+
+  const rawJson = await res.json();
+  const parsed = DetectResponseSchema.safeParse(rawJson);
+  if (!parsed.success) {
+    throw new ApiClientError(
+      `DetectResponse failed schema validation: ${parsed.error.message}`,
+      'SCHEMA_ERROR',
+      res.status,
+      parsed.error.format(),
+    );
+  }
+
+  return parsed.data;
 }
 
 /**
- * Poll job status by ID.
- * TODO: Implement with backoff in Phase 3 (job-poller.ts).
+ * Query the status of a detection job via GET /api/v1/jobs/{jobId}.
  */
-export async function getJobStatus(
-  _jobId: string,
-): Promise<DetectionJob> {
-  log.info('getJobStatus called (stub)');
-  // TODO: GET /api/v1/jobs/{id} in Phase 3
-  throw new Error('getJobStatus not implemented – Phase 3');
+export async function getJobStatus(jobId: string): Promise<DetectionJob> {
+  const baseUrl = await getApiBaseUrl();
+  const url = `${baseUrl}/api/v1/jobs/${encodeURIComponent(jobId)}`;
+  log.debug(`getJobStatus calling ${url}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Client': 'extension',
+      },
+    });
+  } catch (err) {
+    throw new ApiClientError(
+      `Network error querying job ${jobId}: ${err instanceof Error ? err.message : String(err)}`,
+      'NETWORK_ERROR',
+    );
+  }
+
+  if (!res.ok) {
+    let errorDetail = res.statusText;
+    try {
+      const errJson = await res.json();
+      const parsedErr = ApiErrorSchema.safeParse(errJson);
+      if (parsedErr.success) {
+        errorDetail = parsedErr.data.detail || parsedErr.data.error;
+      }
+    } catch {
+      // Body not JSON
+    }
+    throw new ApiClientError(
+      `Failed to retrieve job ${jobId}: HTTP ${res.status} ${errorDetail}`,
+      res.status === 404 ? 'NOT_FOUND' : 'HTTP_ERROR',
+      res.status,
+      errorDetail,
+    );
+  }
+
+  const rawJson = await res.json();
+  const parsed = DetectionJobSchema.safeParse(rawJson);
+  if (!parsed.success) {
+    throw new ApiClientError(
+      `DetectionJob failed schema validation: ${parsed.error.message}`,
+      'SCHEMA_ERROR',
+      res.status,
+      parsed.error.format(),
+    );
+  }
+
+  return parsed.data;
 }
 
 /**
- * Check backend health.
- * TODO: Implement in Phase 3.
+ * Check backend health via GET /api/v1/health.
  */
 export async function checkHealth(): Promise<HealthResponse> {
-  log.info('checkHealth called (stub)');
-  // TODO: GET /api/v1/health in Phase 3
-  throw new Error('checkHealth not implemented – Phase 3');
+  const baseUrl = await getApiBaseUrl();
+  const url = `${baseUrl}/api/v1/health?details=1`;
+  log.debug(`checkHealth calling ${url}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Client': 'extension',
+      },
+    });
+  } catch (err) {
+    throw new ApiClientError(
+      `Backend unreachable at ${baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      'NETWORK_ERROR',
+    );
+  }
+
+  if (!res.ok) {
+    throw new ApiClientError(
+      `Health check returned HTTP ${res.status}`,
+      'HTTP_ERROR',
+      res.status,
+    );
+  }
+
+  const rawJson = await res.json();
+  const parsed = HealthResponseSchema.safeParse(rawJson);
+  if (!parsed.success) {
+    throw new ApiClientError(
+      `HealthResponse failed schema validation: ${parsed.error.message}`,
+      'SCHEMA_ERROR',
+      res.status,
+      parsed.error.format(),
+    );
+  }
+
+  return parsed.data;
 }
 
-// Export schema validators for use in tests
 export { DetectResponseSchema, DetectionJobSchema, HealthResponseSchema };

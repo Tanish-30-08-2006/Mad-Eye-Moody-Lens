@@ -117,7 +117,44 @@ export default defineContentScript({
             );
           }
 
-          // TODO: Phase 3 & 5 – Send SCAN_MEDIA message and update popover on result
+          // Phase 3 Dev Pipeline Test (clearly gated via DEV_PIPELINE_TEST flag)
+          const DEV_PIPELINE_TEST = true;
+          if (DEV_PIPELINE_TEST) {
+            try {
+              const testUrls = mediaRef?.urls.length ? mediaRef.urls : ['https://i.redd.it/dev_test_image.png'];
+              const scanResponse = await sendMessage({
+                type: 'SCAN_MEDIA',
+                payload: {
+                  mediaUrls: testUrls,
+                  postId: mountPoint.postId,
+                  permalink: window.location.href,
+                  mediaType: 'image',
+                },
+              });
+              log.info('Phase 3 Dev Pipeline Verdict Received:', scanResponse);
+
+              if (popoverRoot && scanResponse.type === 'JOB_STATUS' && scanResponse.result) {
+                popoverRoot.render(
+                  <VerdictPopover
+                    isOpen={true}
+                    isLoading={false}
+                    job={scanResponse.result}
+                    onClose={() => {
+                      popoverRoot?.render(
+                        <VerdictPopover
+                          isOpen={false}
+                          isLoading={false}
+                          onClose={() => {}}
+                        />,
+                      );
+                    }}
+                  />,
+                );
+              }
+            } catch (scanErr) {
+              log.error('Dev pipeline scan failed:', scanErr);
+            }
+          }
         },
       });
 

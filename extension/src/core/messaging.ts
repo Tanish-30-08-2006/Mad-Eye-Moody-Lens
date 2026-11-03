@@ -1,64 +1,67 @@
 /**
- * core/messaging.ts – Typed message passing between content script and service worker.
+ * core/messaging.ts – Typed, runtime-validated message passing for Moody Lens.
  *
- * All messages between contexts flow through this module.
- * Content scripts must never make network calls directly (MV3 constraint);
- * they send typed messages here and the service worker handles them.
+ * All messages between content scripts, popups, and the service worker flow
+ * through this module. Content scripts NEVER make network requests directly (MV3);
+ * requests are validated with Zod and routed through the service worker.
  */
 
-// ── Message type discriminants ──────────────────────────────────────────────
+import { z } from 'zod';
+import type { DetectionJob, JobStatus } from './schema';
 
-export type MessageType =
-  | 'PING'
-  | 'SCAN_MEDIA'
-  | 'GET_JOB_STATUS'
-  | 'CANCEL_JOB'
-  | 'GET_SETTINGS';
+// ── Zod Schemas for Message Payloads ─────────────────────────────────────────
 
-// ── Request payloads ────────────────────────────────────────────────────────
+export const PingRequestSchema = z.object({
+  type: z.literal('PING'),
+});
 
-export interface PingRequest {
-  type: 'PING';
-}
+export const ScanMediaPayloadSchema = z.object({
+  mediaUrls: z.array(z.string().url()).min(1),
+  audioUrl: z.string().url().optional(),
+  postId: z.string().min(1),
+  permalink: z.string(),
+  mediaType: z.enum(['image', 'video', 'audio']),
+});
 
-export interface ScanMediaRequest {
-  type: 'SCAN_MEDIA';
-  payload: {
-    /** TODO: Accept MediaRef from adapters/types.ts in Phase 3 */
-    mediaUrls: string[];
-    audioUrl?: string;
-    postId: string;
-    permalink: string;
-    mediaType: 'image' | 'video' | 'audio';
-  };
-}
+export const ScanMediaRequestSchema = z.object({
+  type: z.literal('SCAN_MEDIA'),
+  payload: ScanMediaPayloadSchema,
+});
 
-export interface GetJobStatusRequest {
-  type: 'GET_JOB_STATUS';
-  payload: {
-    jobId: string;
-  };
-}
+export const GetJobStatusRequestSchema = z.object({
+  type: z.literal('GET_JOB_STATUS'),
+  payload: z.object({
+    jobId: z.string().min(1),
+  }),
+});
 
-export interface CancelJobRequest {
-  type: 'CANCEL_JOB';
-  payload: {
-    jobId: string;
-  };
-}
+export const CancelJobRequestSchema = z.object({
+  type: z.literal('CANCEL_JOB'),
+  payload: z.object({
+    jobId: z.string().min(1),
+  }),
+});
 
-export interface GetSettingsRequest {
-  type: 'GET_SETTINGS';
-}
+export const GetSettingsRequestSchema = z.object({
+  type: z.literal('GET_SETTINGS'),
+});
 
-export type ExtensionMessage =
-  | PingRequest
-  | ScanMediaRequest
-  | GetJobStatusRequest
-  | CancelJobRequest
-  | GetSettingsRequest;
+export const ExtensionMessageSchema = z.discriminatedUnion('type', [
+  PingRequestSchema,
+  ScanMediaRequestSchema,
+  GetJobStatusRequestSchema,
+  CancelJobRequestSchema,
+  GetSettingsRequestSchema,
+]);
 
-// ── Response payloads ───────────────────────────────────────────────────────
+export type ExtensionMessage = z.infer<typeof ExtensionMessageSchema>;
+export type PingRequest = z.infer<typeof PingRequestSchema>;
+export type ScanMediaRequest = z.infer<typeof ScanMediaRequestSchema>;
+export type GetJobStatusRequest = z.infer<typeof GetJobStatusRequestSchema>;
+export type CancelJobRequest = z.infer<typeof CancelJobRequestSchema>;
+export type GetSettingsRequest = z.infer<typeof GetSettingsRequestSchema>;
+
+// ── Response Schemas and Types ──────────────────────────────────────────────
 
 export interface PingResponse {
   type: 'PONG';
@@ -72,9 +75,18 @@ export interface ScanMediaResponse {
 
 export interface JobStatusResponse {
   type: 'JOB_STATUS';
-  /** TODO: Use DetectionJob from schema.ts in Phase 3 */
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  result?: unknown;
+  status: JobStatus;
+  result?: DetectionJob;
+}
+
+export interface SettingsResponse {
+  type: 'SETTINGS';
+  settings: {
+    apiUrl: string;
+    enableAutoScan: boolean;
+    enableUrlDetect: boolean;
+    logLevel: string;
+  };
 }
 
 export interface ErrorResponse {
@@ -87,28 +99,82 @@ export type ExtensionResponse =
   | PingResponse
   | ScanMediaResponse
   | JobStatusResponse
+  | SettingsResponse
   | ErrorResponse;
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Validation Helpers ───────────────────────────────────────────────────────
 
 /**
- * Send a typed message from content script to service worker.
- * TODO: Implement in Phase 3 with proper error handling and timeouts.
+ * Validate that an unknown object matches an ExtensionMessage schema.
  */
-export async function sendMessage(
-  message: ExtensionMessage,
-): Promise<ExtensionResponse> {
-  return chrome.runtime.sendMessage(message);
+export function validateMessage(msg: unknown): {
+  success: boolean;
+  data?: ExtensionMessage;
+  error?: string;
+} {
+  const result = ExtensionMessageSchema.safeParse(msg);
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+  return {
+    success: false,
+    error: result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
+  };
 }
 
 /**
- * Type guard for checking message types in the service worker handler.
+ * Type guard for ExtensionMessage with runtime validation.
  */
 export function isExtensionMessage(msg: unknown): msg is ExtensionMessage {
-  return (
-    typeof msg === 'object' &&
-    msg !== null &&
-    'type' in msg &&
-    typeof (msg as ExtensionMessage).type === 'string'
-  );
+  return ExtensionMessageSchema.safeParse(msg).success;
+}
+
+/**
+ * Validates that a message sender originates from this extension.
+ * Rejects external web pages or unauthorized extension callers.
+ */
+export function isAuthorizedSender(sender: chrome.runtime.MessageSender): boolean {
+  // If chrome.runtime.id is available, ensure sender.id matches
+  if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
+    if (sender.id && sender.id !== chrome.runtime.id) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// ── Dispatch Helper ─────────────────────────────────────────────────────────
+
+/**
+ * Send a typed message with a timeout safeguard.
+ */
+export async function sendMessage(
+  message: ExtensionMessage,
+  timeoutMs: number = 30000,
+): Promise<ExtensionResponse> {
+  const validation = validateMessage(message);
+  if (!validation.success) {
+    throw new Error(`Invalid extension message: ${validation.error}`);
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Message timed out after ${timeoutMs}ms for type: ${message.type}`));
+    }, timeoutMs);
+
+    try {
+      chrome.runtime.sendMessage(message, (response: ExtensionResponse) => {
+        clearTimeout(timer);
+        const lastErr = chrome.runtime.lastError;
+        if (lastErr) {
+          reject(new Error(lastErr.message || 'Error communicating with background worker'));
+          return;
+        }
+        resolve(response);
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      reject(err);
+    }
+  });
 }
