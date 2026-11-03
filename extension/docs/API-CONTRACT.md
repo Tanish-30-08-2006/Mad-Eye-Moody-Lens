@@ -719,3 +719,37 @@ await chrome.storage.session.set({
 ```
 
 On SW restart, pending jobs are read from session storage and polling resumes with the saved delay value.
+
+
+---
+
+## 12. Contract Testing & Schema Parity (Pydantic ↔ Zod)
+
+To prevent drift between the backend Python API and the extension TypeScript client, the contracts are mirrored 1:1 between Pydantic models in `app.api.v1.media` and Zod schemas in `extension/src/core/schema.ts`.
+
+### Parity Mapping
+
+| Concept | Pydantic Model (`app/api/v1/media.py`) | Zod Schema (`src/core/schema.ts`) |
+|---------|----------------------------------------|-----------------------------------|
+| Single Model Result | `ModelResult` | `ModelResultSchema` |
+| Job Models Map | `JobModels` | `z.object({ image, face, audio })` |
+| Job Status String | `JobStatusType` (`pending`, `processing`, `completed`, `failed`) | `JobStatusEnum` |
+| Verdict Label String | `VerdictLabelType` (`likely_real`, `likely_fake`, `inconclusive`) | `z.enum(['likely_real', 'likely_fake', 'inconclusive'])` |
+| Full Job Payload | `DetectionJob` | `DetectionJobSchema` |
+| Detection Submission | `DetectResponse` (`job_id`) | `DetectResponseSchema` |
+| Health Status | `HealthResponse` (`status`, `version`, `models_available`) | `HealthResponseSchema` |
+| Error Body | `ApiError` (`error`, `detail`, `code`) | `ApiErrorSchema` |
+
+### Verification Harness
+
+1. **Python Unit & Contract Tests** (`backend/tests/test_media_api.py`):
+   - Validates that real responses produced by `/api/v1/detect`, `/api/v1/jobs/{id}`, and `/api/v1/health` conform to Pydantic models.
+   - Ensures detectors that did not run (such as `audio` on an image upload) evaluate to `null` / omitted rather than fallback or synthetic scores.
+   - Tests JSON Schema serialization via `.model_json_schema()`.
+
+2. **TypeScript Unit Tests** (`extension/tests/unit/schema.test.ts`):
+   - Validates that fixture payloads matching the Pydantic schemas parse cleanly via `DetectionJobSchema.parse(...)` and `HealthResponseSchema.parse(...)`.
+   - Verifies invalid states and status codes are rejected.
+
+3. **Mock Backend** (`extension/tests/mock-server/index.mjs`):
+   - Satisfies the same JSON contract, allowing end-to-end integration testing even in environments without PyTorch or Celery workers.

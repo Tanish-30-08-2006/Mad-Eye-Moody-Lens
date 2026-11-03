@@ -117,6 +117,9 @@ class Settings(BaseSettings):
 
     tmp_dir: str = "/tmp/mml"
     cors_origins: list[str] = Field(default_factory=list)
+    allow_extension_cors: bool = True
+    extension_origin_regex: str = r"^chrome-extension://.*$"
+    feature_detect_url: bool = False
     otel_endpoint: str | None = None
 
     # ------------------------------------------------------------- helpers
