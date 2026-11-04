@@ -11,7 +11,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -120,6 +120,7 @@ class Settings(BaseSettings):
     allow_extension_cors: bool = True
     extension_origin_regex: str = r"^chrome-extension://.*$"
     feature_detect_url: bool = False
+    allow_mock: bool = Field(default=False, validation_alias=AliasChoices("MML_ALLOW_MOCK", "MOODY_LENS_ALLOW_MOCK", "ALLOW_MOCK"))
     otel_endpoint: str | None = None
 
     # ------------------------------------------------------------- helpers

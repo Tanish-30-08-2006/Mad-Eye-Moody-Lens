@@ -28,7 +28,7 @@ This document defines the test plan and acceptance criteria across all developme
 
 ### Scope
 - Repository layout for `extension/`, build tooling (WXT + React 19 + TypeScript + pnpm), config files, typed stubs, and mock backend server.
-- Additive backend stubs in `backend/app/api/v1/media.py`, `backend/app/services/url_resolver.py`, `backend/app/services/video_prep.py`, and `backend/tests/test_media_api.py`.
+- Additive backend stubs in `functional-ui-models-backend/backend/app/api/v1/media.py`, `functional-ui-models-backend/backend/app/services/url_resolver.py`, `functional-ui-models-backend/backend/app/services/video_prep.py`, and `functional-ui-models-backend/backend/tests/test_media_api.py`.
 
 ### Test Matrix
 | ID | Target / Spec | Test Description | Success Criteria |

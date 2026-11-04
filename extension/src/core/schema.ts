@@ -52,6 +52,7 @@ export const DetectionJobSchema = z.object({
     .nullable()
     .optional(),
   model_versions: z.record(z.string(), z.string()).nullable().optional(),
+  mock: z.boolean().optional(),
   error: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),

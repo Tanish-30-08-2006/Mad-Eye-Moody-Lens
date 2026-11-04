@@ -74,6 +74,7 @@ const server = http.createServer((req, res) => {
       model_versions: {
         image: '1.0.0',
       },
+      mock: true,
       created_at: now,
       updated_at: now,
     };
@@ -103,6 +104,7 @@ const server = http.createServer((req, res) => {
       model_versions: {
         face: '1.0.0',
       },
+      mock: true,
       created_at: now,
       updated_at: now,
     };
@@ -140,6 +142,7 @@ const server = http.createServer((req, res) => {
       model_versions: {
         image: '1.0.0',
       },
+      mock: true,
       created_at: now,
       updated_at: now,
     });

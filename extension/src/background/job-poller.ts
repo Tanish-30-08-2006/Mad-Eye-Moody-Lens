@@ -23,6 +23,17 @@ export interface PollerOptions {
   abortSignal?: AbortSignal;
 }
 
+export const DEFAULT_TIMEOUTS_BY_MEDIA_TYPE: Record<string, number> = {
+  image: 60_000, // 60s for images
+  audio: 120_000, // 2m for audio
+  video: 300_000, // 5+ min (300s) for video
+};
+
+export function getDefaultTimeoutForMediaType(mediaType?: string): number {
+  if (!mediaType) return DEFAULT_TIMEOUTS_BY_MEDIA_TYPE.image;
+  return DEFAULT_TIMEOUTS_BY_MEDIA_TYPE[mediaType.toLowerCase()] ?? DEFAULT_POLLER_OPTIONS.timeoutMs;
+}
+
 export const DEFAULT_POLLER_OPTIONS: Required<Omit<PollerOptions, 'postId' | 'mediaType' | 'abortSignal'>> = {
   initialDelayMs: 1000,
   maxDelayMs: 8000,
@@ -69,9 +80,9 @@ export async function pollJobUntilComplete(
   const initialDelayMs = options.initialDelayMs ?? DEFAULT_POLLER_OPTIONS.initialDelayMs;
   const maxDelayMs = options.maxDelayMs ?? DEFAULT_POLLER_OPTIONS.maxDelayMs;
   const backoffFactor = options.backoffFactor ?? DEFAULT_POLLER_OPTIONS.backoffFactor;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_POLLER_OPTIONS.timeoutMs;
   const postId = options.postId || 'unknown_post';
   const mediaType = options.mediaType || 'image';
+  const timeoutMs = options.timeoutMs ?? getDefaultTimeoutForMediaType(mediaType);
 
   const startTime = Date.now();
   let currentDelay = initialDelayMs;

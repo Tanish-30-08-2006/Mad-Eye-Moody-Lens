@@ -54,6 +54,7 @@ class DetectionJob(BaseModel):
     label: Optional[VerdictLabelType] = None
     models: Optional[JobModels] = None
     model_versions: Optional[Dict[str, str]] = None
+    mock: Optional[bool] = False
     error: Optional[str] = None
     created_at: str
     updated_at: str
@@ -92,7 +93,7 @@ class ApiError(BaseModel):
 
 # ── Helper to execute job in background/eager ─────────────────────────────────
 
-def _run_sync_detection(job_id: str, saved_upload, media_type: str) -> None:
+def _run_sync_detection(job_id: str, saved_upload, media_type: str, is_mock: bool = False) -> None:
     """Run detection synchronously / in background and store final DetectionJob."""
     from app.services.pipelines import RUNNERS
 
@@ -145,6 +146,7 @@ def _run_sync_detection(job_id: str, saved_upload, media_type: str) -> None:
             "label": mapped_label,
             "models": models_breakdown.model_dump(),
             "model_versions": res.model_versions or {"detector": "1.0.0"},
+            "mock": is_mock,
             "updated_at": finished_iso,
         })
     except AnalysisError as exc:
@@ -237,6 +239,28 @@ async def submit_detection(
             content={"error": exc.message, "code": "UNSUPPORTED_MEDIA_TYPE" if exc.status_code == 415 else "VALIDATION_ERROR"},
         )
 
+    # Check worker capacity and availability
+    from app.services import heartbeat
+    target_queue = "inference.video" if kind == "video" else "inference.fast"
+    worker_available = False
+    try:
+        ready = heartbeat.ready_queues()
+        worker_available = ready.get(target_queue, 0) > 0
+    except Exception:
+        worker_available = False
+
+    if not worker_available and not settings.allow_mock:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Inference backend unavailable: no active workers and mock mode is disabled.",
+                "detail": "Start the Celery worker or set MML_ALLOW_MOCK=true for demo/mock mode.",
+                "code": "SERVICE_UNAVAILABLE",
+            },
+        )
+
+    is_mock = not worker_available or settings.allow_mock
+
     job_id = f"job-{uuid.uuid4().hex}"
     now_iso = datetime.now(UTC).isoformat()
 
@@ -247,14 +271,14 @@ async def submit_detection(
         "label": None,
         "models": None,
         "model_versions": None,
+        "mock": is_mock,
         "error": None,
         "created_at": now_iso,
         "updated_at": now_iso,
     }
 
     # Dispatch inference
-    # In test mode or when celery is eager, run directly
-    _run_sync_detection(job_id, saved, kind)
+    _run_sync_detection(job_id, saved, kind, is_mock=is_mock)
 
     return JSONResponse(status_code=202, content={"job_id": job_id})
 

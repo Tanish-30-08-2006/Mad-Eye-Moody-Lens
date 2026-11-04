@@ -60,7 +60,7 @@ describe('API Contract Zod Schemas', () => {
     expect(parsed.models?.image?.score).toBe(0.9);
   });
 
-  it('validates a completed DetectionJob from mock server', () => {
+  it('validates a completed DetectionJob from mock server with mock: true', () => {
     const mockServerPayload = {
       job_id: 'job_1730592000000_abcde',
       status: 'completed',
@@ -72,6 +72,7 @@ describe('API Contract Zod Schemas', () => {
       model_versions: {
         image: '1.0.0',
       },
+      mock: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -81,6 +82,7 @@ describe('API Contract Zod Schemas', () => {
     expect(parsed.label).toBe('likely_real');
     expect(parsed.overall_score).toBe(0.12);
     expect(parsed.models?.image?.confidence).toBe(0.94);
+    expect(parsed.mock).toBe(true);
   });
 
   it('validates a structured ApiError', () => {

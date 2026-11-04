@@ -285,6 +285,9 @@ Host: localhost:8000
   /** Versions of models used. Present when completed. */
   model_versions?: Record<string, string>;
 
+  /** Whether the verdict was produced via mock/fallback in-process mode (DEMO DATA). */
+  mock?: boolean;
+
   /** Error message if status is "failed". */
   error?: string;
 
@@ -742,7 +745,7 @@ To prevent drift between the backend Python API and the extension TypeScript cli
 
 ### Verification Harness
 
-1. **Python Unit & Contract Tests** (`backend/tests/test_media_api.py`):
+1. **Python Unit & Contract Tests** (`functional-ui-models-backend/backend/tests/test_media_api.py`):
    - Validates that real responses produced by `/api/v1/detect`, `/api/v1/jobs/{id}`, and `/api/v1/health` conform to Pydantic models.
    - Ensures detectors that did not run (such as `audio` on an image upload) evaluate to `null` / omitted rather than fallback or synthetic scores.
    - Tests JSON Schema serialization via `.model_json_schema()`.

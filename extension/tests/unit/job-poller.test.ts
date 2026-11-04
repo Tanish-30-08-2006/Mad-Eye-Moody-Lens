@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { pollJobUntilComplete } from '../../src/background/job-poller';
+import {
+  pollJobUntilComplete,
+  getDefaultTimeoutForMediaType,
+  DEFAULT_TIMEOUTS_BY_MEDIA_TYPE,
+} from '../../src/background/job-poller';
 import * as apiClient from '../../src/core/api-client';
 import type { DetectionJob } from '../../src/core/schema';
 
@@ -141,5 +145,13 @@ describe('Job Poller', () => {
     ).rejects.toMatchObject({
       code: 'ABORTED',
     });
+  });
+
+  it('provides media-type specific default poller timeouts', () => {
+    expect(getDefaultTimeoutForMediaType('image')).toBe(60_000);
+    expect(getDefaultTimeoutForMediaType('video')).toBe(300_000);
+    expect(getDefaultTimeoutForMediaType('audio')).toBe(120_000);
+    expect(getDefaultTimeoutForMediaType(undefined)).toBe(60_000);
+    expect(DEFAULT_TIMEOUTS_BY_MEDIA_TYPE.video).toBeGreaterThanOrEqual(300_000);
   });
 });

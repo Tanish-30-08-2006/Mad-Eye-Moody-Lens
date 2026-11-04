@@ -75,6 +75,19 @@ extension/
 - Node.js >= 22
 - pnpm >= 10
 
+### Tooling & Pinned Versions
+| Dependency | Exact Version | Role / Compatibility Note |
+|---|---|---|
+| `node` | `>=22` | Runtime engine |
+| `pnpm` | `10.33.0` | Package manager |
+| `wxt` | `0.21.5` | Next-gen MV3 framework |
+| `vite` | `8.3.5` | Bundler (supported via WXT/module-react peerDependencies `^6.3.4 \|\| ^7.0.0 \|\| ^8.0.0-0`) |
+| `vitest` | `3.1.4` | Unit test runner |
+| `react` | `19.3.1` | UI library |
+| `react-dom` | `19.3.1` | UI rendering |
+| `zod` | `3.24.4` | Runtime schema validation |
+| `typescript` | `5.8.3` | Typechecker |
+
 ### Commands
 ```bash
 # Install dependencies

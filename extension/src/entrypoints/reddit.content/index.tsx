@@ -24,7 +24,7 @@ import '../../ui/styles.css';
 const log = createLogger('content');
 
 export default defineContentScript({
-  matches: ['*://www.reddit.com/*', '*://sh.reddit.com/*'],
+  matches: ['https://www.reddit.com/*', 'https://sh.reddit.com/*'],
   cssInjectionMode: 'ui',
 
   async main(ctx: ContentScriptContext) {

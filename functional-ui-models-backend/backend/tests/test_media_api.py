@@ -1,5 +1,5 @@
 """
-backend/tests/test_media_api.py – Tests for v1 media detection API.
+functional-ui-models-backend/backend/tests/test_media_api.py – Tests for v1 media detection API.
 
 Covers:
 1. Happy path image upload -> 202 -> GET job -> completed verdict
@@ -129,6 +129,44 @@ def test_detect_rejects_oversized(client, monkeypatch):
     assert res.json().get("code") == "FILE_TOO_LARGE" or "larger" in res.json().get("error", "")
 
 
+def test_detect_no_worker_mock_off_returns_503(infra, monkeypatch):
+    """With allow_mock=False and no workers online, /detect returns 503."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(settings, "allow_mock", False)
+    unbacked_client = TestClient(app)
+
+    png = make_png()
+    files = {"media": ("test.png", png, "image/png")}
+    res = unbacked_client.post("/api/v1/detect", files=files, data={"media_type": "image"})
+    assert res.status_code == 503
+    body = res.json()
+    assert body.get("code") == "SERVICE_UNAVAILABLE"
+    assert "unavailable" in body.get("error", "").lower()
+
+
+def test_detect_mock_mode_returns_mock_true(infra, monkeypatch):
+    """With allow_mock=True, in-process fallback runs and marks job as mock: true."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(settings, "allow_mock", True)
+    mock_client = TestClient(app)
+
+    png = make_png()
+    files = {"media": ("test.png", png, "image/png")}
+    res = mock_client.post("/api/v1/detect", files=files, data={"media_type": "image"})
+    assert res.status_code == 202
+    job_id = res.json()["job_id"]
+
+    job_res = mock_client.get(f"/api/v1/jobs/{job_id}")
+    assert job_res.status_code == 200
+    job = DetectionJob.model_validate(job_res.json())
+    assert job.status == "completed"
+    assert job.mock is True
+
+
 # ── Jobs Endpoint ────────────────────────────────────────────────────────────
 
 def test_unknown_job_returns_404(client):
@@ -195,7 +233,8 @@ def test_detect_url_stub_returns_501(client):
 def test_contract_parity_json_schema():
     """
     Validates that Pydantic models export valid JSON Schemas that reflect
-    extension/src/core/schema.ts structure.
+    extension/src/core/schema.ts structure and that both real backend and
+    mock server payloads parse cleanly under the same Pydantic schema.
     """
     schema_job = DetectionJob.model_json_schema()
     assert "properties" in schema_job
@@ -204,6 +243,7 @@ def test_contract_parity_json_schema():
     assert "overall_score" in schema_job["properties"]
     assert "label" in schema_job["properties"]
     assert "models" in schema_job["properties"]
+    assert "mock" in schema_job["properties"]
 
     schema_detect = DetectResponse.model_json_schema()
     assert "job_id" in schema_detect["properties"]
@@ -211,3 +251,24 @@ def test_contract_parity_json_schema():
     schema_health = HealthResponse.model_json_schema()
     assert "status" in schema_health["properties"]
     assert "models_available" in schema_health["properties"]
+
+    # Verify mock server fixture payload satisfies real backend Pydantic model
+    mock_server_payload = {
+        "job_id": "job_1730592000000_abcde",
+        "status": "completed",
+        "overall_score": 0.12,
+        "label": "likely_real",
+        "models": {
+            "image": {"score": 0.12, "label": "real", "confidence": 0.94},
+        },
+        "model_versions": {
+            "image": "1.0.0",
+        },
+        "mock": True,
+        "created_at": "2026-11-02T10:30:00Z",
+        "updated_at": "2026-11-02T10:30:00Z",
+    }
+    validated_mock = DetectionJob.model_validate(mock_server_payload)
+    assert validated_mock.job_id == "job_1730592000000_abcde"
+    assert validated_mock.mock is True
+    assert validated_mock.models.image.score == 0.12

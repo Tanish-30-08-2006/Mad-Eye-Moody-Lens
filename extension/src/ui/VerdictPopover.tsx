@@ -55,6 +55,11 @@ export const VerdictPopover: React.FC<VerdictPopoverProps> = ({
 
         {!isLoading && !error && job && (
           <div className="moody-lens-verdict-details">
+            {job.mock && (
+              <div className="moody-lens-demo-badge" data-testid="demo-data-badge">
+                DEMO DATA
+              </div>
+            )}
             <div className={`moody-lens-verdict-badge label-${job.label ?? 'inconclusive'}`}>
               {job.label ? job.label.replace('_', ' ').toUpperCase() : 'INCONCLUSIVE'}
             </div>

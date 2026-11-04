@@ -1,5 +1,5 @@
 """
-backend/app/services/video_prep.py – Video preprocessing service using ffmpeg.
+functional-ui-models-backend/backend/app/services/video_prep.py – Video preprocessing service using ffmpeg.
 
 Extracts keyframes at fixed framerates for facial/visual deepfake detection
 and isolates or muxes audio streams for speech anti-spoofing analysis.
