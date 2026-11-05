@@ -8,10 +8,12 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -20,6 +22,9 @@ from app.core.errors import AnalysisError, NotFound
 from app.core.logging import get_logger
 from app.core.storage import get_storage, new_upload_key
 from app.core.uploads import save_upload
+
+from .services import url_resolver, video_prep
+from .services.video_prep import VideoPrepError
 
 logger = get_logger(__name__)
 
@@ -75,6 +80,8 @@ class HealthResponse(BaseModel):
     status: HealthStatusType = "ok"
     version: str = "1.0.0"
     models_available: List[str] = Field(default_factory=lambda: ["image", "face", "audio", "video"])
+    # True when scans would be answered with demo/mock verdicts (no real workers).
+    mock: Optional[bool] = None
 
 
 HealthCheckResponse = HealthResponse
@@ -171,12 +178,43 @@ def _run_sync_detection(job_id: str, saved_upload, media_type: str, is_mock: boo
                 pass
 
 
+
+@dataclass
+class _PreparedUpload:
+    """Minimal stand-in for the host's saved-upload object: the runner only needs `.path`."""
+
+    path: str
+
+
+def _would_mock() -> bool:
+    """True when a scan right now would be answered with demo data (no worker ready, or mock forced)."""
+    if settings.allow_mock:
+        return True
+    from app.services import heartbeat
+
+    try:
+        return heartbeat.ready_queues().get("inference.fast", 0) <= 0
+    except Exception:
+        return True
+
+
+def _remove_quietly(path: Any) -> None:
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def _prep_error(exc: VideoPrepError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.message, "code": exc.code})
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/health")
 def health_v1(request: Request) -> JSONResponse:
     """GET /api/v1/health – Service health and available detection models."""
-    # When queried by extension or contract test, include models_available and version
+    # When queried by extension or contract test, include models_available, version and the mock flag
     # When queried by existing tests or liveness probe, return status: ok
     if request.headers.get("x-client") == "extension" or "details" in request.query_params or "models_available" in request.headers.get("x-request-for", ""):
         return JSONResponse(
@@ -185,6 +223,7 @@ def health_v1(request: Request) -> JSONResponse:
                 "status": "ok",
                 "version": "1.0.0",
                 "models_available": ["image", "face", "audio", "video"],
+                "mock": _would_mock(),
             },
         )
     return JSONResponse(status_code=200, content={"status": "ok"})
@@ -230,6 +269,12 @@ async def submit_detection(
             },
         )
 
+    if audio is not None and kind != "video":
+        return JSONResponse(
+            status_code=400,
+            content={"error": "The 'audio' part is only valid with media_type=video.", "code": "VALIDATION_ERROR"},
+        )
+
     # Validate file type magic bytes and save upload
     try:
         saved = await save_upload(upload, kind)
@@ -239,8 +284,35 @@ async def submit_detection(
             content={"error": exc.message, "code": "UNSUPPORTED_MEDIA_TYPE" if exc.status_code == 415 else "VALIDATION_ERROR"},
         )
 
-    # Check worker capacity and availability
+    # Everything below owns temp files; the finally block always removes them.
+    workspace: Optional[video_prep.TempWorkspace] = None
+    try:
+        job_input: Any = saved
+        if kind == "video":
+            try:
+                if audio is not None:
+                    # Reddit video + separate audio: mux into ONE mp4 so the host's single-file task works unchanged.
+                    workspace = video_prep.TempWorkspace()
+                    audio_path = await video_prep.save_audio_part(audio, workspace)
+                    muxed = await run_in_threadpool(video_prep.combine, saved.path, audio_path, workspace)
+                    job_input = _PreparedUpload(path=str(muxed))
+                elif video_prep.ffmpeg_available():
+                    # Enforce the duration cap on plain videos too (skipped when ffprobe is absent).
+                    await run_in_threadpool(video_prep.enforce_duration_cap, saved.path)
+            except VideoPrepError as exc:
+                return _prep_error(exc)
+
+        return _enqueue(job_input, kind)
+    finally:
+        _remove_quietly(saved.path)
+        if workspace is not None:
+            workspace.cleanup()
+
+
+def _enqueue(prepared: Any, kind: str) -> JSONResponse:
+    """Checks worker capacity, registers the job and runs detection; `prepared.path` is the file to analyse."""
     from app.services import heartbeat
+
     target_queue = "inference.video" if kind == "video" else "inference.fast"
     worker_available = False
     try:
@@ -278,7 +350,7 @@ async def submit_detection(
     }
 
     # Dispatch inference
-    _run_sync_detection(job_id, saved, kind, is_mock=is_mock)
+    _run_sync_detection(job_id, prepared, kind, is_mock=is_mock)
 
     return JSONResponse(status_code=202, content={"job_id": job_id})
 
@@ -337,19 +409,41 @@ def get_job_status(job_id: str, request: Request) -> Any:
         return JSONResponse(status_code=404, content={"error": "Job not found."})
 
 
-@router.post("/detect-url", status_code=501)
-def detect_url(req: DetectUrlRequest) -> JSONResponse:
+@router.post("/detect-url")
+async def detect_url(req: DetectUrlRequest) -> JSONResponse:
     """
-    POST /api/v1/detect-url – Tier-2 fallback URL ingestion using yt-dlp.
-    Returns 501 Not Implemented unless FEATURE_DETECT_URL is enabled.
+    POST /api/v1/detect-url – Tier-2 fallback: the server downloads a Reddit post's video with yt-dlp.
+    Returns 501 unless FEATURE_DETECT_URL is enabled; only reddit.com permalinks are accepted.
     """
-    feature_on = getattr(settings, "feature_detect_url", False)
-    if not feature_on:
+    if not url_resolver.feature_enabled():
         return JSONResponse(
             status_code=501,
             content={
-                "error": "detect-url is not implemented yet. Tier-2 fallback is disabled.",
+                "error": "detect-url is not enabled. Set FEATURE_DETECT_URL=true to use the Tier-2 fallback.",
                 "code": "NOT_IMPLEMENTED",
             },
         )
-    return JSONResponse(status_code=202, content={"job_id": f"stub-url-{uuid.uuid4().hex}"})
+
+    if req.media_type != "video":
+        return JSONResponse(
+            status_code=400,
+            content={"error": "detect-url only supports media_type=video.", "code": "VALIDATION_ERROR"},
+        )
+    if not url_resolver.is_reddit_permalink(req.url):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Only reddit.com post links are accepted.", "code": "VALIDATION_ERROR"},
+        )
+
+    workspace = video_prep.TempWorkspace()
+    try:
+        downloaded = await run_in_threadpool(url_resolver.download_reddit_video, req.url, workspace)
+        # Same duration/validity checks as an upload.
+        if video_prep.ffmpeg_available():
+            await run_in_threadpool(video_prep.enforce_duration_cap, downloaded)
+        return _enqueue(_PreparedUpload(path=str(downloaded)), "video")
+    except VideoPrepError as exc:
+        return _prep_error(exc)
+    finally:
+        # _run_sync_detection removes its input, but the whole workspace goes regardless.
+        workspace.cleanup()

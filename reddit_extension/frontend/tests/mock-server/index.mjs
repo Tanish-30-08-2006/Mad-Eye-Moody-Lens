@@ -25,7 +25,7 @@ function sendJson(res, statusCode, data) {
     'Content-Length': Buffer.byteLength(payload),
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client',
   });
   res.end(payload);
 }
@@ -40,7 +40,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client',
     });
     return res.end();
   }
@@ -51,6 +51,7 @@ const server = http.createServer((req, res) => {
       status: 'ok',
       version: '1.0.0-mock',
       models_available: ['hybrid_xception_vit', 'ssl_antispoof', 'video_frame'],
+      mock: true,
     });
   }
 

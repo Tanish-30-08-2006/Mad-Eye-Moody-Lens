@@ -2,63 +2,78 @@
  * adapters/reddit/index.ts – Reddit SiteAdapter implementation.
  *
  * Implements the SiteAdapter interface for Reddit (www.reddit.com, sh.reddit.com).
- * Delegates post-finding, media extraction, and observation to sub-modules.
- *
- * TODO: Wire up all sub-modules in Phase 4.
+ * Wires the observer, SPA navigation watcher, extractors and the markup-drift canary.
  */
 
-import type { SiteAdapter, MediaRef, MountPoint } from '../types';
+import type { SiteAdapter, MediaRef, MountPoint, PostCallback } from '../types';
 import { createLogger } from '../../core/logger';
 import {
   POST_SELECTOR,
   ATTR_POST_TYPE,
   ATTR_POST_ID,
-  PROCESSED_MARKER,
+  FEED_PATH_PATTERN,
+  MEDIA_CONTAINER_SELECTOR,
+  MEDIA_POST_TYPES,
 } from './selectors';
 import { extractImage } from './extract-image';
 import { extractGallery } from './extract-gallery';
 import { extractVideo } from './extract-video';
-import { observeFeed } from './observer';
+import { createPostObserver, type PostObserver } from './observer';
 import { watchNavigation } from './spa-navigation';
+import { describePost } from './debug';
 
 const log = createLogger('reddit-adapter');
 
-/** Cleanup functions for active observers. */
-let feedCleanup: (() => void) | null = null;
+/** How long a feed page may stay without any post before we assume the markup changed. */
+const CANARY_DELAY_MS = 10_000;
+
+let observer: PostObserver | null = null;
 let navCleanup: (() => void) | null = null;
+let canaryTimer: ReturnType<typeof setTimeout> | null = null;
+let canaryWarned = false;
+
+/** Warns once per page load if a feed page shows no <shreddit-post> (likely markup drift). */
+function armCanary(): void {
+  if (canaryWarned || canaryTimer !== null) return;
+  if (!FEED_PATH_PATTERN.test(location.pathname)) return;
+  canaryTimer = setTimeout(() => {
+    canaryTimer = null;
+    if (document.querySelector(POST_SELECTOR)) return;
+    canaryWarned = true;
+    log.warn(`No <${POST_SELECTOR}> found after ${CANARY_DELAY_MS / 1000}s on a feed page: Reddit markup may have changed.`);
+  }, CANARY_DELAY_MS);
+}
+
+function disarmCanary(): void {
+  if (canaryTimer !== null) clearTimeout(canaryTimer);
+  canaryTimer = null;
+}
 
 export const redditAdapter: SiteAdapter = {
   siteName: 'Reddit',
 
-  matchPatterns: [
-    '*://*.reddit.com/*',
-  ],
+  matchPatterns: ['*://www.reddit.com/*', '*://sh.reddit.com/*'],
 
   findPosts(): HTMLElement[] {
-    const posts = Array.from(
-      document.querySelectorAll<HTMLElement>(POST_SELECTOR),
-    );
-    log.debug(`Found ${posts.length} posts in DOM`);
-    return posts.filter(
-      (post) => !post.hasAttribute(PROCESSED_MARKER),
-    );
+    return Array.from(document.querySelectorAll<HTMLElement>(POST_SELECTOR));
+  },
+
+  isMediaPost(post: HTMLElement): boolean {
+    const type = post.getAttribute(ATTR_POST_TYPE);
+    return !!type && (MEDIA_POST_TYPES as readonly string[]).includes(type);
   },
 
   extractMedia(post: HTMLElement): MediaRef | null {
-    const postType = post.getAttribute(ATTR_POST_TYPE);
-    const postId = post.getAttribute(ATTR_POST_ID);
-    log.debug(`Extracting media from post ${postId}, type: ${postType}`);
-
-    switch (postType) {
+    switch (post.getAttribute(ATTR_POST_TYPE)) {
       case 'image':
         return extractImage(post);
       case 'gallery':
         return extractGallery(post);
       case 'video':
+      case 'gif':
         return extractVideo(post);
-      // TODO: Phase 4 – Handle 'link', 'crosspost', etc.
       default:
-        log.debug(`Skipping unsupported post type: ${postType}`);
+        // text, link, crosspost, removed and unknown types carry no scannable media.
         return null;
     }
   },
@@ -66,30 +81,45 @@ export const redditAdapter: SiteAdapter = {
   getMountPoint(post: HTMLElement): MountPoint | null {
     const postId = post.getAttribute(ATTR_POST_ID);
     if (!postId) return null;
-
-    // TODO: Phase 5 – Find the action bar area for button placement
-    // For now, use the post element itself as the anchor
-    return {
-      postElement: post,
-      anchorElement: post,
-      postId,
-    };
+    let anchor: HTMLElement | null = null;
+    try {
+      anchor = post.querySelector<HTMLElement>(MEDIA_CONTAINER_SELECTOR);
+    } catch {
+      anchor = null;
+    }
+    return { postElement: post, anchorElement: anchor ?? post, postId };
   },
 
-  observe(onNewPosts: (posts: HTMLElement[]) => void): void {
+  describe(post: HTMLElement) {
+    return describePost(post, this.extractMedia(post));
+  },
+
+  observe(onPost: PostCallback, onNavigate?: () => void): void {
+    if (observer) return;
     log.info('Starting Reddit feed observation');
-    feedCleanup = observeFeed(onNewPosts);
-    navCleanup = watchNavigation((_url) => {
-      // TODO: Phase 4 – Re-scan for posts after SPA navigation
-      log.info('SPA navigation detected, should re-scan');
+
+    const begin = () => {
+      observer = createPostObserver({ onPost });
+      observer.start();
+      armCanary();
+    };
+    begin();
+
+    navCleanup = watchNavigation(() => {
+      // Navigation: stop, clear everything we added, then restart on the new page.
+      observer?.stop();
+      disarmCanary();
+      onNavigate?.();
+      begin();
     });
   },
 
   disconnect(): void {
     log.info('Stopping Reddit feed observation');
-    feedCleanup?.();
     navCleanup?.();
-    feedCleanup = null;
     navCleanup = null;
+    observer?.stop();
+    observer = null;
+    disarmCanary();
   },
 };

@@ -35,57 +35,68 @@ os.environ.update(
     }
 )
 
-import fakeredis  # noqa: E402
 import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from PIL import Image  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.core import redis as redis_mod  # noqa: E402
-from app.core import storage as storage_mod  # noqa: E402
-from app.core.config import settings  # noqa: E402
-from app.db import session as session_mod  # noqa: E402
-from app.db.models import Base  # noqa: E402
-from app.detectors.registry import get_registry  # noqa: E402
-from app.services import heartbeat  # noqa: E402
-from app.worker.celery_app import celery_app  # noqa: E402
+# The host backend (`app.*`) is not part of this repo's zip. Without it, host-dependent
+# fixtures are skipped and tests/test_media_api.py is skipped via importorskip.
+try:
+    import app.main  # noqa: F401, E402
 
-celery_app.conf.update(task_always_eager=True, task_eager_propagates=False)
+    HOST_AVAILABLE = True
+except ImportError:
+    HOST_AVAILABLE = False
 
+if HOST_AVAILABLE:
+    import fakeredis  # noqa: E402
+    from fastapi.testclient import TestClient  # noqa: E402
+    from PIL import Image  # noqa: E402
+    from sqlalchemy import create_engine  # noqa: E402
+    from sqlalchemy.pool import StaticPool  # noqa: E402
 
-@pytest.fixture(autouse=True)
-def infra(tmp_path, monkeypatch):
-    """Fresh Redis, database and storage for every test."""
-    r = fakeredis.FakeRedis(decode_responses=True)
-    redis_mod.set_redis(r)
+    from app.core import redis as redis_mod  # noqa: E402
+    from app.core import storage as storage_mod  # noqa: E402
+    from app.core.config import settings  # noqa: E402
+    from app.db import session as session_mod  # noqa: E402
+    from app.db.models import Base  # noqa: E402
+    from app.detectors.registry import get_registry  # noqa: E402
+    from app.services import heartbeat  # noqa: E402
+    from app.worker.celery_app import celery_app  # noqa: E402
 
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    session_mod.set_engine(engine)
-
-    store = tmp_path / "store"
-    storage_mod.set_storage(storage_mod.LocalStorage(str(store)))
-    monkeypatch.setattr(settings, "tmp_dir", str(tmp_path / "tmp"))
-
-    get_registry.cache_clear()
-    yield r
-    get_registry.cache_clear()
-    redis_mod.set_redis(None)
-    session_mod.set_engine(None)
-    storage_mod.set_storage(None)
+    celery_app.conf.update(task_always_eager=True, task_eager_propagates=False)
 
 
-@pytest.fixture
-def workers_up(infra):
-    """Publish heartbeats as if a fast and a video worker had loaded their models."""
-    models = {k: {"name": d.name, "revision": "stub", "loaded": True} for k, d in get_registry().items()}
-    heartbeat.publish("test-fast", ["inference.fast"], models)
-    heartbeat.publish("test-video", ["inference.video", "maintenance"], models)
+    @pytest.fixture(autouse=True)
+    def infra(tmp_path, monkeypatch):
+        """Fresh Redis, database and storage for every test."""
+        r = fakeredis.FakeRedis(decode_responses=True)
+        redis_mod.set_redis(r)
+
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        Base.metadata.create_all(engine)
+        session_mod.set_engine(engine)
+
+        store = tmp_path / "store"
+        storage_mod.set_storage(storage_mod.LocalStorage(str(store)))
+        monkeypatch.setattr(settings, "tmp_dir", str(tmp_path / "tmp"))
+
+        get_registry.cache_clear()
+        yield r
+        get_registry.cache_clear()
+        redis_mod.set_redis(None)
+        session_mod.set_engine(None)
+        storage_mod.set_storage(None)
 
 
-@pytest.fixture
-def client(workers_up):
-    from app.main import app
+    @pytest.fixture
+    def workers_up(infra):
+        """Publish heartbeats as if a fast and a video worker had loaded their models."""
+        models = {k: {"name": d.name, "revision": "stub", "loaded": True} for k, d in get_registry().items()}
+        heartbeat.publish("test-fast", ["inference.fast"], models)
+        heartbeat.publish("test-video", ["inference.video", "maintenance"], models)
 
-    return TestClient(app)
+
+    @pytest.fixture
+    def client(workers_up):
+        from app.main import app
+
+        return TestClient(app)

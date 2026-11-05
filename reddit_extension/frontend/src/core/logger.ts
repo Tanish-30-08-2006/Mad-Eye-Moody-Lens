@@ -1,51 +1,41 @@
 /**
  * core/logger.ts – Structured logging utility for the extension.
  *
- * Provides namespaced console logging with configurable levels.
- * All extension modules should use this instead of raw console.*.
+ * Provides namespaced console logging. Debug output (which may include post and media
+ * details) is only emitted while the Debug setting is on; see core/debug.ts.
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+let debugEnabled = false;
 
-const LOG_LEVELS: Record<LogLevel, number> = {
-  debug: 0,
-  info: 1,
-  warn: 2,
-  error: 3,
-};
+/** Turns verbose logging on or off (driven by the Debug setting). */
+export function setDebugLogging(enabled: boolean): void {
+  debugEnabled = enabled;
+}
 
-// TODO: Read from settings/storage in Phase 7
-const CURRENT_LEVEL: LogLevel = 'debug';
-
-function shouldLog(level: LogLevel): boolean {
-  return LOG_LEVELS[level] >= LOG_LEVELS[CURRENT_LEVEL];
+export function isDebugLogging(): boolean {
+  return debugEnabled;
 }
 
 export function createLogger(namespace: string) {
   const prefix = `[MoodyLens:${namespace}]`;
 
   return {
+    // Gated: callers may include titles/URLs here because it is silent unless Debug is on.
     debug: (...args: unknown[]) => {
-      if (shouldLog('debug')) {
+      if (debugEnabled) {
         // eslint-disable-next-line no-console
         console.debug(prefix, ...args);
       }
     },
     info: (...args: unknown[]) => {
-      if (shouldLog('info')) {
-        // eslint-disable-next-line no-console
-        console.info(prefix, ...args);
-      }
+      // eslint-disable-next-line no-console
+      console.info(prefix, ...args);
     },
     warn: (...args: unknown[]) => {
-      if (shouldLog('warn')) {
-        console.warn(prefix, ...args);
-      }
+      console.warn(prefix, ...args);
     },
     error: (...args: unknown[]) => {
-      if (shouldLog('error')) {
-        console.error(prefix, ...args);
-      }
+      console.error(prefix, ...args);
     },
   };
 }

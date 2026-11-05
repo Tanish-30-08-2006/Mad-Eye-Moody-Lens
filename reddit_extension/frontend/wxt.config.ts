@@ -20,6 +20,9 @@ export default defineConfig({
       'https://i.redd.it/*',
       'https://v.redd.it/*',
       'https://preview.redd.it/*',
+      'https://external-preview.redd.it/*',
     ],
+    // A custom backend URL set in Options is requested at runtime (chrome.permissions.request).
+    optional_host_permissions: ['http://*/*', 'https://*/*'],
   },
 });

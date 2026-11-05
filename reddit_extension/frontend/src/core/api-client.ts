@@ -37,6 +37,8 @@ export class ApiClientError extends Error {
     public readonly code: ApiErrorCode,
     public readonly status?: number,
     public readonly detail?: unknown,
+    /** Machine-readable `code` from the backend error body, if any. */
+    public readonly backendCode?: string,
   ) {
     super(message);
     this.name = 'ApiClientError';
@@ -53,6 +55,19 @@ export async function getApiBaseUrl(): Promise<string> {
   } catch {
     return DEFAULT_API_BASE;
   }
+}
+
+/** Reads the backend's error body (if JSON) into a message and code. */
+async function readErrorBody(res: Response): Promise<{ message: string; code?: string }> {
+  try {
+    const parsed = ApiErrorSchema.safeParse(await res.json());
+    if (parsed.success) {
+      return { message: parsed.data.detail || parsed.data.error, code: parsed.data.code ?? undefined };
+    }
+  } catch {
+    // Body was not JSON
+  }
+  return { message: res.statusText };
 }
 
 // ── Client Methods ──────────────────────────────────────────────────────────
@@ -97,21 +112,13 @@ export async function submitDetection(
   }
 
   if (!res.ok) {
-    let errorDetail = res.statusText;
-    try {
-      const errJson = await res.json();
-      const parsedErr = ApiErrorSchema.safeParse(errJson);
-      if (parsedErr.success) {
-        errorDetail = parsedErr.data.detail || parsedErr.data.error;
-      }
-    } catch {
-      // Body was not JSON
-    }
+    const body = await readErrorBody(res);
     throw new ApiClientError(
-      `Backend returned HTTP ${res.status}: ${errorDetail}`,
+      `Backend returned HTTP ${res.status}: ${body.message}`,
       res.status === 404 ? 'NOT_FOUND' : 'HTTP_ERROR',
       res.status,
-      errorDetail,
+      body.message,
+      body.code,
     );
   }
 
@@ -126,6 +133,49 @@ export async function submitDetection(
     );
   }
 
+  return parsed.data;
+}
+
+/**
+ * Tier-2 fallback: ask the backend to download a Reddit post's video itself (POST /api/v1/detect-url).
+ * Only used when the server-fallback setting is on.
+ */
+export async function submitDetectUrl(url: string, mediaType: 'video' | 'image' = 'video'): Promise<DetectResponse> {
+  const baseUrl = await getApiBaseUrl();
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/api/v1/detect-url`, {
+      method: 'POST',
+      headers: { 'X-Client': 'extension', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, media_type: mediaType }),
+    });
+  } catch (err) {
+    throw new ApiClientError(
+      `Failed to connect to backend at ${baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      'NETWORK_ERROR',
+    );
+  }
+
+  if (!res.ok) {
+    const body = await readErrorBody(res);
+    throw new ApiClientError(
+      `detect-url returned HTTP ${res.status}: ${body.message}`,
+      res.status === 404 ? 'NOT_FOUND' : 'HTTP_ERROR',
+      res.status,
+      body.message,
+      body.code,
+    );
+  }
+
+  const parsed = DetectResponseSchema.safeParse(await res.json());
+  if (!parsed.success) {
+    throw new ApiClientError(
+      `DetectResponse failed schema validation: ${parsed.error.message}`,
+      'SCHEMA_ERROR',
+      res.status,
+      parsed.error.format(),
+    );
+  }
   return parsed.data;
 }
 
@@ -153,21 +203,13 @@ export async function getJobStatus(jobId: string): Promise<DetectionJob> {
   }
 
   if (!res.ok) {
-    let errorDetail = res.statusText;
-    try {
-      const errJson = await res.json();
-      const parsedErr = ApiErrorSchema.safeParse(errJson);
-      if (parsedErr.success) {
-        errorDetail = parsedErr.data.detail || parsedErr.data.error;
-      }
-    } catch {
-      // Body not JSON
-    }
+    const body = await readErrorBody(res);
     throw new ApiClientError(
-      `Failed to retrieve job ${jobId}: HTTP ${res.status} ${errorDetail}`,
+      `Failed to retrieve job ${jobId}: HTTP ${res.status} ${body.message}`,
       res.status === 404 ? 'NOT_FOUND' : 'HTTP_ERROR',
       res.status,
-      errorDetail,
+      body.message,
+      body.code,
     );
   }
 

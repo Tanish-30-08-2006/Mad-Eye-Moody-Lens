@@ -1,185 +1,109 @@
 /**
- * entrypoints/reddit.content/index.tsx – Content Script for Reddit pages.
+ * entrypoints/reddit.content/index.tsx – Content script for www.reddit.com and sh.reddit.com.
  *
- * Matches www.reddit.com and sh.reddit.com only.
- * Logs once on startup, verifies service worker communication via PING,
- * and prepares shadow root UI injection for the Moody Lens button and shared popover.
- *
- * All network requests are routed to the service worker via messaging.ts.
+ * Renders UI only: one shadow-root lens button per media post and ONE shared popover.
+ * All network work is delegated to the service worker through typed messages.
  */
 
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
-import ReactDOM from 'react-dom/client';
-import React from 'react';
 import { createLogger } from '../../core/logger';
-import { sendMessage } from '../../core/messaging';
-import { VerdictPopover } from '../../ui/VerdictPopover';
-import { createLensButton } from '../../ui/lens-button';
+import { bindDebugToSettings } from '../../core/debug';
+import { sendMessage, isTabMessage, type PageStatusResponse } from '../../core/messaging';
+import { DEFAULT_SETTINGS, loadSettings, SETTINGS_KEY, type ExtensionSettings } from '../../core/settings';
 import { redditAdapter } from '../../adapters/reddit';
-import { PROCESSED_MARKER } from '../../adapters/reddit/selectors';
+import { createLensButton } from '../../ui/lens-button';
+import { createPopoverHost, type PopoverApi } from '../../ui/popover-host';
+import { createController } from '../../content/controller';
 import '../../ui/styles.css';
 
 const log = createLogger('content');
+
+/** Gives the lens host a positioned parent; returns a function that undoes the change. */
+function ensurePositioned(anchor: HTMLElement): () => void {
+  if (getComputedStyle(anchor).position !== 'static') return () => {};
+  anchor.style.position = 'relative';
+  return () => {
+    anchor.style.position = '';
+  };
+}
 
 export default defineContentScript({
   matches: ['https://www.reddit.com/*', 'https://sh.reddit.com/*'],
   cssInjectionMode: 'ui',
 
   async main(ctx: ContentScriptContext) {
-    // Log once on injection
     log.info('Moody Lens content script loaded on Reddit.');
+    void bindDebugToSettings();
 
-    // Verify service worker communication with typed ping
-    try {
-      const pingResponse = await sendMessage({ type: 'PING' });
-      log.info('Service worker ping successful:', pingResponse);
-    } catch (err) {
-      log.warn('Could not ping service worker on startup:', err);
-    }
+    // Keep a live copy of the settings the controller reads synchronously.
+    let settings: ExtensionSettings = { ...DEFAULT_SETTINGS };
+    void loadSettings().then((s) => (settings = s));
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'sync' && changes[SETTINGS_KEY]) void loadSettings().then((s) => (settings = s));
+    });
 
-    // Set up single shared popover host container
-    let popoverRoot: ReactDOM.Root | null = null;
-
-    const popoverUi = await createShadowRootUi(ctx, {
+    // The single shared popover lives in one shadow host on <body>.
+    const popoverUi = await createShadowRootUi<PopoverApi>(ctx, {
       name: 'moody-lens-popover-host',
       position: 'inline',
       anchor: 'body',
       append: 'last',
-      onMount: (container: HTMLElement) => {
-        const mountPoint = document.createElement('div');
-        container.appendChild(mountPoint);
-        popoverRoot = ReactDOM.createRoot(mountPoint);
-
-        // Render initial hidden popover
-        popoverRoot.render(
-          <VerdictPopover
-            isOpen={false}
-            isLoading={false}
-            onClose={() => {
-              popoverRoot?.render(
-                <VerdictPopover
-                  isOpen={false}
-                  isLoading={false}
-                  onClose={() => {}}
-                />,
-              );
-            }}
-          />,
-        );
-      },
-      onRemove: () => {
-        popoverRoot?.unmount();
-        popoverRoot = null;
-      },
+      inheritStyles: true,
+      onMount: (container) => createPopoverHost(container),
+      onRemove: (api) => api?.destroy(),
     });
-
     popoverUi.mount();
+    const popover = popoverUi.mounted!;
 
-    // Helper to inject button into a single post element
-    const injectPostButton = (post: HTMLElement) => {
-      if (post.hasAttribute(PROCESSED_MARKER)) return;
-      post.setAttribute(PROCESSED_MARKER, 'true');
-
-      const mountPoint = redditAdapter.getMountPoint(post);
-      if (!mountPoint) return;
-
-      const host = document.createElement('div');
-      host.className = 'moody-lens-button-host';
-      const shadow = host.attachShadow({ mode: 'open' });
-
-      const button = createLensButton({
-        postId: mountPoint.postId,
-        onClick: async (_e) => {
-          log.info(`Moody Lens clicked for post: ${mountPoint.postId}`);
-
-          // Extract media metadata
-          const mediaRef = redditAdapter.extractMedia(post);
-          log.debug('Extracted media:', mediaRef);
-
-          // Show popover in loading state (stub)
-          if (popoverRoot) {
-            popoverRoot.render(
-              <VerdictPopover
-                isOpen={true}
-                isLoading={true}
-                onClose={() => {
-                  popoverRoot?.render(
-                    <VerdictPopover
-                      isOpen={false}
-                      isLoading={false}
-                      onClose={() => {}}
-                    />,
-                  );
-                }}
-              />,
-            );
-          }
-
-          // Phase 3 Dev Pipeline Test (clearly gated via DEV_PIPELINE_TEST flag)
-          const DEV_PIPELINE_TEST = true;
-          if (DEV_PIPELINE_TEST) {
-            try {
-              const testUrls = mediaRef?.urls.length ? mediaRef.urls : ['https://i.redd.it/dev_test_image.png'];
-              const scanResponse = await sendMessage({
-                type: 'SCAN_MEDIA',
-                payload: {
-                  mediaUrls: testUrls,
-                  postId: mountPoint.postId,
-                  permalink: window.location.href,
-                  mediaType: 'image',
-                },
-              });
-              log.info('Phase 3 Dev Pipeline Verdict Received:', scanResponse);
-
-              if (popoverRoot && scanResponse.type === 'JOB_STATUS' && scanResponse.result) {
-                popoverRoot.render(
-                  <VerdictPopover
-                    isOpen={true}
-                    isLoading={false}
-                    job={scanResponse.result}
-                    onClose={() => {
-                      popoverRoot?.render(
-                        <VerdictPopover
-                          isOpen={false}
-                          isLoading={false}
-                          onClose={() => {}}
-                        />,
-                      );
-                    }}
-                  />,
-                );
-              }
-            } catch (scanErr) {
-              log.error('Dev pipeline scan failed:', scanErr);
-            }
-          }
-        },
-      });
-
-      shadow.appendChild(button);
-      mountPoint.anchorElement.appendChild(host);
-    };
-
-    // Initial scan for existing posts
-    const initialPosts = redditAdapter.findPosts();
-    log.debug(`Found ${initialPosts.length} posts on initial scan`);
-    for (const post of initialPosts) {
-      injectPostButton(post);
-    }
-
-    // Observe feed for dynamic scroll posts (Phase 4 wiring)
-    redditAdapter.observe((newPosts) => {
-      for (const post of newPosts) {
-        injectPostButton(post);
-      }
+    const controller = createController({
+      adapter: redditAdapter,
+      popover,
+      send: sendMessage,
+      getSettings: () => settings,
+      // One tiny shadow-root host per post, top-right of the media.
+      mountLens: async ({ anchor, postId, onActivate }) => {
+        const restorePosition = ensurePositioned(anchor);
+        const button = createLensButton({ postId, onActivate });
+        const ui = await createShadowRootUi(ctx, {
+          name: 'moody-lens-button-host',
+          position: 'inline',
+          anchor,
+          append: 'last',
+          inheritStyles: true,
+          onMount: (container) => container.appendChild(button.element),
+          onRemove: () => button.element.remove(),
+        });
+        ui.mount();
+        return {
+          button,
+          remove: () => {
+            ui.remove();
+            restorePosition();
+          },
+        };
+      },
     });
+    controller.start();
 
-    // Cleanup when content script context unmounts
+    // Messages pushed to this page: context-menu results and the popup's status query.
+    const onRuntimeMessage = (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (r: PageStatusResponse) => void) => {
+      if (!isTabMessage(message)) return false;
+      if (message.type === 'SHOW_RESULT') {
+        controller.showExternal(message.payload);
+        return false;
+      }
+      const { postsSeen, lensButtons } = controller.stats();
+      sendResponse({ type: 'PAGE_STATUS', postsSeen, lensButtons });
+      return false;
+    };
+    chrome.runtime.onMessage.addListener(onRuntimeMessage);
+
+    // Extension update/disable: remove every piece of UI we added.
     ctx.onInvalidated(() => {
-      log.info('Content script invalidated. Disconnecting adapter.');
-      redditAdapter.disconnect();
+      chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+      controller.stop();
       popoverUi.remove();
     });
   },

@@ -8,7 +8,9 @@ Moody Lens is a Manifest V3 browser extension built with **WXT**, **React 19**, 
 
 - **Manifest V3 Compliant**: All media downloads and external network traffic are routed strictly through the background service worker. The content script communicates via typed runtime messaging (`src/core/messaging.ts`).
 - **Encapsulated UI**: The per-post lens trigger is mounted inside an isolated shadow root (`cssInjectionMode: 'ui'`) to prevent Reddit's stylesheets from bleeding into the button and vice versa.
-- **Shared Singleton Popover**: Avoids rendering hundreds of React roots in an infinite scrolling feed by sharing a single verdict popover anchored to the active post button.
+- **Shared Singleton Popover**: Avoids rendering hundreds of React roots in an infinite scrolling feed by sharing a single verdict popover, placed next to the clicked lens and closed on Esc, outside click or navigation.
+- **Consent first**: The service worker refuses every scan until the user agrees to upload media to their backend. Auto-scan, server fallback and Debug are all off by default.
+- **Honest results**: Detectors that did not run show "not run"; mock backends are flagged with a DEMO DATA badge everywhere a verdict appears.
 - **SiteAdapter Pattern**: DOM parsing and selector queries are decoupled behind the `SiteAdapter` interface (`src/adapters/types.ts`), isolating platform changes to `src/adapters/reddit/`.
 
 ---
@@ -29,6 +31,7 @@ reddit_extension/frontend/
     DOM-RECON.md
     API-CONTRACT.md
     TEST-PLAN.md
+    MANUAL-TEST.md          # What to verify in real Chrome on real Reddit
   public/icons/             # Extension icons (16, 32, 48, 128)
   src/
     entrypoints/
@@ -40,24 +43,30 @@ reddit_extension/frontend/
       types.ts              # SiteAdapter, MediaRef, MountPoint
       reddit/               # Selectors, observer, extractors, navigation
     background/
-      handlers/             # Modular message handlers (scan, context menu)
+      handlers/             # Scan handler (consent, cache, queue) and image context menu
+      scan-queue.ts         # 2 concurrent scans, in-flight dedupe, auto-scan rate cap
+      rendition.ts          # Picks the progressive MP4 rendition to upload
+      errors.ts             # Typed errors to friendly messages
       media-fetcher.ts      # Session-aware CDN media fetcher
       job-poller.ts         # Asynchronous job poller with backoff
       keepalive.ts          # Port keepalive & session storage state
+    content/
+      controller.ts         # Adapter + lens buttons + shared popover glue
     core/
-      messaging.ts          # Typed message passing protocol
+      messaging.ts          # Typed, validated message passing
       api-client.ts         # Backend REST API client
       schema.ts             # Zod schema definitions for API contracts
-      cache.ts              # LocalStorage scan result caching
-      settings.ts           # Settings persistence
-      logger.ts             # Namespaced structured logger
+      cache.ts              # Verdict cache (chrome.storage.local)
+      settings.ts           # Settings persistence and validation
+      consent.ts            # First-run upload consent
+      media-url.ts          # Media host allowlist (shared)
+      debug.ts, logger.ts   # Debug-gated structured logging
     ui/
-      lens-button.ts        # Vanilla button factory for post injection
-      VerdictPopover.tsx    # Shared React verdict popover
-      Gauge.tsx             # Score gauge visualizer
-      ModelBreakdown.tsx    # Multi-model score display
-      Spinner.tsx           # Loading state indicator
-      styles.css            # Scoped widget styling
+      lens-button.ts        # Vanilla per-post lens button
+      popover-host.tsx      # The single shared popover (positioning, close triggers)
+      VerdictPopover.tsx    # Popover content: loading, verdict, error + retry, consent
+      Gauge.tsx, ModelBreakdown.tsx, Spinner.tsx, position.ts
+      styles.css            # Plain CSS, light and dark
   tests/
     fixtures/reddit/        # Saved HTML DOM samples
     unit/                   # Vitest unit test suite
@@ -87,6 +96,8 @@ reddit_extension/frontend/
 | `react-dom` | `19.3.1` | UI rendering |
 | `zod` | `3.24.4` | Runtime schema validation |
 | `typescript` | `5.8.3` | Typechecker |
+| `happy-dom` | `21.0.4` | DOM for unit tests |
+| `@playwright/test` | `1.52.0` | Optional real-Chrome smoke test |
 
 ### Commands
 ```bash
@@ -108,6 +119,23 @@ pnpm lint
 # Run unit tests
 pnpm test
 
-# Run mock backend server
+# Optional real-Chrome smoke test (build first; set CHROME_PATH if Chrome is not at /usr/bin/google-chrome)
+pnpm test:e2e
+
+# Run mock backend server (answers with DEMO data)
 pnpm mock-server
 ```
+
+### Load the built extension
+Chrome: `chrome://extensions` -> Developer mode -> **Load unpacked** -> `frontend/.output/chrome-mv3`.
+
+### Settings (Options page)
+| Setting | Default | Notes |
+|---|---|---|
+| Backend URL | `http://localhost:8000` | http(s) only; Chrome asks for access to any other origin |
+| Auto-scan visible images | off | Images only, never video, rate limited |
+| Server fallback for videos | off | Needs backend `FEATURE_DETECT_URL=true` |
+| Debug | off | Verbose logs; a lens click dumps what the extractors found |
+
+### Selector drift
+Only `post-type`, `content-href`, `permalink`, `id` and `post-title` are verified Reddit attributes. Every other selector lives in `src/adapters/reddit/selectors.ts` marked `// UNVERIFIED: confirm in DevTools`. If lenses stop appearing, turn on Debug, click a lens, and fix the selectors from the logged dump.

@@ -106,6 +106,13 @@ All error responses use a consistent JSON structure:
 | `SERVICE_UNAVAILABLE` | Backend or model service is down |
 | `RATE_LIMITED` | Too many requests |
 | `INTERNAL_ERROR` | Unexpected server error |
+| `FFMPEG_UNAVAILABLE` | `ffmpeg`/`ffprobe` is not installed on the server (HTTP 503) |
+| `VIDEO_TOO_LONG` | Video exceeds the duration cap, default 180 s (HTTP 413) |
+| `PROCESSING_TIMEOUT` | ffmpeg or the downloader exceeded its time limit (HTTP 504) |
+| `NOT_IMPLEMENTED` | `detect-url` is disabled (HTTP 501) |
+| `REDDIT_BLOCKED` | Reddit refused the server-side download (HTTP 502) |
+| `DOWNLOAD_FAILED` | The server-side download failed for another reason (HTTP 502) |
+| `RESOLVER_UNAVAILABLE` | `yt-dlp` is not installed on the server (HTTP 503) |
 
 ---
 
@@ -187,7 +194,7 @@ Content-Type: multipart/form-data; boundary=----FormBoundary
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `media` | `file` | ✅ Yes | The media file (image, video, or audio) |
-| `audio` | `file` | ❌ No | Separate audio track (for videos with split audio/video streams) |
+| `audio` | `file` | ❌ No | Separate audio track for videos with split audio/video streams. Only valid with `media_type=video` (otherwise `400`). Max 50 MB (`MOODY_LENS_MAX_AUDIO_MB`) |
 | `source_url` | `string` | ❌ No | Original URL where the media was found (for logging/dedup) |
 | `post_id` | `string` | ❌ No | Reddit post ID (e.g., `t3_abc123`) for dedup and caching |
 | `media_type` | `enum` | ✅ Yes | One of: `image`, `video`, `audio` |
@@ -234,10 +241,18 @@ curl -X POST http://localhost:8000/api/v1/detect \
   -F "post_id=t3_xyz789"
 ```
 
+#### Video with a separate audio part
+
+When `audio` is present the server probes both files with `ffprobe` (the audio part must contain an audio stream, the video part a video stream), then stream-copies them into ONE MP4 (`ffmpeg -c copy`) and analyses that file, so the existing single-file video task works unchanged. Temp files are always deleted. Without `audio`, a video is analysed as uploaded (a silent video is not an error; the audio detector simply reports `null`). Videos longer than 180 s (`MOODY_LENS_MAX_VIDEO_SECONDS`) are rejected with `413 VIDEO_TOO_LONG`.
+
 #### Error Responses
 
 | Status | Condition | Example Body |
 |--------|-----------|-------------|
+| `400` | `audio` sent with a non-video `media_type` | `{ "error": "The 'audio' part is only valid with media_type=video.", "code": "VALIDATION_ERROR" }` |
+| `413` | Video longer than the duration cap | `{ "error": "Video is 240s long; the limit is 180s.", "code": "VIDEO_TOO_LONG" }` |
+| `415` | Audio part has no audio stream, or the pair cannot be combined | `{ "error": "The audio part has no audio stream.", "code": "UNSUPPORTED_MEDIA_TYPE" }` |
+| `503` | `audio` sent but ffmpeg is not installed | `{ "error": "ffmpeg is not installed on the server, so this video cannot be processed.", "code": "FFMPEG_UNAVAILABLE" }` |
 | `400` | Missing required field or invalid `media_type` | `{ "error": "Invalid media_type. Must be one of: image, video, audio", "code": "VALIDATION_ERROR" }` |
 | `413` | File exceeds size limit | `{ "error": "File too large", "detail": "Video files must be under 500MB. Received: 612.4MB", "code": "FILE_TOO_LARGE" }` |
 | `415` | Unsupported file format | `{ "error": "Unsupported media type", "detail": "Received application/pdf. Accepted: image/jpeg, image/png, image/gif, image/webp, image/avif", "code": "UNSUPPORTED_MEDIA_TYPE" }` |
@@ -459,6 +474,9 @@ Host: localhost:8000
 
   /** List of currently loaded and available model names */
   models_available: string[];
+
+  /** Optional. True when scans would be answered with demo/mock verdicts (no real workers). */
+  mock?: boolean;
 }
 ```
 
@@ -513,7 +531,9 @@ Content-Type: application/json
 ### 8.4 POST /api/v1/detect-url
 
 > [!WARNING]
-> **Tier-2 endpoint. Feature-flagged.** This endpoint is used as a fallback when the service worker cannot directly fetch the media (e.g., HLS streams, age-gated content). The backend downloads the media using `yt-dlp` or similar tools.
+> **Tier-2 endpoint, off by default.** Enabled only when the backend sets `FEATURE_DETECT_URL=true`; otherwise it returns `501 NOT_IMPLEMENTED`. The extension calls it only when the user turned on "Server fallback" in Options. Reddit often blocks datacenter IPs, so expect `REDDIT_BLOCKED` in some deployments.
+
+The backend downloads the post's video with `yt-dlp` (<=480p, size cap 50 MB, duration cap 180 s, 90 s hard timeout), runs the same duration check as an upload, then analyses it exactly like `/detect`. Temp files are always deleted.
 
 #### Request
 
@@ -525,7 +545,7 @@ Content-Type: application/json
 
 ```json
 {
-  "url": "https://v.redd.it/abc123def456/HLSPlaylist.m3u8",
+  "url": "https://www.reddit.com/r/example/comments/abc123/some_title/",
   "media_type": "video"
 }
 ```
@@ -534,32 +554,24 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `url` | `string` (URL) | ✅ Yes | Public URL of the media to download and analyze |
-| `media_type` | `enum` | ✅ Yes | One of: `image`, `video`, `audio` |
+| `url` | `string` (URL) | ✅ Yes | A reddit.com post permalink: `https://(www.|old.|sh.|np.)reddit.com/r/<sub>/comments/<id>[/slug]`. No other host, port, scheme or credentials (SSRF guard) |
+| `media_type` | `enum` | ✅ Yes | Only `video` is supported |
 
 #### Success Response
 
-```
-HTTP/1.1 202 Accepted
-Content-Type: application/json
-```
-
-```json
-{
-  "job_id": "660e9500-f39c-52e5-b827-557766551111"
-}
-```
-
-> [!NOTE]
-> After receiving the `job_id`, poll `GET /api/v1/jobs/{job_id}` as usual. The job will have a longer initial `pending` phase while the backend downloads the media.
+`202 Accepted` with `{ "job_id": "job-..." }`. Poll `GET /api/v1/jobs/{job_id}` as usual.
 
 #### Error Responses
 
 | Status | Condition | Example Body |
 |--------|-----------|-------------|
-| `400` | Invalid URL or missing fields | `{ "error": "Invalid URL format", "code": "VALIDATION_ERROR" }` |
-| `400` | URL domain not allowed | `{ "error": "URL domain not allowed", "detail": "Only reddit media domains are permitted", "code": "VALIDATION_ERROR" }` |
-| `503` | Download tool (yt-dlp) not available | `{ "error": "URL download service unavailable", "code": "SERVICE_UNAVAILABLE" }` |
+| `400` | URL is not a reddit.com permalink, or `media_type` is not `video` | `{ "error": "Only reddit.com post links are accepted.", "code": "VALIDATION_ERROR" }` |
+| `413` | Video too long or too large to download | `{ "error": "The video is too long or too large to download.", "code": "VIDEO_TOO_LONG" }` |
+| `501` | Feature flag off | `{ "error": "detect-url is not enabled. ...", "code": "NOT_IMPLEMENTED" }` |
+| `502` | Reddit blocked the download | `{ "error": "Reddit blocked server download.", "code": "REDDIT_BLOCKED" }` |
+| `502` | Any other download failure | `{ "error": "The video could not be downloaded.", "code": "DOWNLOAD_FAILED" }` |
+| `503` | `yt-dlp` or ffmpeg missing | `{ "error": "yt-dlp is not installed on the server.", "code": "RESOLVER_UNAVAILABLE" }` |
+| `504` | Download exceeded its time limit | `{ "error": "Downloading the video took too long.", "code": "PROCESSING_TIMEOUT" }` |
 
 ---
 
@@ -648,6 +660,7 @@ export const HealthResponseSchema = z.object({
   status: z.enum(["ok", "degraded", "down"]),
   version: z.string(),
   models_available: z.array(z.string()),
+  mock: z.boolean().optional(),
 });
 
 // --- POST /api/v1/detect-url ---
@@ -740,7 +753,7 @@ To prevent drift between the backend Python API and the extension TypeScript cli
 | Verdict Label String | `VerdictLabelType` (`likely_real`, `likely_fake`, `inconclusive`) | `z.enum(['likely_real', 'likely_fake', 'inconclusive'])` |
 | Full Job Payload | `DetectionJob` | `DetectionJobSchema` |
 | Detection Submission | `DetectResponse` (`job_id`) | `DetectResponseSchema` |
-| Health Status | `HealthResponse` (`status`, `version`, `models_available`) | `HealthResponseSchema` |
+| Health Status | `HealthResponse` (`status`, `version`, `models_available`, optional `mock`) | `HealthResponseSchema` |
 | Error Body | `ApiError` (`error`, `detail`, `code`) | `ApiErrorSchema` |
 
 ### Verification Harness

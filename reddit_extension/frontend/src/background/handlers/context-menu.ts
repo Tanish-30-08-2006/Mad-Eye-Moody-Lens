@@ -1,72 +1,98 @@
 /**
- * background/handlers/context-menu.ts – Context menu integration for direct image scans.
+ * background/handlers/context-menu.ts – Right-click "Scan image with Moody Lens".
  *
- * Registers a right-click "Scan image with Moody Lens" menu item on image elements ONLY.
- * Skips video context menus because Reddit <video> elements lack direct usable source URLs.
+ * Images only: a Reddit <video> has no usable source URL. Scans go through the same
+ * queue as the lens button; the result is shown in the page popover, or as a toolbar
+ * badge when the page has no content script (no notifications permission needed).
  */
 
 import { createLogger } from '../../core/logger';
+import { hashUrl } from '../../core/cache';
 import { isAllowedMediaUrl } from '../media-fetcher';
 import { handleScanMedia } from './scan-media';
+import type { ExtensionResponse, ShowResultMessage } from '../../core/messaging';
 
 const log = createLogger('context-menu');
 
 export const CONTEXT_MENU_ID = 'moody-lens-scan-image';
 
-/**
- * Initialize context menu item for IMAGE context only.
- */
+/** Registers the image-only context menu item. */
 export function setupContextMenu(): void {
-  log.info('Setting up context menu items');
-
-  if (typeof chrome !== 'undefined' && chrome.contextMenus) {
-    chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({
-        id: CONTEXT_MENU_ID,
-        title: 'Scan image with Moody Lens',
-        contexts: ['image'], // Strict: images only, NO video
-      });
+  if (typeof chrome === 'undefined' || !chrome.contextMenus) return;
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: CONTEXT_MENU_ID,
+      title: 'Scan image with Moody Lens',
+      contexts: ['image'],
     });
+  });
+}
+
+/** Sends a message to the page's content script; false when nothing is listening. */
+async function sendToTab(tabId: number, message: ShowResultMessage): Promise<boolean> {
+  try {
+    await chrome.tabs.sendMessage(tabId, message);
+    return true;
+  } catch {
+    return false;
   }
+}
+
+/** Notification-free fallback: a short badge on the toolbar icon for this tab. */
+function showBadge(tabId: number, response: ExtensionResponse): void {
+  let text = '!';
+  if (response.type === 'JOB_STATUS' && response.result?.label) {
+    text = response.result.label === 'likely_fake' ? 'FAKE' : response.result.label === 'likely_real' ? 'REAL' : '?';
+  }
+  try {
+    void chrome.action.setBadgeText({ tabId, text });
+    setTimeout(() => void chrome.action.setBadgeText({ tabId, text: '' }), 10_000);
+  } catch (err) {
+    log.warn('Could not set badge:', err);
+  }
+}
+
+/** Builds the page message for a scan outcome. */
+function toShowResult(response: ExtensionResponse): ShowResultMessage {
+  if (response.type === 'JOB_STATUS' && response.result) {
+    return { type: 'SHOW_RESULT', payload: { state: 'result', job: response.result } };
+  }
+  const message = response.type === 'ERROR' ? response.error : 'Scan did not return a result.';
+  const code = response.type === 'ERROR' ? response.code : undefined;
+  return { type: 'SHOW_RESULT', payload: { state: 'error', message, code } };
 }
 
 /**
  * Handle clicks on Moody Lens context menu items.
- * Validates allowlist and dispatches scan.
  */
 export async function handleContextMenuClick(
   info: chrome.contextMenus.OnClickData,
   tab?: chrome.tabs.Tab,
 ): Promise<void> {
-  if (info.menuItemId !== CONTEXT_MENU_ID) {
-    return;
-  }
+  if (info.menuItemId !== CONTEXT_MENU_ID) return;
 
   const srcUrl = info.srcUrl;
-  if (!srcUrl) {
-    log.warn('Context menu click has no srcUrl');
+  if (!srcUrl || !isAllowedMediaUrl(srcUrl)) {
+    log.warn('Context menu target is missing or not on the media allowlist.');
     return;
   }
 
-  log.info(`Context menu clicked on tab ${tab?.id} for URL: ${srcUrl}`);
+  const tabId = tab?.id;
+  if (tabId !== undefined) await sendToTab(tabId, { type: 'SHOW_RESULT', payload: { state: 'loading' } });
 
-  if (!isAllowedMediaUrl(srcUrl)) {
-    log.warn(`Context menu target URL not on media allowlist: ${srcUrl}`);
-    return;
-  }
+  const response = await handleScanMedia({
+    type: 'SCAN_MEDIA',
+    payload: {
+      mediaUrls: [srcUrl],
+      // Stable id per image so repeated clicks hit the cache and the in-flight dedupe.
+      postId: `ctx_${hashUrl(srcUrl)}`,
+      permalink: tab?.url || srcUrl,
+      mediaType: 'image',
+      origin: 'context-menu',
+    },
+  });
 
-  try {
-    const response = await handleScanMedia({
-      type: 'SCAN_MEDIA',
-      payload: {
-        mediaUrls: [srcUrl],
-        postId: `context_menu_${Date.now()}`,
-        permalink: tab?.url || srcUrl,
-        mediaType: 'image',
-      },
-    });
-    log.info('Context menu scan completed:', response);
-  } catch (err) {
-    log.error('Context menu scan failed:', err);
-  }
+  if (tabId === undefined) return;
+  const delivered = await sendToTab(tabId, toShowResult(response));
+  if (!delivered) showBadge(tabId, response);
 }

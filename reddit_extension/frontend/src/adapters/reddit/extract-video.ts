@@ -1,50 +1,67 @@
 /**
- * adapters/reddit/extract-video.ts – Extract video media from a Reddit post.
+ * adapters/reddit/extract-video.ts – Extract video (and separate audio) from a Reddit post.
  *
- * Handles video posts (post-type="video") and GIFs. Reddit video is split:
- * video-only renditions (DASH_* or CMAF_*) plus a separate audio file
- * (DASH_audio.mp4). Naming varies, so URLs must be read from the page or
- * manifest, never hardcoded.
- *
- * TODO: Implement in Phase 4 / Phase 6 after DOM-RECON confirms video structure.
+ * Reddit splits video and audio, and rendition names vary (DASH_* vs CMAF_*), so every
+ * URL is read from the page, never constructed. HLS/DASH manifests are kept in `urls`
+ * so the service worker can tell "unsupported format" apart from "nothing found".
  */
 
-import { createLogger } from '../../core/logger';
 import type { MediaRef } from '../types';
-import { ATTR_PERMALINK, ATTR_POST_ID, ATTR_POST_TITLE } from './selectors';
+import { isAudioTrackUrl, videoFileKind } from '../../core/media-url';
+import {
+  ATTR_CONTENT_HREF,
+  ATTR_PACKAGED_MEDIA,
+  PLAYER_SELECTOR,
+  PLAYER_URL_ATTRS,
+  VIDEO_SELECTOR,
+} from './selectors';
+import { dedupe, jsonStrings, readPostBase, safeJson, validUrl } from './extract-common';
 
-const log = createLogger('extract-video');
+export interface VideoCandidates {
+  /** Valid allowlisted URLs with a recognised video file extension (audio tracks excluded). */
+  video: string[];
+  /** Valid allowlisted URLs that look like an audio track. */
+  audio: string[];
+}
 
-/**
- * Extract a video MediaRef from a video or GIF Reddit post.
- * Returns null if the post is not a video post or extraction fails.
- *
- * TODO: Implement in Phase 4 / Phase 6.
- */
-export function extractVideo(post: HTMLElement): MediaRef | null {
-  log.debug('extractVideo called (stub) for post:', post.getAttribute(ATTR_POST_ID));
+/** Collects every plausible video/audio URL in the post (also used by the debug helper). */
+export function videoCandidates(post: HTMLElement): VideoCandidates {
+  const raw: (string | null)[] = [post.getAttribute(ATTR_CONTENT_HREF)];
 
-  const permalink = post.getAttribute(ATTR_PERMALINK);
-  const postId = post.getAttribute(ATTR_POST_ID);
-  const title = post.getAttribute(ATTR_POST_TITLE);
-
-  if (!permalink || !postId) {
-    log.warn('Missing required attributes for video extraction');
-    return null;
+  try {
+    for (const player of Array.from(post.querySelectorAll(PLAYER_SELECTOR))) {
+      for (const attr of PLAYER_URL_ATTRS) raw.push(player.getAttribute(attr));
+      raw.push(...jsonStrings(safeJson(player.getAttribute(ATTR_PACKAGED_MEDIA))));
+    }
+    for (const video of Array.from(post.querySelectorAll(VIDEO_SELECTOR))) {
+      raw.push(video.getAttribute('src'));
+      for (const source of Array.from(video.querySelectorAll('source'))) {
+        raw.push(source.getAttribute('src'));
+      }
+    }
+  } catch {
+    // Unexpected DOM shape: keep what was gathered.
   }
 
-  // TODO: Phase 4 – Find shreddit-player or <video> element
-  // TODO: Phase 4 – Extract video source URL (DASH manifest or direct MP4)
-  // TODO: Phase 6 – Extract separate audio track URL
-  // TODO: Phase 6 – Prefer mid-quality rendition (360-480p)
-  // TODO: Phase 6 – Handle silent videos/GIFs (no audio track)
+  const video: string[] = [];
+  const audio: string[] = [];
+  for (const candidate of raw) {
+    const url = validUrl(candidate);
+    if (!url || !videoFileKind(url)) continue;
+    (isAudioTrackUrl(url) ? audio : video).push(url);
+  }
+  return { video: dedupe(video), audio: dedupe(audio) };
+}
 
-  return {
-    kind: 'video',
-    urls: [], // TODO: Phase 4 – Populate with video rendition URLs
-    audioUrl: undefined, // TODO: Phase 6 – Populate with audio track URL
-    permalink,
-    postId,
-    title: title ?? undefined,
-  };
+export function extractVideo(post: HTMLElement): MediaRef | null {
+  try {
+    const base = readPostBase(post);
+    if (!base) return null;
+    const { video, audio } = videoCandidates(post);
+    if (video.length === 0) return null;
+    // A silent video simply has no audio candidate; that is not an error.
+    return { kind: 'video', urls: video, audioUrl: audio[0], ...base };
+  } catch {
+    return null;
+  }
 }

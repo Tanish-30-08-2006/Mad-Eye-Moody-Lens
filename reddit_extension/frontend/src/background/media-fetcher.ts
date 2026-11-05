@@ -6,16 +6,12 @@
  */
 
 import { createLogger } from '../core/logger';
+import { ALLOWED_HOSTS, isAllowedMediaUrl } from '../core/media-url';
+
+// Re-exported so existing importers keep working.
+export { ALLOWED_HOSTS, isAllowedMediaUrl };
 
 const log = createLogger('media-fetcher');
-
-/** Allowed hosts for media fetching. */
-export const ALLOWED_HOSTS = [
-  'i.redd.it',
-  'v.redd.it',
-  'preview.redd.it',
-  'external-preview.redd.it',
-];
 
 /** Maximum allowed media download size (50MB by default). */
 export const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
@@ -43,23 +39,6 @@ export interface FetchedMedia {
 }
 
 /**
- * Validates that a target URL uses https and belongs to the allowed media CDN hosts.
- */
-export function isAllowedMediaUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    if (parsed.protocol !== 'https:') {
-      return false;
-    }
-    return ALLOWED_HOSTS.some(
-      (allowed) => parsed.hostname === allowed || parsed.hostname.endsWith(`.${allowed}`),
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Fetch media content from an allowlisted Reddit CDN domain using session credentials.
  * Enforces pre-fetch content-length check, streaming size cap, and abort timeout.
  */
@@ -73,7 +52,8 @@ export async function fetchMediaBlob(
   const maxBytes = options.maxBytes ?? MAX_MEDIA_BYTES;
   const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
 
-  log.info(`fetchMediaBlob requested: ${mediaUrl}`);
+  // Media URLs identify what the user is looking at, so only log them in Debug mode.
+  log.debug(`fetchMediaBlob requested: ${mediaUrl}`);
 
   // 1. URL validation
   let parsedUrl: URL;

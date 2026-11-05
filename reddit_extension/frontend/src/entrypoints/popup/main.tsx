@@ -5,6 +5,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
+import '../pages.css';
+
+// The popup is a fixed-width page.
+document.body.classList.add('popup');
 
 const rootEl = document.getElementById('root');
 if (rootEl) {

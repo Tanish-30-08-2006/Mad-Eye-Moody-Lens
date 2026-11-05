@@ -17,7 +17,11 @@ from __future__ import annotations
 
 import io
 import pytest
-from PIL import Image
+
+# Needs the host backend (`app.*`), which is not in this repo: skip cleanly without it.
+pytest.importorskip("app.main")
+
+from PIL import Image  # noqa: E402
 
 from moody_lens_ext.media import (
     DetectionJob,

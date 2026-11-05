@@ -84,4 +84,24 @@ describe('Messaging Protocol and Runtime Validation', () => {
       expect(isAuthorizedSender({ id: 'malicious-extension-id' } as chrome.runtime.MessageSender)).toBe(false);
     });
   });
+
+  it('rejects non-allowlisted or non-https media URLs at the message boundary', () => {
+    const bad = (mediaUrls: string[], audioUrl?: string) =>
+      validateMessage({
+        type: 'SCAN_MEDIA',
+        payload: { mediaUrls, audioUrl, postId: 't3_a', permalink: '/r/x/', mediaType: 'image' },
+      }).success;
+    expect(bad(['https://i.redd.it/a.jpg'])).toBe(true);
+    expect(bad(['https://evil.com/a.jpg'])).toBe(false);
+    expect(bad(['http://i.redd.it/a.jpg'])).toBe(false);
+    expect(bad(['https://i.redd.it/a.jpg'], 'https://evil.com/a.mp4')).toBe(false);
+  });
+
+  it('validates the consent, health and cache messages', () => {
+    expect(validateMessage({ type: 'GET_CONSENT' }).success).toBe(true);
+    expect(validateMessage({ type: 'SET_CONSENT', payload: { accepted: true } }).success).toBe(true);
+    expect(validateMessage({ type: 'SET_CONSENT', payload: { accepted: 'yes' } }).success).toBe(false);
+    expect(validateMessage({ type: 'CHECK_HEALTH' }).success).toBe(true);
+    expect(validateMessage({ type: 'CLEAR_CACHE' }).success).toBe(true);
+  });
 });

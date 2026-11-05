@@ -74,6 +74,8 @@ export const HealthResponseSchema = z.object({
   status: z.enum(['ok', 'degraded', 'down']),
   version: z.string().optional().default('1.0.0'),
   models_available: z.array(z.string()).optional().default([]),
+  /** True when the backend would answer with demo/mock verdicts. */
+  mock: z.boolean().optional(),
 });
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;

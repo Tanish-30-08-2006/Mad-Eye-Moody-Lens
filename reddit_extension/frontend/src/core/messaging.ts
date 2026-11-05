@@ -7,7 +7,9 @@
  */
 
 import { z } from 'zod';
-import type { DetectionJob, JobStatus } from './schema';
+import type { DetectionJob, HealthResponse, JobStatus } from './schema';
+import type { ExtensionSettings } from './settings';
+import { isAllowedMediaUrl } from './media-url';
 
 // ── Zod Schemas for Message Payloads ─────────────────────────────────────────
 
@@ -15,12 +17,20 @@ export const PingRequestSchema = z.object({
   type: z.literal('PING'),
 });
 
+/** https + allowlisted CDN host only; anything else is rejected at the message boundary. */
+const MediaUrlSchema = z.string().url().refine(isAllowedMediaUrl, 'Media URL must be https on an allowed Reddit CDN host');
+
+export const ScanOriginSchema = z.enum(['manual', 'auto', 'context-menu']);
+export type ScanOrigin = z.infer<typeof ScanOriginSchema>;
+
 export const ScanMediaPayloadSchema = z.object({
-  mediaUrls: z.array(z.string().url()).min(1),
-  audioUrl: z.string().url().optional(),
+  mediaUrls: z.array(MediaUrlSchema).min(1).max(100),
+  audioUrl: MediaUrlSchema.optional(),
   postId: z.string().min(1),
   permalink: z.string(),
   mediaType: z.enum(['image', 'video', 'audio']),
+  /** Who asked: a lens click, the auto-scan feature or the context menu. */
+  origin: ScanOriginSchema.optional(),
 });
 
 export const ScanMediaRequestSchema = z.object({
@@ -46,12 +56,27 @@ export const GetSettingsRequestSchema = z.object({
   type: z.literal('GET_SETTINGS'),
 });
 
+export const GetConsentRequestSchema = z.object({ type: z.literal('GET_CONSENT') });
+
+export const SetConsentRequestSchema = z.object({
+  type: z.literal('SET_CONSENT'),
+  payload: z.object({ accepted: z.boolean() }),
+});
+
+export const CheckHealthRequestSchema = z.object({ type: z.literal('CHECK_HEALTH') });
+
+export const ClearCacheRequestSchema = z.object({ type: z.literal('CLEAR_CACHE') });
+
 export const ExtensionMessageSchema = z.discriminatedUnion('type', [
   PingRequestSchema,
   ScanMediaRequestSchema,
   GetJobStatusRequestSchema,
   CancelJobRequestSchema,
   GetSettingsRequestSchema,
+  GetConsentRequestSchema,
+  SetConsentRequestSchema,
+  CheckHealthRequestSchema,
+  ClearCacheRequestSchema,
 ]);
 
 export type ExtensionMessage = z.infer<typeof ExtensionMessageSchema>;
@@ -60,6 +85,7 @@ export type ScanMediaRequest = z.infer<typeof ScanMediaRequestSchema>;
 export type GetJobStatusRequest = z.infer<typeof GetJobStatusRequestSchema>;
 export type CancelJobRequest = z.infer<typeof CancelJobRequestSchema>;
 export type GetSettingsRequest = z.infer<typeof GetSettingsRequestSchema>;
+export type SetConsentRequest = z.infer<typeof SetConsentRequestSchema>;
 
 // ── Response Schemas and Types ──────────────────────────────────────────────
 
@@ -81,12 +107,21 @@ export interface JobStatusResponse {
 
 export interface SettingsResponse {
   type: 'SETTINGS';
-  settings: {
-    apiUrl: string;
-    enableAutoScan: boolean;
-    enableUrlDetect: boolean;
-    logLevel: string;
-  };
+  settings: ExtensionSettings;
+}
+
+export interface ConsentResponse {
+  type: 'CONSENT';
+  accepted: boolean;
+}
+
+export interface HealthResultResponse {
+  type: 'HEALTH';
+  health: HealthResponse;
+}
+
+export interface OkResponse {
+  type: 'OK';
 }
 
 export interface ErrorResponse {
@@ -100,6 +135,9 @@ export type ExtensionResponse =
   | ScanMediaResponse
   | JobStatusResponse
   | SettingsResponse
+  | ConsentResponse
+  | HealthResultResponse
+  | OkResponse
   | ErrorResponse;
 
 // ── Validation Helpers ───────────────────────────────────────────────────────
@@ -118,7 +156,7 @@ export function validateMessage(msg: unknown): {
   }
   return {
     success: false,
-    error: result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
+    error: result.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
   };
 }
 
@@ -141,6 +179,39 @@ export function isAuthorizedSender(sender: chrome.runtime.MessageSender): boolea
     }
   }
   return true;
+}
+
+// ── Messages sent TO content scripts (service worker / popup → page) ────────
+
+export const ShowResultMessageSchema = z.object({
+  type: z.literal('SHOW_RESULT'),
+  payload: z.discriminatedUnion('state', [
+    z.object({ state: z.literal('loading') }),
+    z.object({ state: z.literal('result'), job: z.custom<DetectionJob>((v) => !!v && typeof v === 'object') }),
+    z.object({ state: z.literal('error'), message: z.string(), code: z.string().optional() }),
+  ]),
+});
+
+export const GetPageStatusMessageSchema = z.object({ type: z.literal('GET_PAGE_STATUS') });
+
+export const TabMessageSchema = z.discriminatedUnion('type', [
+  ShowResultMessageSchema,
+  GetPageStatusMessageSchema,
+]);
+
+export type TabMessage = z.infer<typeof TabMessageSchema>;
+export type ShowResultMessage = z.infer<typeof ShowResultMessageSchema>;
+
+export interface PageStatusResponse {
+  type: 'PAGE_STATUS';
+  /** Posts handed to the adapter (visible, any type). */
+  postsSeen: number;
+  /** Lens buttons currently mounted. */
+  lensButtons: number;
+}
+
+export function isTabMessage(msg: unknown): msg is TabMessage {
+  return TabMessageSchema.safeParse(msg).success;
 }
 
 // ── Dispatch Helper ─────────────────────────────────────────────────────────

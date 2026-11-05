@@ -74,11 +74,12 @@
 
 The content script runs on `www.reddit.com` and `sh.reddit.com`. Its responsibilities:
 
-- **Detect posts** — Observes the DOM for `<shreddit-post>` elements via `MutationObserver`.
+- **Detect posts** — The adapter's observer reports each `<shreddit-post>` once, when it is on screen (`MutationObserver` for added nodes, then `IntersectionObserver`).
 - **Extract media metadata** — Delegates to the Reddit SiteAdapter to pull media URLs, post IDs, and media types from post elements.
-- **Inject UI** — Creates a shadow root on each post and renders a scan button inside it.
-- **Communicate** — Sends typed messages to the service worker to initiate scans; receives verdicts back.
-- **Display results** — Positions and populates a single shared popover component with the verdict.
+- **Inject UI** — Mounts one lens button per media post (text/link posts get none) in its own shadow root via WXT `createShadowRootUi`, and ONE shared popover on `<body>`.
+- **Communicate** — `content/controller.ts` sends typed, validated messages to the service worker and tracks per-post state (idle, scanning, done, error). Auto-scan, when enabled, uses the same messages with `origin: 'auto'`.
+- **Display results** — The shared popover shows loading, verdict, error with Retry, or the consent prompt; it also renders results pushed by the service worker after an image context-menu scan.
+- **Clean up** — On SPA navigation the adapter stops, removes every lens and marker, and restarts; on extension update everything is unmounted.
 
 ### 3.2 Service Worker (`src/background/`)
 
@@ -86,6 +87,10 @@ The MV3 service worker acts as the network and orchestration layer:
 
 - **Message handling** (`handlers/`) — Listens for typed messages from content scripts and routes them to appropriate handlers.
 - **Media fetching** — Uses `fetch()` with the browser's session cookies to download media from Reddit CDN (i.redd.it, v.redd.it, etc.). This must happen in the SW because content scripts on Reddit cannot make cross-origin requests to all CDN domains.
+- **Consent gate** — Refuses every scan with `CONSENT_REQUIRED` until the user accepts (stored in `chrome.storage.local`).
+- **Scan queue** (`scan-queue.ts`) — At most 2 scans run at once; identical in-flight scans (same cache key) share one run; automatic scans are capped per minute. Lens clicks, auto-scan and the context menu all use it.
+- **Video** — `rendition.ts` picks a progressive MP4 (tallest up to 480p, falling back on size); the audio track is fetched separately and uploaded as the `audio` part. HLS/DASH-only videos report "Video format not supported yet" unless the server fallback is enabled.
+- **Friendly errors** (`errors.ts`) — Every typed failure maps to a stable code and a message with no URLs or internals.
 - **Backend communication** — Uploads media to the FastAPI backend via `POST /api/v1/detect`, then polls `GET /api/v1/jobs/{id}` until the job completes.
 - **Keepalive** — Maintains an open `chrome.runtime.connect` port to prevent the SW from being killed mid-job (see §5).
 - **State persistence** — Stores in-flight job state in `chrome.storage.session` so jobs can survive a SW restart.
@@ -96,17 +101,13 @@ Adapters encapsulate all site-specific logic behind a common `SiteAdapter` inter
 
 ```typescript
 interface SiteAdapter {
-  /** CSS selector or check to identify post containers */
-  postSelector: string;
-  
-  /** Extract media info from a post element */
-  extractMedia(post: Element): MediaInfo | null;
-  
-  /** Find the injection point for the scan button */
-  getButtonAnchor(post: Element): Element | null;
-  
-  /** Get a unique identifier for the post */
-  getPostId(post: Element): string | null;
+  findPosts(): HTMLElement[];
+  isMediaPost(post: HTMLElement): boolean;          // image / gallery / video by post-type
+  extractMedia(post: HTMLElement): MediaRef | null; // null for text, link, removed, no media
+  getMountPoint(post: HTMLElement): MountPoint | null;
+  describe(post: HTMLElement): unknown;             // Debug-only selector dump
+  observe(onPost: PostCallback, onNavigate?: () => void): void; // once per visible post
+  disconnect(): void;                               // idempotent; removes everything added
 }
 ```
 
@@ -116,9 +117,12 @@ Currently, only a **Reddit adapter** (`src/adapters/reddit/`) is implemented.
 
 | Sub-module | Responsibility |
 |------------|---------------|
-| `extractor.ts` | Reads `<shreddit-post>` attributes (`post-type`, `content-href`, `id`, `post-title`, `permalink`) and walks child DOM to find `<img>`, `<video>`, `<source>` elements for media URLs |
-| `observer.ts` | Sets up `MutationObserver` on `<shreddit-feed>` (or `document.body` fallback) and `IntersectionObserver` for viewport-based filtering |
-| `injector.ts` | Creates the shadow root host element and determines where to attach the button relative to the post's action bar |
+| `selectors.ts` | Every Reddit selector and attribute name. Only `post-type`, `content-href`, `permalink`, `id`, `post-title` are verified; the rest are marked `// UNVERIFIED: confirm in DevTools` |
+| `extract-image.ts`, `extract-gallery.ts`, `extract-video.ts` (+ `extract-common.ts`) | Pure functions: post element to `MediaRef` or null. `content-href` first, then guarded fallbacks (`<img>` srcset/lazy attributes, player attributes, media-JSON attributes, `<video>`/`<source>`). Every URL must be https on the media allowlist |
+| `observer.ts` | `MutationObserver` (added nodes only, 300 ms debounce) feeding an `IntersectionObserver`; `WeakSet` plus a `data-moody-lens` marker for dedupe; `stop()` removes markers and runs per-post disposers |
+| `spa-navigation.ts` | Navigation API `navigatesuccess` plus a debounced `location.href` comparison fallback; history is never patched |
+| `debug.ts` | With Debug on, a lens click logs the post's attribute names, candidate URLs and the extraction result |
+| `index.ts` | Implements `SiteAdapter`; on navigation stops, clears and restarts; warns once if a feed page shows no `<shreddit-post>` after 10 s (markup-drift canary) |
 
 ### 3.4 Core (`src/core/`)
 
@@ -137,16 +141,16 @@ React components rendered inside shadow roots:
 
 | Component | Description |
 |-----------|-------------|
-| `LensButton` | Small icon button injected per post. Shows idle / scanning / complete / error states. |
-| `VerdictPopover` | Shared popover anchored to whichever button was last clicked. Displays score, label, per-model breakdown, and confidence. |
-| `ConsentBanner` | First-run consent prompt (Phase 7). |
+| `lens-button.ts` | Vanilla (no React per post) button: idle / scanning / done (verdict chip, `DEMO` when mock) / error. Keyboard accessible; swallows its own click and keys so Reddit never sees them |
+| `VerdictPopover.tsx`, `popover-host.tsx` | The single shared React popover: spinner, verdict + gauge + per-model rows ("not run" for null models, DEMO DATA badge when mock), error with Retry, consent prompt. Positioned when opened; closes on Esc, outside click or navigation |
+| `Gauge.tsx`, `ModelBreakdown.tsx`, `Spinner.tsx`, `position.ts`, `styles.css` | Parts and plain CSS (light and dark via `prefers-color-scheme`) |
 
 ### 3.6 Other Entrypoints
 
 | Entrypoint | Path | Purpose |
 |------------|------|---------|
-| Popup | `src/entrypoints/popup/` | Extension toolbar popup — shows health status, settings toggle, link to options |
-| Options | `src/entrypoints/options/` | Full settings page — API URL, auto-scan toggle, cache management |
+| Popup | `src/entrypoints/popup/` | Toolbar popup — backend health (with a DEMO DATA flag for mock backends), consent state, what the active Reddit tab found, link to options |
+| Options | `src/entrypoints/options/` | Settings — backend URL (http/https, validated; Chrome asks for access to a custom origin), auto-scan (default off), server fallback (default off), Debug, Clear cache, consent |
 
 ---
 
@@ -199,8 +203,8 @@ User clicks Lens button on a Reddit post
 
 | Tier | Method | When |
 |------|--------|------|
-| **Tier 1 (Primary)** | Service worker `fetch()` with browser session | Always attempted first. Works for i.redd.it, v.redd.it, preview.redd.it |
-| **Tier 2 (Fallback)** | `POST /api/v1/detect-url` — backend uses `yt-dlp` | Feature-flagged. Used when Tier 1 fails (e.g., HLS streams, age-gated content) |
+| **Tier 1 (Primary)** | Service worker `fetch()` with browser session | Always attempted first. Hosts: i.redd.it, preview.redd.it, external-preview.redd.it, v.redd.it (https only) |
+| **Tier 2 (Fallback)** | `POST /api/v1/detect-url` — backend uses `yt-dlp` | Off unless the user enables "Server fallback" in Options AND the backend sets `FEATURE_DETECT_URL`. Used for HLS/DASH-only videos or when the browser fetch fails. Reddit may block datacenter IPs |
 
 ---
 
@@ -273,7 +277,7 @@ The SiteAdapter pattern decouples site-specific DOM logic from the extension cor
 
 ### One Button per Post
 
-Each `<shreddit-post>` gets its own scan button. The button is rendered inside a **closed shadow root** attached to a host `<div>` element injected near the post's action bar. This ensures:
+Each media `<shreddit-post>` gets its own lens button, rendered inside an **open shadow root** (WXT `createShadowRootUi`, `cssInjectionMode: 'ui'`) whose host sits at the top-right of the post's media container. The host ignores pointer events except on the button. This ensures:
 
 - Reddit's CSS does not style or break our button.
 - Our button's CSS does not leak into Reddit's page.
@@ -310,7 +314,7 @@ Rather than creating a popover per post (which would mean hundreds of React root
 </body>
 ```
 
-**Positioning:** The popover uses `position: fixed` and computes its coordinates from the active button's `getBoundingClientRect()`. It re-computes on scroll/resize.
+**Positioning:** The popover uses `position: fixed` and computes its coordinates once, when opened, from the active button's `getBoundingClientRect()` (`ui/position.ts`, kept inside the viewport). It does not follow scrolling: it closes on Esc, an outside click or navigation.
 
 ---
 
@@ -413,5 +417,5 @@ reddit_extension/frontend/
 | Q3 | Should the popover use `popover` API (Popover API) or stick with manual positioning? | Design decision | ❓ Open |
 | Q4 | Is `chrome.storage.session` sufficient for job state, or do we need `chrome.storage.local` for persistence across browser restarts? | Architecture | ❓ Open |
 | Q5 | Rate limiting strategy for the local backend — needed at all for v1? | Backend team | ❓ Open |
-| Q6 | How to handle gallery posts with 20+ images — scan all or only visible? | UX decision | ❓ Open |
-| Q7 | Should Tier-2 (`detect-url`) be behind a user-facing setting or just an internal feature flag? | Product decision | ❓ Open |
+| Q6 | How to handle gallery posts with 20+ images — scan all or only visible? | UX decision | ✅ v1 scans the first image only (one `media` upload per scan) |
+| Q7 | Should Tier-2 (`detect-url`) be behind a user-facing setting or just an internal feature flag? | Product decision | ✅ Both: Options toggle (default off) and the backend `FEATURE_DETECT_URL` flag |

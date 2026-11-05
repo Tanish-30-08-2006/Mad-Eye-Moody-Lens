@@ -17,7 +17,11 @@ import {
   setupContextMenu,
   handleContextMenuClick,
 } from '../background/handlers/context-menu';
-import { getJobStatus } from '../core/api-client';
+import { checkHealth, getJobStatus } from '../core/api-client';
+import { getConsent, setConsent } from '../core/consent';
+import { clearCache } from '../core/cache';
+import { bindDebugToSettings } from '../core/debug';
+import { toFriendlyError } from '../background/errors';
 import { loadSettings } from '../core/settings';
 import { restoreInFlightJobs } from '../background/keepalive';
 import { pollJobUntilComplete } from '../background/job-poller';
@@ -26,6 +30,7 @@ const log = createLogger('background');
 
 export default defineBackground(() => {
   log.info('Moody Lens service worker initialized.');
+  void bindDebugToSettings();
 
   // Initialize context menus
   try {
@@ -109,11 +114,8 @@ export default defineBackground(() => {
               });
             })
             .catch((err) => {
-              sendResponse({
-                type: 'ERROR',
-                error: err instanceof Error ? err.message : String(err),
-                code: 'FETCH_JOB_FAILED',
-              });
+              const f = toFriendlyError(err);
+              sendResponse({ type: 'ERROR', error: f.message, code: f.code });
             });
           return true;
         }
@@ -141,6 +143,37 @@ export default defineBackground(() => {
                 error: err instanceof Error ? err.message : String(err),
               });
             });
+          return true;
+        }
+
+        case 'GET_CONSENT': {
+          getConsent()
+            .then((accepted) => sendResponse({ type: 'CONSENT', accepted }))
+            .catch(() => sendResponse({ type: 'CONSENT', accepted: false }));
+          return true;
+        }
+
+        case 'SET_CONSENT': {
+          setConsent(message.payload.accepted)
+            .then(() => sendResponse({ type: 'CONSENT', accepted: message.payload.accepted }))
+            .catch((err) => sendResponse({ type: 'ERROR', error: toFriendlyError(err).message }));
+          return true;
+        }
+
+        case 'CHECK_HEALTH': {
+          checkHealth()
+            .then((health) => sendResponse({ type: 'HEALTH', health }))
+            .catch((err) => {
+              const f = toFriendlyError(err);
+              sendResponse({ type: 'ERROR', error: f.message, code: f.code });
+            });
+          return true;
+        }
+
+        case 'CLEAR_CACHE': {
+          clearCache()
+            .then(() => sendResponse({ type: 'OK' }))
+            .catch((err) => sendResponse({ type: 'ERROR', error: toFriendlyError(err).message }));
           return true;
         }
 

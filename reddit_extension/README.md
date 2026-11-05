@@ -17,10 +17,11 @@ reddit_extension/
 │   ├── public/icons/          # Extension icon assets
 │   ├── src/                   # Extension source code
 │   │   ├── entrypoints/       # Background service worker, content scripts, popup, options
-│   │   ├── adapters/          # SiteAdapter DOM extractors for Reddit
-│   │   ├── background/        # Keepalive, media fetcher, job poller
-│   │   ├── core/              # API client, cache, messaging, Zod schemas
-│   │   └── ui/                # Scoped popover, gauge, breakdown, buttons
+│   │   ├── adapters/          # SiteAdapter: Reddit observer, extractors, SPA navigation
+│   │   ├── background/        # Scan queue, rendition picker, media fetcher, job poller, handlers
+│   │   ├── content/           # Content-script controller (lens buttons + shared popover glue)
+│   │   ├── core/              # API client, cache, consent, settings, messaging, Zod schemas
+│   │   └── ui/                # Lens button, shared popover, gauge, breakdown, styles
 │   ├── tests/                 # Unit, contract parity, and E2E test suites
 │   └── docs/                  # API contracts, architecture, and DOM recon
 └── backend/                   # Extension Backend Integration
@@ -28,16 +29,19 @@ reddit_extension/
     ├── pytest.ini             # Pytest configuration with dual pythonpath
     ├── run_dev.ps1            # Windows PowerShell dev server launcher
     ├── run_dev.sh             # Unix/macOS Bash dev server launcher
-    ├── moody_lens_ext/        # Extension API endpoints and service stubs
+    ├── moody_lens_ext/        # Extension API endpoints and services
     │   ├── __init__.py
-    │   ├── media.py           # V1 media detection endpoints (/api/v1/detect, /jobs, /health)
-    │   └── services/          # Tier-2 ingestion and preprocessing stubs
+    │   ├── media.py           # V1 endpoints (/api/v1/detect, /jobs, /health, /detect-url)
+    │   └── services/
     │       ├── __init__.py
-    │       ├── url_resolver.py
-    │       └── video_prep.py
-    └── tests/                 # Isolated test harness and test suite
-        ├── conftest.py        # Test fixtures (fakeredis, SQLite, stub detectors)
-        └── test_media_api.py  # 13 contract, endpoint, and error tests
+    │       ├── url_resolver.py   # Tier-2 yt-dlp download (flag FEATURE_DETECT_URL, default off)
+    │       └── video_prep.py     # ffprobe/ffmpeg: probe, duration cap, mux video + audio
+    └── tests/
+        ├── conftest.py            # Host fixtures (skipped when the host backend is absent)
+        ├── test_media_api.py      # Host contract tests (need functional-ui-models-backend)
+        ├── test_media_glue.py     # Wiring tests against a fake host
+        ├── test_video_prep.py     # Real ffmpeg (skipped if absent)
+        └── test_url_resolver.py   # SSRF and error mapping
 ```
 
 ---
@@ -56,17 +60,23 @@ pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm lint
 
-# Run unit and contract tests (55 tests)
+# Run unit and contract tests (188 tests)
 pnpm test
 
 # Build for Chrome MV3 (.output/chrome-mv3)
 pnpm build
+
+# Optional: smoke test in real Chrome on a synthetic Reddit page (needs the build;
+# set CHROME_PATH to a Chrome that can load unpacked extensions, e.g. Chrome for Testing)
+pnpm test:e2e
 ```
 
 **Loading into Chrome**:
 1. Open Google Chrome and navigate to `chrome://extensions`.
 2. Enable **Developer mode** (toggle in upper right).
 3. Click **Load unpacked** and select `reddit_extension/frontend/.output/chrome-mv3`.
+4. Open the extension's **Options** and set the backend URL (default `http://localhost:8000`). For demo data without the real backend run `pnpm mock-server`.
+5. On first scan the extension asks for consent to upload media to that backend. See `frontend/docs/MANUAL-TEST.md` for what to verify on real Reddit.
 
 ### 2. Backend Extension (`reddit_extension/backend`)
 
@@ -85,6 +95,8 @@ From `reddit_extension/backend`:
   ./run_dev.sh
   ```
 
+Video features need **ffmpeg and ffprobe** on the server's PATH. Without them a video that comes with a separate audio track is answered with `503 FFMPEG_UNAVAILABLE`. The optional Tier-2 fallback (`FEATURE_DETECT_URL=true`) also needs `pip install yt-dlp`.
+
 Both launchers set `PYTHONPATH` to include `reddit_extension/backend` and execute `uvicorn app.main:app --reload --reload-dir app --port 8000` from within the host backend directory.
 
 #### Running Backend Tests
@@ -98,6 +110,8 @@ Or from the repository root:
 ```bash
 pytest reddit_extension/backend/tests -v
 ```
+
+Tests that need the host backend (`app.*`) skip themselves when it is not importable.
 
 ---
 

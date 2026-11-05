@@ -1,68 +1,155 @@
 /**
- * ui/styles.css – Scoped CSS rules for Moody Lens button and popover.
+ * ui/styles.css – Plain CSS for the lens button and the shared popover.
  *
- * Injected into shadow roots to ensure full encapsulation and zero bleed.
+ * Injected into each shadow root (WXT cssInjectionMode 'ui'), so nothing leaks in or out.
+ * Colours are CSS variables; the dark block follows prefers-color-scheme.
  */
 
 :host {
   all: initial;
-  display: inline-block;
+  --ml-bg: #ffffff;
+  --ml-fg: #1a1a1b;
+  --ml-muted: #5f6b7a;
+  --ml-border: #d3d6da;
+  --ml-track: #e6eaee;
+  --ml-accent: #0b6fcc;
+  --ml-real: #1f8a4c;
+  --ml-fake: #d13434;
+  --ml-warn: #b7791f;
+  --ml-chip-bg: #ffffff;
+  --ml-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
-  color: #1a1a1b;
+  color: var(--ml-fg);
   box-sizing: border-box;
 }
 
-/* ── Lens Button ─────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --ml-bg: #1b1f24;
+    --ml-fg: #e8ecf0;
+    --ml-muted: #9aa5b1;
+    --ml-border: #394350;
+    --ml-track: #2d343d;
+    --ml-accent: #5aa9f0;
+    --ml-real: #4cc27e;
+    --ml-fake: #f06a6a;
+    --ml-warn: #e0b04a;
+    --ml-chip-bg: #1b1f24;
+    --ml-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ── Lens button host: sits top-right of the media, never covers the rest of the post ── */
+
+:host(moody-lens-button-host) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2147483000;
+  display: block;
+  /* Only the button itself takes clicks; the post underneath stays clickable. */
+  pointer-events: none;
+}
 
 .moody-lens-btn {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: #f6f7f8;
-  border: 1px solid #d3d6da;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  justify-content: center;
+  background: var(--ml-chip-bg);
+  color: var(--ml-fg);
+  border: 1px solid var(--ml-border);
   border-radius: 9999px;
-  padding: 4px 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  font: inherit;
   font-size: 12px;
-  font-weight: 600;
-  color: #1c1c1c;
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
   user-select: none;
 }
 
 .moody-lens-btn:hover {
-  background-color: #eaedef;
-  border-color: #878a8c;
+  border-color: var(--ml-accent);
 }
 
 .moody-lens-btn:focus-visible {
-  outline: 2px solid #0079d3;
+  outline: 2px solid var(--ml-accent);
   outline-offset: 2px;
 }
 
-.moody-lens-btn-icon {
-  font-size: 13px;
+.moody-lens-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
-/* ── Verdict Popover ─────────────────────────────────────────────────────── */
+.moody-lens-btn[data-state='scanning'] svg {
+  animation: moody-lens-spin 0.9s linear infinite;
+  transform-origin: center;
+}
+
+.moody-lens-btn[data-state='error'] {
+  color: var(--ml-warn);
+  border-color: var(--ml-warn);
+}
+
+.moody-lens-btn[data-verdict='likely_real'] {
+  color: var(--ml-real);
+  border-color: var(--ml-real);
+}
+
+.moody-lens-btn[data-verdict='likely_fake'] {
+  color: var(--ml-fake);
+  border-color: var(--ml-fake);
+}
+
+.moody-lens-btn[data-verdict='inconclusive'] {
+  color: var(--ml-warn);
+  border-color: var(--ml-warn);
+}
+
+.moody-lens-chip-demo {
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  opacity: 0.85;
+}
+
+/* ── Shared popover ──────────────────────────────────────────────────────── */
 
 .moody-lens-popover {
   position: fixed;
   z-index: 2147483647;
   width: 320px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  background: var(--ml-bg);
+  color: var(--ml-fg);
+  border: 1px solid var(--ml-border);
+  border-radius: 10px;
+  box-shadow: var(--ml-shadow);
   padding: 14px;
+  outline: none;
 }
 
 .moody-lens-popover-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--ml-border);
   padding-bottom: 8px;
   margin-bottom: 12px;
 }
@@ -71,21 +158,48 @@
   font-size: 14px;
   font-weight: 700;
   margin: 0;
-  color: #2d3748;
 }
 
 .moody-lens-popover-close {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
-  color: #a0aec0;
+  color: var(--ml-muted);
   cursor: pointer;
   padding: 0 4px;
 }
 
-.moody-lens-popover-close:hover {
-  color: #4a5568;
+.moody-lens-popover-close:hover,
+.moody-lens-popover-close:focus-visible {
+  color: var(--ml-fg);
+}
+
+.moody-lens-btn-primary,
+.moody-lens-btn-secondary {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid var(--ml-accent);
+}
+
+.moody-lens-btn-primary {
+  background: var(--ml-accent);
+  color: #ffffff;
+}
+
+.moody-lens-btn-secondary {
+  background: transparent;
+  color: var(--ml-accent);
+}
+
+.moody-lens-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */
@@ -102,8 +216,8 @@
 .moody-lens-spinner {
   width: 24px;
   height: 24px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #3182ce;
+  border: 3px solid var(--ml-track);
+  border-top-color: var(--ml-accent);
   border-radius: 50%;
   animation: moody-lens-spin 0.8s linear infinite;
 }
@@ -116,7 +230,14 @@
 
 .moody-lens-spinner-text {
   font-size: 12px;
-  color: #718096;
+  color: var(--ml-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moody-lens-spinner,
+  .moody-lens-btn[data-state='scanning'] svg {
+    animation-duration: 3s;
+  }
 }
 
 /* ── Gauge ───────────────────────────────────────────────────────────────── */
@@ -135,7 +256,7 @@
 .moody-lens-gauge-track {
   width: 100%;
   height: 8px;
-  background-color: #edf2f7;
+  background-color: var(--ml-track);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -145,27 +266,32 @@
   transition: width 0.3s ease;
 }
 
-.gauge-real {
-  background-color: #38a169;
-  color: #38a169;
+.moody-lens-gauge-fill.gauge-real {
+  background-color: var(--ml-real);
+}
+.moody-lens-gauge-fill.gauge-inconclusive {
+  background-color: var(--ml-warn);
+}
+.moody-lens-gauge-fill.gauge-fake {
+  background-color: var(--ml-fake);
 }
 
-.gauge-inconclusive {
-  background-color: #d69e2e;
-  color: #d69e2e;
+.moody-lens-gauge-value.gauge-real {
+  color: var(--ml-real);
+}
+.moody-lens-gauge-value.gauge-inconclusive {
+  color: var(--ml-warn);
+}
+.moody-lens-gauge-value.gauge-fake {
+  color: var(--ml-fake);
 }
 
-.gauge-fake {
-  background-color: #e53e3e;
-  color: #e53e3e;
-}
-
-/* ── Badges & Breakdown ──────────────────────────────────────────────────── */
+/* ── Badges & breakdown ──────────────────────────────────────────────────── */
 
 .moody-lens-demo-badge {
   display: inline-block;
   background-color: #feebc8;
-  color: #c05621;
+  color: #7b341e;
   border: 1px solid #fbd38d;
   border-radius: 4px;
   font-size: 11px;
@@ -183,49 +309,67 @@
   border-radius: 4px;
   font-weight: 700;
   font-size: 12px;
-  text-align: center;
   margin-bottom: 8px;
+  border: 1px solid currentColor;
 }
 
 .moody-lens-verdict-badge.label-likely_real {
-  background-color: #c6f6d5;
-  color: #22543d;
+  color: var(--ml-real);
 }
-
 .moody-lens-verdict-badge.label-likely_fake {
-  background-color: #fed7d7;
-  color: #742a2a;
+  color: var(--ml-fake);
 }
-
 .moody-lens-verdict-badge.label-inconclusive {
-  background-color: #fefcbf;
-  color: #744210;
+  color: var(--ml-warn);
 }
 
 .moody-lens-model-breakdown {
   margin-top: 10px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--ml-border);
   padding-top: 8px;
 }
 
 .moody-lens-breakdown-title {
   font-size: 12px;
   font-weight: 600;
-  color: #4a5568;
   margin: 0 0 6px 0;
 }
 
 .moody-lens-breakdown-item {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  gap: 8px;
+  font-size: 12px;
   padding: 2px 0;
-  color: #718096;
+  color: var(--ml-muted);
+}
+
+.moody-lens-breakdown-modality {
+  text-transform: capitalize;
+  min-width: 48px;
+}
+
+.moody-lens-breakdown-item.not-run {
+  font-style: italic;
+}
+
+.moody-lens-error-banner,
+.moody-lens-consent {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.moody-lens-error-text {
+  margin: 0;
+  color: var(--ml-fake);
+}
+
+.moody-lens-consent p {
+  margin: 0 0 6px 0;
 }
 
 .moody-lens-disclaimer {
   margin-top: 12px;
-  font-size: 10px;
-  color: #a0aec0;
-  line-height: 1.3;
+  font-size: 11px;
+  color: var(--ml-muted);
 }

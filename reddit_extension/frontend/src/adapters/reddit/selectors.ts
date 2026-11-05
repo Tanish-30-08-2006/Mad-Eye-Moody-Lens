@@ -16,8 +16,9 @@
  * - id: unique post identifier
  * - post-title: title text of the post
  *
- * VERIFY IN PHASE 0: Everything below marked with [UNVERIFIED] must be
- * confirmed in DevTools on live Reddit before relying on it.
+ * Everything below marked `// UNVERIFIED: confirm in DevTools` is a guess. The
+ * extractors parse these defensively and return null on doubt; never rely on them
+ * without checking live Reddit.
  */
 
 // ── Verified selectors ──────────────────────────────────────────────────────
@@ -51,37 +52,55 @@ export const ATTR_POST_ID = 'id';
 /** Attribute with the post's title text. */
 export const ATTR_POST_TITLE = 'post-title';
 
-// ── [UNVERIFIED] selectors – VERIFY IN PHASE 0 ─────────────────────────────
+// ── Unverified guesses ──────────────────────────────────────────────────────
 
-/**
- * [UNVERIFIED] Selector for image elements within a post.
- * The actual tag/attribute hosting the full-size image URL is unknown.
- */
-export const IMAGE_SELECTOR = '[slot="post-media-container"] img';
+// UNVERIFIED: confirm in DevTools
+/** Post types we treat as media posts (values of the verified `post-type` attribute). */
+export const MEDIA_POST_TYPES = ['image', 'gallery', 'video', 'gif'] as const;
 
-/**
- * [UNVERIFIED] Selector for gallery navigation/slides within a gallery post.
- * Reddit galleries may use a carousel or <ul> with <li> items.
- */
-export const GALLERY_SELECTOR = '[slot="post-media-container"] gallery-carousel';
+// UNVERIFIED: confirm in DevTools
+/** Container that holds the post's media; the lens button is anchored to its top-right. */
+export const MEDIA_CONTAINER_SELECTOR = '[slot="post-media-container"]';
 
-/**
- * [UNVERIFIED] Selector for video elements within a post.
- * Reddit uses shreddit-player or a <video> tag inside a shadow root.
- */
-export const VIDEO_SELECTOR = 'shreddit-player';
+// UNVERIFIED: confirm in DevTools
+/** Generic image fallback inside a post. */
+export const IMAGE_SELECTOR = 'img';
 
-/**
- * [UNVERIFIED] Data attribute on search result post units (different markup).
- * v1 does not cover search results.
- */
+// UNVERIFIED: confirm in DevTools
+/** Gallery carousel container; falls back to all <img> in the post when absent. */
+export const GALLERY_SELECTOR = 'gallery-carousel';
+
+// UNVERIFIED: confirm in DevTools
+/** Custom video player elements. */
+export const PLAYER_SELECTOR = 'shreddit-player, shreddit-player-2';
+
+// UNVERIFIED: confirm in DevTools
+/** Plain <video> fallback (also matches <video> inside the player). */
+export const VIDEO_SELECTOR = 'video';
+
+// UNVERIFIED: confirm in DevTools
+/** Attributes on the player element that may hold a media URL. */
+export const PLAYER_URL_ATTRS = ['src', 'data-src', 'preview'] as const;
+
+// UNVERIFIED: confirm in DevTools
+/** Attribute on the player element that may hold a JSON blob with MP4 renditions. */
+export const ATTR_PACKAGED_MEDIA = 'packaged-media-json';
+
+// UNVERIFIED: confirm in DevTools
+/** Attributes on <img> that may hold the (lazy-loaded) full image URL, in priority order. */
+export const IMG_URL_ATTRS = ['src', 'data-lazy-src', 'data-src'] as const;
+
+// UNVERIFIED: confirm in DevTools
+/** Image URL path fragments that mark avatars/emoji/icons rather than post media. */
+export const DECORATIVE_IMAGE_PATTERN = /snoovatar|avatar|emoji|icon|award/i;
+
+// UNVERIFIED: confirm in DevTools
+/** Search result post markup (different from the feed). v1 does not cover search. */
 export const SEARCH_RESULT_SELECTOR = '[data-testid="sdui-post-unit"]';
 
-/**
- * [UNVERIFIED] Selector for the action bar area where the lens button
- * should be mounted (near upvote/comment buttons).
- */
-export const ACTION_BAR_SELECTOR = 'shreddit-post-overflow-menu';
+// UNVERIFIED: confirm in DevTools
+/** Pathname pattern of feed-like pages, used only by the markup-drift canary. */
+export const FEED_PATH_PATTERN = /^\/(?:(?:hot|new|top|rising|best|popular|all)\/?)?$|^\/r\/[^/]+\/?(?:hot|new|top|rising|best)?\/?$/i;
 
 /**
  * Marker attribute set on posts that have already been processed.

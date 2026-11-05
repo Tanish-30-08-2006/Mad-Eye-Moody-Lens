@@ -1,38 +1,67 @@
 /**
- * adapters/reddit/spa-navigation.ts – SPA navigation detection for Reddit.
+ * adapters/reddit/spa-navigation.ts – Detects client-side route changes on Reddit.
  *
- * Reddit is an SPA (single-page app). Navigating between pages does not
- * trigger a full page load, so the content script must detect route changes
- * and re-scan for posts. This module listens for SPA navigation events
- * (popstate, pushState, replaceState) and triggers re-observation.
- *
- * TODO: Implement in Phase 4.
+ * Uses the Navigation API (`navigatesuccess`) when present; a debounced location.href
+ * comparison covers browsers without it. History is never patched.
  */
 
 import { createLogger } from '../../core/logger';
 
 const log = createLogger('reddit-spa-nav');
 
+const DEBOUNCE_MS = 150;
+/** Fallback poll for browsers without the Navigation API. */
+const POLL_MS = 1000;
+
+interface NavigationLike extends EventTarget {
+  // Only used for presence detection.
+  currentEntry?: unknown;
+}
+
+export interface NavigationWatchOptions {
+  /** Injected for tests. */
+  getHref?: () => string;
+  navigation?: NavigationLike | null;
+}
+
 /**
- * Start listening for SPA navigation events on Reddit.
- * Calls `onNavigate` each time the user navigates to a new page within Reddit.
- *
- * TODO: Implement in Phase 4.
- *
- * @param onNavigate Callback fired on each SPA navigation.
- * @returns Cleanup function to remove listeners.
+ * Calls `onNavigate(newUrl)` whenever the page URL changes. Returns a cleanup function.
  */
 export function watchNavigation(
-  _onNavigate: (url: string) => void,
+  onNavigate: (url: string) => void,
+  options: NavigationWatchOptions = {},
 ): () => void {
-  log.info('watchNavigation called (stub)');
+  const getHref = options.getHref ?? (() => location.href);
+  const nav =
+    options.navigation !== undefined
+      ? options.navigation
+      : ((window as unknown as { navigation?: NavigationLike }).navigation ?? null);
 
-  // TODO: Phase 4 – monkey-patch history.pushState / replaceState
-  // TODO: Phase 4 – listen for popstate events
-  // TODO: Phase 4 – detect feed/tab switches (hot, new, top, etc.)
+  let lastHref = getHref();
+  let debounce: ReturnType<typeof setTimeout> | null = null;
+  let poll: ReturnType<typeof setInterval> | null = null;
+
+  // Compare after a short delay so bursts of events collapse into one notification.
+  const check = () => {
+    if (debounce !== null) clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      debounce = null;
+      const href = getHref();
+      if (href === lastHref) return;
+      lastHref = href;
+      log.debug('Navigation detected');
+      onNavigate(href);
+    }, DEBOUNCE_MS);
+  };
+
+  nav?.addEventListener('navigatesuccess', check);
+  window.addEventListener('popstate', check);
+  if (!nav) poll = setInterval(check, POLL_MS);
 
   return () => {
-    log.info('watchNavigation cleanup (stub)');
-    // TODO: Remove event listeners and restore originals in Phase 4
+    nav?.removeEventListener('navigatesuccess', check);
+    window.removeEventListener('popstate', check);
+    if (poll !== null) clearInterval(poll);
+    if (debounce !== null) clearTimeout(debounce);
   };
 }
