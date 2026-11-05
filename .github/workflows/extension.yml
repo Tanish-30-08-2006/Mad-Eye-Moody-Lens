@@ -4,12 +4,12 @@ on:
   push:
     branches: [darshan-dev]
     paths:
-      - 'extension/**'
+      - 'reddit_extension/frontend/**'
       - '.github/workflows/extension.yml'
   pull_request:
     branches: [darshan-dev, main]
     paths:
-      - 'extension/**'
+      - 'reddit_extension/frontend/**'
       - '.github/workflows/extension.yml'
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: extension
+        working-directory: reddit_extension/frontend
 
     steps:
       - name: Checkout repository
@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: 22
           cache: 'pnpm'
-          cache-dependency-path: extension/pnpm-lock.yaml
+          cache-dependency-path: reddit_extension/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
