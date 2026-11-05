@@ -67,7 +67,7 @@ describe('Schema Contract Parity (Extension Mock Server vs Real Backend)', () =>
   });
 
   it('validates real backend /api/v1/jobs/:id payload against DetectionJobSchema', () => {
-    // Response emitted by backend/app/api/v1/media.py GET /api/v1/jobs/{job_id}
+    // Response emitted by reddit_extension/backend/moody_lens_ext/media.py GET /api/v1/jobs/{job_id}
     const realBackendJobPayload = {
       job_id: 'job-5d4d8c18424c4187bec45f3f65958f50',
       status: 'completed',

@@ -4,7 +4,7 @@
  * Mirrors the backend's Pydantic models. Keeps the extension and backend
  * type contracts in lockstep. Used to validate API responses at runtime.
  *
- * Contract: see extension/docs/API-CONTRACT.md
+ * Contract: see reddit_extension/frontend/docs/API-CONTRACT.md
  */
 
 import { z } from 'zod';

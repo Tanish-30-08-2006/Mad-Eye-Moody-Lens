@@ -22,36 +22,40 @@ Source of truth for scope, order and tests. Written Nov 2, 2026. Anything marked
 ## 2. Repo structure
 
 ```
-extension/
-  package.json  wxt.config.ts  tsconfig.json  eslint.config.js
-  vitest.config.ts  playwright.config.ts  .env.example  README.md
-  docs/  ARCHITECTURE.md  DOM-RECON.md  API-CONTRACT.md  TEST-PLAN.md
-  public/icons/
-  src/
-    entrypoints/
-      background.ts                  (wires handlers only)
-      reddit.content/index.tsx       (matches www.reddit.com, sh.reddit.com)
-      popup/  options/
-    adapters/
-      types.ts                       (SiteAdapter, MediaRef, MountPoint)
-      reddit/ selectors.ts observer.ts spa-navigation.ts
-              extract-image.ts extract-gallery.ts extract-video.ts index.ts
-    background/
-      handlers/ scan-media.ts context-menu.ts
-      media-fetcher.ts job-poller.ts keepalive.ts
-    core/
-      messaging.ts api-client.ts schema.ts cache.ts settings.ts logger.ts
-    ui/
-      lens-button.ts VerdictPopover.tsx Gauge.tsx ModelBreakdown.tsx
-      Spinner.tsx styles.css
-  tests/ fixtures/reddit/  unit/  e2e/  mock-server/
-  scripts/record-fixture.mjs
+reddit_extension/
+  frontend/
+    package.json  wxt.config.ts  tsconfig.json  eslint.config.js
+    vitest.config.ts  playwright.config.ts  .env.example  README.md
+    docs/  ARCHITECTURE.md  DOM-RECON.md  API-CONTRACT.md  TEST-PLAN.md
+    public/icons/
+    src/
+      entrypoints/
+        background.ts                  (wires handlers only)
+        reddit.content/index.tsx       (matches www.reddit.com, sh.reddit.com)
+        popup/  options/
+      adapters/
+        types.ts                       (SiteAdapter, MediaRef, MountPoint)
+        reddit/ selectors.ts observer.ts spa-navigation.ts
+                extract-image.ts extract-gallery.ts extract-video.ts index.ts
+      background/
+        handlers/ scan-media.ts context-menu.ts
+        media-fetcher.ts job-poller.ts keepalive.ts
+      core/
+        messaging.ts api-client.ts schema.ts cache.ts settings.ts logger.ts
+      ui/
+        lens-button.ts VerdictPopover.tsx Gauge.tsx ModelBreakdown.tsx
+        Spinner.tsx styles.css
+    tests/ fixtures/reddit/  unit/  e2e/  mock-server/
+    scripts/record-fixture.mjs
 
-backend/ (adapt to real layout)
-  app/api/v1/media.py            detect, jobs/{id}, health, detect-url
-  app/services/url_resolver.py   Tier-2 yt-dlp, isolated
-  app/services/video_prep.py     keyframes + audio extract/mux (ffmpeg)
-  tests/test_media_api.py
+  backend/
+    pytest.ini  README.md  run_dev.ps1  run_dev.sh
+    moody_lens_ext/
+      media.py                     detect, jobs/{id}, health, detect-url
+      services/url_resolver.py     Tier-2 yt-dlp, isolated
+      services/video_prep.py       keyframes + audio extract/mux (ffmpeg)
+    tests/
+      conftest.py  test_media_api.py
 ```
 
 Design choices:

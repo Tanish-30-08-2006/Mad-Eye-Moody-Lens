@@ -687,7 +687,7 @@ Track which HTML fixtures have been saved for testing:
 Use `scripts/record-fixture.mjs` to capture fixtures:
 
 ```bash
-# Usage (from extension/ directory):
+# Usage (from reddit_extension/frontend/ directory):
 node scripts/record-fixture.mjs <reddit-url> <output-name>
 
 # Example:

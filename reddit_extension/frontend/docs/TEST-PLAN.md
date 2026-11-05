@@ -27,13 +27,13 @@ This document defines the test plan and acceptance criteria across all developme
 ## Phase 1: Scaffold & Tooling
 
 ### Scope
-- Repository layout for `extension/`, build tooling (WXT + React 19 + TypeScript + pnpm), config files, typed stubs, and mock backend server.
-- Additive backend stubs in `functional-ui-models-backend/backend/app/api/v1/media.py`, `functional-ui-models-backend/backend/app/services/url_resolver.py`, `functional-ui-models-backend/backend/app/services/video_prep.py`, and `functional-ui-models-backend/backend/tests/test_media_api.py`.
+- Repository layout for `reddit_extension/frontend/`, build tooling (WXT + React 19 + TypeScript + pnpm), config files, typed stubs, and mock backend server.
+- Additive backend stubs in `reddit_extension/backend/moody_lens_ext/media.py`, `reddit_extension/backend/moody_lens_ext/services/url_resolver.py`, `reddit_extension/backend/moody_lens_ext/services/video_prep.py`, and `reddit_extension/backend/tests/test_media_api.py`.
 
 ### Test Matrix
 | ID | Target / Spec | Test Description | Success Criteria |
 |---|---|---|---|
-| T1.1 | Build & Bundle | `pnpm build` in `extension/` | Builds cleanly; output generated in `.output/chrome-mv3` with valid `manifest.json`. |
+| T1.1 | Build & Bundle | `pnpm build` in `reddit_extension/frontend/` | Builds cleanly; output generated in `.output/chrome-mv3` with valid `manifest.json`. |
 | T1.2 | Type Checking | `pnpm typecheck` (`tsc --noEmit`) | 0 TypeScript errors under strict mode. |
 | T1.3 | Code Linting | `pnpm lint` (`eslint .`) | 0 ESLint errors. |
 | T1.4 | Content Script Isolation | Content script match pattern | Content script matches `*://www.reddit.com/*` and `*://sh.reddit.com/*` only. Does not inject on non-Reddit URLs. |

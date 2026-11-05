@@ -728,11 +728,11 @@ On SW restart, pending jobs are read from session storage and polling resumes wi
 
 ## 12. Contract Testing & Schema Parity (Pydantic ↔ Zod)
 
-To prevent drift between the backend Python API and the extension TypeScript client, the contracts are mirrored 1:1 between Pydantic models in `app.api.v1.media` and Zod schemas in `extension/src/core/schema.ts`.
+To prevent drift between the backend Python API and the extension TypeScript client, the contracts are mirrored 1:1 between Pydantic models in `moody_lens_ext.media` and Zod schemas in `reddit_extension/frontend/src/core/schema.ts`.
 
 ### Parity Mapping
 
-| Concept | Pydantic Model (`app/api/v1/media.py`) | Zod Schema (`src/core/schema.ts`) |
+| Concept | Pydantic Model (`reddit_extension/backend/moody_lens_ext/media.py`) | Zod Schema (`src/core/schema.ts`) |
 |---------|----------------------------------------|-----------------------------------|
 | Single Model Result | `ModelResult` | `ModelResultSchema` |
 | Job Models Map | `JobModels` | `z.object({ image, face, audio })` |
@@ -745,14 +745,14 @@ To prevent drift between the backend Python API and the extension TypeScript cli
 
 ### Verification Harness
 
-1. **Python Unit & Contract Tests** (`functional-ui-models-backend/backend/tests/test_media_api.py`):
+1. **Python Unit & Contract Tests** (`reddit_extension/backend/tests/test_media_api.py`):
    - Validates that real responses produced by `/api/v1/detect`, `/api/v1/jobs/{id}`, and `/api/v1/health` conform to Pydantic models.
    - Ensures detectors that did not run (such as `audio` on an image upload) evaluate to `null` / omitted rather than fallback or synthetic scores.
    - Tests JSON Schema serialization via `.model_json_schema()`.
 
-2. **TypeScript Unit Tests** (`extension/tests/unit/schema.test.ts`):
+2. **TypeScript Unit Tests** (`reddit_extension/frontend/tests/unit/schema.test.ts`):
    - Validates that fixture payloads matching the Pydantic schemas parse cleanly via `DetectionJobSchema.parse(...)` and `HealthResponseSchema.parse(...)`.
    - Verifies invalid states and status codes are rejected.
 
-3. **Mock Backend** (`extension/tests/mock-server/index.mjs`):
+3. **Mock Backend** (`reddit_extension/frontend/tests/mock-server/index.mjs`):
    - Satisfies the same JSON contract, allowing end-to-end integration testing even in environments without PyTorch or Celery workers.

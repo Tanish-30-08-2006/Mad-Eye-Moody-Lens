@@ -334,7 +334,7 @@ Rather than creating a popover per post (which would mean hundreds of React root
 ## 9. Directory Structure
 
 ```
-extension/
+reddit_extension/frontend/
 ├── docs/                          # Project documentation
 │   ├── ARCHITECTURE.md            # This file
 │   ├── DOM-RECON.md               # Reddit DOM reconnaissance template

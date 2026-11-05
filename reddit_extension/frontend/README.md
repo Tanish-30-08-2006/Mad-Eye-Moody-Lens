@@ -16,7 +16,7 @@ Moody Lens is a Manifest V3 browser extension built with **WXT**, **React 19**, 
 ## Directory Structure
 
 ```
-extension/
+reddit_extension/frontend/
   package.json              # Package definition & scripts
   wxt.config.ts             # WXT framework & MV3 manifest configuration
   tsconfig.json             # Strict TypeScript configuration
