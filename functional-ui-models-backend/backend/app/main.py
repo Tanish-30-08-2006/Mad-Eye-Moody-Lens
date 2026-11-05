@@ -56,12 +56,13 @@ def create_app() -> FastAPI:
         openapi_url=None if prod else "/openapi.json",
     )
 
-    if settings.cors_origins:  # same-origin behind nginx needs no CORS at all
+    if settings.cors_origins or settings.allow_extension_cors:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=settings.cors_origins,
-            allow_methods=["GET", "POST", "DELETE"],
-            allow_headers=["Content-Type", "X-Request-ID", "X-API-Key"],
+            allow_origins=settings.cors_origins if settings.cors_origins else ["*"],
+            allow_origin_regex=settings.extension_origin_regex if settings.allow_extension_cors else None,
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "X-Request-ID", "X-API-Key", "Authorization"],
             expose_headers=["X-Request-ID", "Retry-After"],
         )
 
@@ -101,6 +102,11 @@ def create_app() -> FastAPI:
         log.exception("unhandled_error", error_type=type(exc).__name__)
         return JSONResponse({"error": INTERNAL_ERROR_MESSAGE}, status_code=500)
 
+    try:
+        from moody_lens_ext.media import router as v1_media_router
+        app.include_router(v1_media_router)
+    except ImportError:
+        log.warning("reddit_extension_router_unavailable")
     app.include_router(router)
     return app
 
