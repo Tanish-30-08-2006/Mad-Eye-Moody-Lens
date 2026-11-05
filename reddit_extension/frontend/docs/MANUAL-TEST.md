@@ -18,3 +18,19 @@ Everything below could NOT be verified from the build sandbox. Reddit's inner ma
 12. **Options, popup, auto-scan.** Popup shows backend Connected (or Unreachable with a message), DEMO DATA for a mock backend, consent state, and "N posts checked, M with a lens". In Options: a bad URL (`ftp://x`) is rejected; Auto-scan ON makes visible images scan themselves (chip appears with no click, never on video); Clear cache works; stop the backend and confirm a friendly "Can't reach the backend" error with Retry.
 
 **Pass criteria:** steps 1 to 4 and 9 are required; the others depend on what Reddit serves you. Report anything that fails with the Debug output from step 11.
+
+## Phases 8+ checks (new features)
+
+All selectors marked `// UNVERIFIED` must be confirmed in DevTools on a real Reddit page first.
+
+1. Gallery post: lens scans up to 10 images in one request; the popover shows a chip grid.
+2. v.redd.it video with sound: the result is not marked "audio not scanned". Silent or failed audio shows that note.
+3. Post with no DOM media (e.g. crosspost): the lens still works via the post JSON fallback.
+4. Options: change thresholds; labels in the popover change without rescanning.
+5. Local-only mode: nothing leaves the browser (check the Network tab); the popover lists metadata hints only.
+6. Share row: copy summary, copy as Reddit comment, copy report to mods, download card, "Find source" (note that the image URL is sent).
+7. History page (popup, History): search, sort, export CSV/JSON, Clear all.
+8. Blur option: likely manipulated real results blur until the lens is clicked; demo data is never blurred.
+9. Popup: "Scan visible images" respects the per-minute cap; Brain name and MOCK/REAL show.
+10. Keyboard: Alt+Shift+L scans the post nearest the middle of the screen.
+11. UI self-check: open docs/ui-preview.html in light and dark mode.

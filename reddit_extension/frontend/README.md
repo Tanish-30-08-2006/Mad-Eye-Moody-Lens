@@ -139,3 +139,8 @@ Chrome: `chrome://extensions` -> Developer mode -> **Load unpacked** -> `fronten
 
 ### Selector drift
 Only `post-type`, `content-href`, `permalink`, `id` and `post-title` are verified Reddit attributes. Every other selector lives in `src/adapters/reddit/selectors.ts` marked `// UNVERIFIED: confirm in DevTools`. If lenses stop appearing, turn on Debug, click a lens, and fix the selectors from the logged dump.
+
+## UI preview and icons
+
+- `node scripts/build-preview.mjs --shots` rebuilds `docs/ui-preview.html` and screenshots in `docs/screens/` (needs Chrome).
+- `node scripts/make-icons.mjs` regenerates `public/icons/` from the colours in `src/ui/tokens.css`.

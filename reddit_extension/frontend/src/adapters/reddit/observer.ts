@@ -1,5 +1,5 @@
 /**
- * adapters/reddit/observer.ts – Finds Reddit posts as they are added and become visible.
+ * adapters/reddit/observer.ts – Finds Reddit posts (and comments) as they are added and become visible.
  *
  * MutationObserver (added nodes only, debounced) feeds an IntersectionObserver so each
  * post is handed to `onPost` once, only when on screen. start()/stop() are idempotent and
@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '../../core/logger';
-import { POST_SELECTOR, PROCESSED_MARKER } from './selectors';
+import { OBSERVED_SELECTOR, PROCESSED_MARKER } from './selectors';
 
 const log = createLogger('reddit-observer');
 
@@ -34,8 +34,8 @@ export interface PostObserver {
 function postsIn(node: Node, out: Set<HTMLElement>): void {
   if (node.nodeType !== 1) return;
   const el = node as HTMLElement;
-  if (el.matches(POST_SELECTOR)) out.add(el);
-  el.querySelectorAll<HTMLElement>(POST_SELECTOR).forEach((p) => out.add(p));
+  if (el.matches(OBSERVED_SELECTOR)) out.add(el);
+  el.querySelectorAll<HTMLElement>(OBSERVED_SELECTOR).forEach((p) => out.add(p));
 }
 
 export function createPostObserver(options: PostObserverOptions): PostObserver {

@@ -297,6 +297,22 @@ Host: localhost:8000
     audio?: ModelResult;
   };
 
+  /** Video only: suspicion per time slice [{ start, end, score }] in seconds. Omitted when the brain has none. */
+  timeline?: { start: number; end: number; score: number }[];
+
+  /** "Why this score" notes [{ kind, text, severity: "info"|"low"|"medium"|"high" }]. */
+  signals?: { kind: string; text: string; severity: string }[];
+
+  /** sha256 of the scanned media; send it back with POST /feedback. */
+  cache_key?: string;
+
+  /** Batch jobs only: one entry per image (index, status, cache_key, scores, signals, error).
+   *  The top-level fields describe the most suspicious image. */
+  items?: BatchItem[];
+
+  /** True when the verdict is demo data. Always shown to the user (DEMO DATA badge). */
+  mock?: boolean;
+
   /** Versions of models used. Present when completed. */
   model_versions?: Record<string, string>;
 
@@ -573,6 +589,42 @@ Content-Type: application/json
 | `503` | `yt-dlp` or ffmpeg missing | `{ "error": "yt-dlp is not installed on the server.", "code": "RESOLVER_UNAVAILABLE" }` |
 | `504` | Download exceeded its time limit | `{ "error": "Downloading the video took too long.", "code": "PROCESSING_TIMEOUT" }` |
 
+### 8.5 POST /api/v1/detect/batch
+
+Up to 10 images as ONE job (used for Reddit galleries). Repeat the multipart part `media`.
+`202 { "job_id" }`; poll `GET /jobs/{id}`. The job has `items[]` (per image: `index`, `status`,
+`cache_key`, scores, `signals`, `error`); top-level `overall_score`/`label`/`models` are those of the
+most suspicious completed image and `mock` is true if ANY item is demo data. Identical images (or
+images already in the verdict cache) skip the brain.
+
+| Status | Condition | Code |
+|---|---|---|
+| `400` | more than 10 images | `VALIDATION_ERROR` |
+| `413` / `415` | an image is too large / not an allowed image type (the whole request is rejected) | `FILE_TOO_LARGE` / `UNSUPPORTED_MEDIA_TYPE` |
+| `422` | no `media` part | `VALIDATION_ERROR` |
+| `503` | no brain available | `SERVICE_UNAVAILABLE` |
+
+### 8.6 GET /api/v1/brain/status
+
+`200 { name, version, capabilities: { image, face, audio, video, explain }, is_mock, healthy }`.
+`is_mock: true` means demo detection; clients must label it MOCK. `503` when no brain is available.
+
+### 8.7 GET /api/v1/jobs/{job_id}/explain
+
+`501 NOT_IMPLEMENTED` unless `capabilities.explain`. Otherwise `200 { job_id, summary, regions: [{x,y,w,h,score,note}], mock }`
+(coordinates normalised 0..1). `404` unknown job, `410 EXPLAIN_EXPIRED` once the short-lived media copy is gone.
+
+### 8.8 GET /api/v1/verdicts/lookup?sha256=…[&phash=…]
+
+Returns the cached verdict for identical bytes in the `DetectionJob` shape (`job_id: "cached-…"`,
+`status: "completed"`), or `404 NOT_FOUND`. The cache is namespaced by brain (`name@version|mock/real`),
+so a demo verdict is never returned by a real brain. `400` for malformed hashes. Needs no brain.
+
+### 8.9 POST /api/v1/feedback
+
+Body `{ cache_key (sha256), verdict_label, user_label: "looks_right" | "looks_wrong", note? (<= 500 chars) }`,
+`201 { "ok": true }`. Stored in the backend's sqlite file with a timestamp only: no media and no user identifiers.
+
 ---
 
 ## 9. Legacy Endpoints
@@ -754,7 +806,13 @@ To prevent drift between the backend Python API and the extension TypeScript cli
 | Full Job Payload | `DetectionJob` | `DetectionJobSchema` |
 | Detection Submission | `DetectResponse` (`job_id`) | `DetectResponseSchema` |
 | Health Status | `HealthResponse` (`status`, `version`, `models_available`, optional `mock`) | `HealthResponseSchema` |
+| Timeline point | `TimelineEntry` | `TimelineEntrySchema` |
+| Signal | `SignalEntry` | `SignalEntrySchema` |
+| Batch item | `BatchItem` | `BatchItemSchema` |
+| Brain status | `BrainStatusResponse` / `BrainCapabilities` | `BrainStatusSchema` / `BrainCapabilitiesSchema` |
 | Error Body | `ApiError` (`error`, `detail`, `code`) | `ApiErrorSchema` |
+
+Field-name parity for all of the above is checked by `backend/tests/test_brain_api.py::test_pydantic_fields_match_zod_fields_STATIC`.
 
 ### Verification Harness
 

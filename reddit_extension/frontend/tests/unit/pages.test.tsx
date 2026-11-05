@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 const settle = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
-const byText = (root: HTMLElement, text: string) => Array.from(root.querySelectorAll('button')).find((b) => b.textContent === text)!;
+const byText = (root: HTMLElement, text: string) => Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === text)!;
 const type = async (input: HTMLInputElement, value: string) => {
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -47,17 +47,20 @@ describe('Options page', () => {
     page = await render(<Options />);
     await settle();
     const boxes = Array.from(page.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
-    expect(boxes).toHaveLength(3);
-    expect(boxes.every((b) => !b.checked)).toBe(true);
+    expect(boxes).toHaveLength(6);
+    // Only the local history switch is on by default.
+    const on = boxes.filter((b) => b.checked);
+    expect(on).toHaveLength(1);
+    expect(on[0]!.closest('label')?.textContent).toContain('local scan history');
   });
 
   it('rejects an invalid backend URL without saving', async () => {
     page = await render(<Options />);
     await settle();
     await type(page.container.querySelector('#api-url')!, 'ftp://nope');
-    await act(async () => byText(page!.container, 'Save').click());
     await settle();
-    expect(page.container.querySelector('[role="status"]')?.textContent).toMatch(/valid http/);
+    expect(page.container.querySelector('#api-url-error')?.textContent).toMatch(/valid http/);
+    expect(byText(page.container, 'Save').disabled).toBe(true);
     expect((await loadSettings()).apiUrl).toBe('http://localhost:8000');
     expect(fake.permissions.request).not.toHaveBeenCalled();
   });
@@ -67,7 +70,9 @@ describe('Options page', () => {
     page = await render(<Options />);
     await settle();
     await type(page.container.querySelector('#api-url')!, 'https://api.example.com/');
-    const [auto, , debug] = Array.from(page.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+    const boxes = Array.from(page.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+    const auto = boxes[2];
+    const debug = boxes[5];
     await act(async () => auto!.click());
     await act(async () => debug!.click());
     await act(async () => byText(page!.container, 'Save').click());

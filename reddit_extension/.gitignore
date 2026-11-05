@@ -2,3 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+backend/data/
+*.sqlite3
+frontend/.output/
+frontend/.wxt/
+frontend/node_modules/

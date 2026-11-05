@@ -42,7 +42,10 @@ async function sendToTab(tabId: number, message: ShowResultMessage): Promise<boo
 function showBadge(tabId: number, response: ExtensionResponse): void {
   let text = '!';
   if (response.type === 'JOB_STATUS' && response.result?.label) {
-    text = response.result.label === 'likely_fake' ? 'FAKE' : response.result.label === 'likely_real' ? 'REAL' : '?';
+    // Question marks keep the badge probabilistic.
+    text = response.result.label === 'likely_fake' ? 'FAKE?' : response.result.label === 'likely_real' ? 'REAL?' : '?';
+  } else if (response.type === 'LOCAL_HINTS') {
+    text = response.hints.length > 0 ? 'META' : '-';
   }
   try {
     void chrome.action.setBadgeText({ tabId, text });
@@ -55,8 +58,9 @@ function showBadge(tabId: number, response: ExtensionResponse): void {
 /** Builds the page message for a scan outcome. */
 function toShowResult(response: ExtensionResponse): ShowResultMessage {
   if (response.type === 'JOB_STATUS' && response.result) {
-    return { type: 'SHOW_RESULT', payload: { state: 'result', job: response.result } };
+    return { type: 'SHOW_RESULT', payload: { state: 'result', job: response.result, meta: response.meta } };
   }
+  if (response.type === 'LOCAL_HINTS') return { type: 'SHOW_RESULT', payload: { state: 'local', hints: response.hints } };
   const message = response.type === 'ERROR' ? response.error : 'Scan did not return a result.';
   const code = response.type === 'ERROR' ? response.code : undefined;
   return { type: 'SHOW_RESULT', payload: { state: 'error', message, code } };
@@ -88,6 +92,7 @@ export async function handleContextMenuClick(
       postId: `ctx_${hashUrl(srcUrl)}`,
       permalink: tab?.url || srcUrl,
       mediaType: 'image',
+      kind: 'image',
       origin: 'context-menu',
     },
   });

@@ -50,7 +50,7 @@ describe('image context menu', () => {
   it('falls back to a toolbar badge when no content script receives the message', async () => {
     fake.tabs.sendMessage.mockRejectedValue(new Error('Receiving end does not exist'));
     await click('https://i.redd.it/a.jpg');
-    expect(fake.action.setBadgeText).toHaveBeenCalledWith({ tabId: 5, text: 'FAKE' });
+    expect(fake.action.setBadgeText).toHaveBeenCalledWith({ tabId: 5, text: 'FAKE?' });
   });
 
   it('ignores other menu items, missing and non-allowlisted URLs', async () => {

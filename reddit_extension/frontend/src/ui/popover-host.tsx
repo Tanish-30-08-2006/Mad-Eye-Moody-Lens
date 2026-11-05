@@ -7,12 +7,13 @@
 
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { VerdictPopover, type PopoverView } from './VerdictPopover';
+import { VerdictPopover, type PopoverView, type VerdictPopoverProps } from './VerdictPopover';
 import { computePopoverPosition } from './position';
 
 export interface PopoverHandlers {
   onRetry?: () => void;
   onAcceptConsent?: () => void;
+  onFeedback?: VerdictPopoverProps['onFeedback'];
 }
 
 /** The surface the content-script controller talks to. */
@@ -26,10 +27,17 @@ export interface PopoverApi {
   destroy(): void;
 }
 
-/** Rough height used for placement before the real size is known. */
-const ESTIMATED_SIZE = { width: 320, height: 300 };
+/** Rough size used for placement before the real size is known (the popover is at most 360px wide). */
+const ESTIMATED_SIZE = { width: 360, height: 420 };
 
-export function createPopoverHost(container: HTMLElement): PopoverApi {
+export interface PopoverHostOptions {
+  /** How long the closing animation plays before unmounting; 0 closes immediately. */
+  exitMs?: number;
+}
+
+export function createPopoverHost(container: HTMLElement, options: PopoverHostOptions = {}): PopoverApi {
+  const exitMs = options.exitMs ?? 0;
+  let exitTimer: ReturnType<typeof setTimeout> | null = null;
   const mount = document.createElement('div');
   container.appendChild(mount);
   const root: Root = createRoot(mount);
@@ -45,7 +53,8 @@ export function createPopoverHost(container: HTMLElement): PopoverApi {
     return rootNode instanceof ShadowRoot ? rootNode.host : container;
   };
 
-  const render = () => {
+  // `closing` keeps the last view on screen while the fade-out plays.
+  const render = (closing = false) => {
     if (!view) {
       root.render(null);
       return;
@@ -62,6 +71,8 @@ export function createPopoverHost(container: HTMLElement): PopoverApi {
         onClose={hide}
         onRetry={handlers.onRetry}
         onAcceptConsent={handlers.onAcceptConsent}
+        onFeedback={handlers.onFeedback}
+        closing={closing}
       />,
     );
   };
@@ -95,15 +106,31 @@ export function createPopoverHost(container: HTMLElement): PopoverApi {
   };
 
   function hide() {
+    listen(false);
+    if (exitMs > 0 && view) {
+      // Fade out first, then unmount; the view state is cleared at the end.
+      render(true);
+      exitTimer ??= setTimeout(() => {
+        exitTimer = null;
+        view = null;
+        anchor = null;
+        handlers = {};
+        render();
+      }, exitMs);
+      return;
+    }
     view = null;
     anchor = null;
     handlers = {};
-    listen(false);
     render();
   }
 
   return {
     show(nextView, nextAnchor, nextHandlers = {}) {
+      if (exitTimer) {
+        clearTimeout(exitTimer);
+        exitTimer = null;
+      }
       view = nextView;
       anchor = nextAnchor;
       handlers = nextHandlers;
@@ -116,8 +143,9 @@ export function createPopoverHost(container: HTMLElement): PopoverApi {
       render();
     },
     hide,
-    isOpen: () => view !== null,
+    isOpen: () => view !== null && exitTimer === null,
     destroy() {
+      if (exitTimer) clearTimeout(exitTimer);
       listen(false);
       view = null;
       root.unmount();

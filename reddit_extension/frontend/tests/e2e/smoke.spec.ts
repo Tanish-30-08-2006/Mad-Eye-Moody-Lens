@@ -71,7 +71,7 @@ test('lens on media posts only; click -> consent -> DEMO verdict popover', async
   const popover = page.locator('moody-lens-popover-host');
   await popover.getByRole('button', { name: 'I agree' }).click();
   await expect(popover.getByText('DEMO DATA')).toBeVisible({ timeout: 20_000 });
-  await expect(popover.getByText('LIKELY REAL')).toBeVisible();
+  await expect(popover.getByText('Likely authentic', { exact: true }).first()).toBeVisible();
 
   // Esc closes the shared popover.
   await page.keyboard.press('Escape');

@@ -149,7 +149,7 @@ describe('extractVideo', () => {
 
 describe('redditAdapter.extractMedia / isMediaPost', () => {
   it('returns null for text, link and unknown post types', () => {
-    for (const type of ['text', 'link', 'crosspost', undefined]) {
+    for (const type of ['text', 'link', undefined]) {
       const post = makePost({
         type,
         contentHref: 'https://i.redd.it/a.jpg',
@@ -158,6 +158,12 @@ describe('redditAdapter.extractMedia / isMediaPost', () => {
       expect(redditAdapter.extractMedia(post)).toBeNull();
       expect(redditAdapter.isMediaPost(post)).toBe(false);
     }
+  });
+
+  it('treats a crosspost as a media post and reads the original media from the DOM', () => {
+    const post = makePost({ type: 'crosspost', inner: '<img src="https://i.redd.it/b.jpg">' });
+    expect(redditAdapter.isMediaPost(post)).toBe(true);
+    expect(redditAdapter.extractMedia(post)?.urls).toContain('https://i.redd.it/b.jpg');
   });
 
   it('dispatches by post-type', () => {

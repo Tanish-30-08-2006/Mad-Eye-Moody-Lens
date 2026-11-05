@@ -9,12 +9,20 @@ import type { SiteAdapter, MediaRef, MountPoint, PostCallback } from '../types';
 import { createLogger } from '../../core/logger';
 import {
   POST_SELECTOR,
+  COMMENT_SELECTOR,
+  OBSERVED_SELECTOR,
   ATTR_POST_TYPE,
   ATTR_POST_ID,
+  ATTR_COMMENT_ID,
+  CROSSPOST_TYPE,
   FEED_PATH_PATTERN,
   MEDIA_CONTAINER_SELECTOR,
   MEDIA_POST_TYPES,
+  BLUR_TARGET_SELECTOR,
 } from './selectors';
+import { commentImageAnchor, extractComment, hasCommentImages } from './extract-comment';
+import { readDisclosure } from './disclosure';
+import { readPostBase } from './extract-common';
 import { extractImage } from './extract-image';
 import { extractGallery } from './extract-gallery';
 import { extractVideo } from './extract-video';
@@ -54,31 +62,64 @@ export const redditAdapter: SiteAdapter = {
 
   matchPatterns: ['*://www.reddit.com/*', '*://sh.reddit.com/*'],
 
+  observedSelector: OBSERVED_SELECTOR,
+
   findPosts(): HTMLElement[] {
     return Array.from(document.querySelectorAll<HTMLElement>(POST_SELECTOR));
   },
 
   isMediaPost(post: HTMLElement): boolean {
+    if (post.matches(COMMENT_SELECTOR)) return hasCommentImages(post);
     const type = post.getAttribute(ATTR_POST_TYPE);
-    return !!type && (MEDIA_POST_TYPES as readonly string[]).includes(type);
+    // Crossposts count: their original media is in the DOM or found through the post JSON.
+    return !!type && ((MEDIA_POST_TYPES as readonly string[]).includes(type) || type === CROSSPOST_TYPE);
   },
 
   extractMedia(post: HTMLElement): MediaRef | null {
+    if (post.matches(COMMENT_SELECTOR)) return extractComment(post);
+    let media: MediaRef | null;
     switch (post.getAttribute(ATTR_POST_TYPE)) {
       case 'image':
-        return extractImage(post);
+        media = extractImage(post);
+        break;
       case 'gallery':
-        return extractGallery(post);
+        media = extractGallery(post);
+        break;
       case 'video':
       case 'gif':
-        return extractVideo(post);
+        media = extractVideo(post);
+        break;
+      case CROSSPOST_TYPE:
+        // Scan the original: whatever media the crosspost shows, else the controller falls back to the post JSON.
+        media = extractVideo(post) ?? extractImage(post);
+        break;
       default:
-        // text, link, crosspost, removed and unknown types carry no scannable media.
+        // text, link, removed and unknown types carry no scannable media.
         return null;
+    }
+    return media && readDisclosure(post) ? { ...media, disclosedAi: true } : media;
+  },
+
+  identify(post: HTMLElement) {
+    if (post.matches(COMMENT_SELECTOR)) return null; // Comments have no post JSON to resolve.
+    const base = readPostBase(post);
+    return base ? { postId: base.postId, permalink: base.permalink } : null;
+  },
+
+  mediaElements(post: HTMLElement): HTMLElement[] {
+    try {
+      return Array.from(post.querySelectorAll<HTMLElement>(BLUR_TARGET_SELECTOR));
+    } catch {
+      return [];
     }
   },
 
   getMountPoint(post: HTMLElement): MountPoint | null {
+    if (post.matches(COMMENT_SELECTOR)) {
+      const commentId = post.getAttribute(ATTR_COMMENT_ID);
+      const anchor = commentImageAnchor(post);
+      return commentId && anchor ? { postElement: post, anchorElement: anchor, postId: commentId } : null;
+    }
     const postId = post.getAttribute(ATTR_POST_ID);
     if (!postId) return null;
     let anchor: HTMLElement | null = null;

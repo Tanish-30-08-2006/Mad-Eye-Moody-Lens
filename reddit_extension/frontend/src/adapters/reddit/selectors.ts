@@ -95,6 +95,34 @@ export const IMG_URL_ATTRS = ['src', 'data-lazy-src', 'data-src'] as const;
 export const DECORATIVE_IMAGE_PATTERN = /snoovatar|avatar|emoji|icon|award/i;
 
 // UNVERIFIED: confirm in DevTools
+/** Comment elements; images inside them get a lens too. */
+export const COMMENT_SELECTOR = 'shreddit-comment';
+
+// UNVERIFIED: confirm in DevTools
+/** Attributes on a comment that identify it (id and relative permalink). */
+export const ATTR_COMMENT_ID = 'thingid';
+export const ATTR_COMMENT_PERMALINK = 'permalink';
+
+// UNVERIFIED: confirm in DevTools
+/** Images in a comment's own body (nested replies are filtered out in code). */
+export const COMMENT_IMAGE_SELECTOR = '[slot="comment"] img, shreddit-comment-media img, faceplate-img img';
+
+// UNVERIFIED: confirm in DevTools
+/** Element that holds a post's flair text (used to read "AI" disclosures). */
+export const FLAIR_SELECTOR = 'shreddit-post-flair, [slot="post-flair"], faceplate-tracker[source="post_flair"]';
+
+// UNVERIFIED: confirm in DevTools
+/** The `post-type` value of a crosspost; its original media is found in the DOM or via the post JSON. */
+export const CROSSPOST_TYPE = 'crosspost';
+
+/** Everything the observer watches: posts and comments. */
+export const OBSERVED_SELECTOR = `${POST_SELECTOR}, ${COMMENT_SELECTOR}`;
+
+// UNVERIFIED: confirm in DevTools
+/** Elements blurred by "blur likely manipulated until clicked" (never the lens itself). */
+export const BLUR_TARGET_SELECTOR = 'img, video, shreddit-player, shreddit-player-2';
+
+// UNVERIFIED: confirm in DevTools
 /** Search result post markup (different from the feed). v1 does not cover search. */
 export const SEARCH_RESULT_SELECTOR = '[data-testid="sdui-post-unit"]';
 

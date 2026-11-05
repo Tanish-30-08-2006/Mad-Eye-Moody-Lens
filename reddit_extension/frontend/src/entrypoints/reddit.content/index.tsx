@@ -10,7 +10,7 @@ import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 import { createLogger } from '../../core/logger';
 import { bindDebugToSettings } from '../../core/debug';
-import { sendMessage, isTabMessage, type PageStatusResponse } from '../../core/messaging';
+import { sendMessage, isTabMessage, type PageStatusResponse, type ScanVisibleResponse } from '../../core/messaging';
 import { DEFAULT_SETTINGS, loadSettings, SETTINGS_KEY, type ExtensionSettings } from '../../core/settings';
 import { redditAdapter } from '../../adapters/reddit';
 import { createLensButton } from '../../ui/lens-button';
@@ -19,6 +19,9 @@ import { createController } from '../../content/controller';
 import '../../ui/styles.css';
 
 const log = createLogger('content');
+
+/** Media narrower than this gets the compact lens. */
+const COMPACT_BELOW_PX = 120;
 
 /** Gives the lens host a positioned parent; returns a function that undoes the change. */
 function ensurePositioned(anchor: HTMLElement): () => void {
@@ -51,7 +54,8 @@ export default defineContentScript({
       anchor: 'body',
       append: 'last',
       inheritStyles: true,
-      onMount: (container) => createPopoverHost(container),
+      // 150 ms lets the closing fade play before the popover unmounts.
+      onMount: (container) => createPopoverHost(container, { exitMs: 150 }),
       onRemove: (api) => api?.destroy(),
     });
     popoverUi.mount();
@@ -76,6 +80,8 @@ export default defineContentScript({
           onRemove: () => button.element.remove(),
         });
         ui.mount();
+        // Very small media gets a smaller lens so it stays inside the picture.
+        if (anchor.getBoundingClientRect().width < COMPACT_BELOW_PX) ui.shadowHost.setAttribute('data-compact', '');
         return {
           button,
           remove: () => {
@@ -88,15 +94,28 @@ export default defineContentScript({
     controller.start();
 
     // Messages pushed to this page: context-menu results and the popup's status query.
-    const onRuntimeMessage = (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (r: PageStatusResponse) => void) => {
+    const onRuntimeMessage = (
+      message: unknown,
+      _sender: chrome.runtime.MessageSender,
+      sendResponse: (r: PageStatusResponse | ScanVisibleResponse) => void,
+    ) => {
       if (!isTabMessage(message)) return false;
-      if (message.type === 'SHOW_RESULT') {
-        controller.showExternal(message.payload);
-        return false;
+      switch (message.type) {
+        case 'SHOW_RESULT':
+          controller.showExternal(message.payload);
+          return false;
+        case 'SCAN_VISIBLE':
+          sendResponse({ type: 'SCAN_VISIBLE_RESULT', queued: controller.scanVisible() });
+          return false;
+        case 'SCAN_NEAREST':
+          controller.scanNearest();
+          return false;
+        case 'GET_PAGE_STATUS': {
+          const { postsSeen, lensButtons, visibleImages } = controller.stats();
+          sendResponse({ type: 'PAGE_STATUS', postsSeen, lensButtons, visibleImages });
+          return false;
+        }
       }
-      const { postsSeen, lensButtons } = controller.stats();
-      sendResponse({ type: 'PAGE_STATUS', postsSeen, lensButtons });
-      return false;
     };
     chrome.runtime.onMessage.addListener(onRuntimeMessage);
 

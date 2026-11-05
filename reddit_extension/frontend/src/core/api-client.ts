@@ -10,7 +10,9 @@ import {
   DetectResponseSchema,
   DetectionJobSchema,
   HealthResponseSchema,
+  BrainStatusSchema,
   ApiErrorSchema,
+  type BrainStatus,
   type DetectResponse,
   type DetectionJob,
   type HealthResponse,
@@ -270,6 +272,78 @@ export async function checkHealth(): Promise<HealthResponse> {
   }
 
   return parsed.data;
+}
+
+/** One fetch to the backend with the standard error mapping; `parse` validates the JSON body. */
+async function request<T>(path: string, init: RequestInit, parse: (json: unknown) => T | null, what: string): Promise<T> {
+  const baseUrl = await getApiBaseUrl();
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, { ...init, headers: { 'X-Client': 'extension', ...init.headers } });
+  } catch (err) {
+    throw new ApiClientError(
+      `Failed to connect to backend at ${baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      'NETWORK_ERROR',
+    );
+  }
+  if (!res.ok) {
+    const body = await readErrorBody(res);
+    throw new ApiClientError(
+      `${what} returned HTTP ${res.status}: ${body.message}`,
+      res.status === 404 ? 'NOT_FOUND' : 'HTTP_ERROR',
+      res.status,
+      body.message,
+      body.code,
+    );
+  }
+  const parsed = parse(await res.json());
+  if (parsed === null) throw new ApiClientError(`${what} failed schema validation`, 'SCHEMA_ERROR', res.status);
+  return parsed;
+}
+
+/** Up to 10 gallery images as ONE job (POST /api/v1/detect/batch). */
+export async function submitBatch(
+  images: Blob[],
+  metadata: { postId: string; permalink: string },
+): Promise<DetectResponse> {
+  const form = new FormData();
+  images.forEach((blob, i) => form.append('media', blob, `image_${i}`));
+  form.append('post_id', metadata.postId);
+  form.append('source_url', metadata.permalink);
+  return request('/api/v1/detect/batch', { method: 'POST', body: form }, (j) => {
+    const r = DetectResponseSchema.safeParse(j);
+    return r.success ? r.data : null;
+  }, 'detect/batch');
+}
+
+/** Previous verdict for identical bytes (GET /api/v1/verdicts/lookup); null on a miss or any failure. */
+export async function lookupVerdict(sha256: string): Promise<DetectionJob | null> {
+  try {
+    return await request(`/api/v1/verdicts/lookup?sha256=${encodeURIComponent(sha256)}`, { method: 'GET' }, (j) => {
+      const r = DetectionJobSchema.safeParse(j);
+      return r.success ? r.data : null;
+    }, 'verdicts/lookup');
+  } catch (err) {
+    log.debug('Hash lookup failed or missed:', err instanceof ApiClientError ? err.code : '');
+    return null;
+  }
+}
+
+/** Thumbs up/down (POST /api/v1/feedback): cache key and labels only. */
+export async function sendFeedback(feedback: { cacheKey: string; verdictLabel: string; userLabel: string }): Promise<void> {
+  await request('/api/v1/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cache_key: feedback.cacheKey, verdict_label: feedback.verdictLabel, user_label: feedback.userLabel }),
+  }, (j) => j as unknown, 'feedback');
+}
+
+/** Which brain answers scans, and whether it is a demo (GET /api/v1/brain/status). */
+export async function getBrainStatus(): Promise<BrainStatus> {
+  return request('/api/v1/brain/status', { method: 'GET' }, (j) => {
+    const r = BrainStatusSchema.safeParse(j);
+    return r.success ? r.data : null;
+  }, 'brain/status');
 }
 
 export { DetectResponseSchema, DetectionJobSchema, HealthResponseSchema };

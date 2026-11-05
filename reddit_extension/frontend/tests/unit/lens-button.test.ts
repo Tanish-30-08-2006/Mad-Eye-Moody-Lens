@@ -57,7 +57,7 @@ describe('createLensButton', () => {
 
     lens.setState({ kind: 'done', label: 'likely_fake', mock: true });
     expect(lens.element.dataset.verdict).toBe('likely_fake');
-    expect(lens.element.textContent).toContain('Fake');
+    expect(lens.element.textContent).toContain('Likely manipulated');
     expect(lens.element.textContent).toContain('DEMO');
     expect(lens.element.getAttribute('aria-label')).toContain('demo data');
 

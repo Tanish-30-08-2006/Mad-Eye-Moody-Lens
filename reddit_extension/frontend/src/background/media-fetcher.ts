@@ -140,3 +140,29 @@ export async function fetchMediaBlob(
     clearTimeout(timer);
   }
 }
+
+/** Maximum size of a text resource such as a DASH manifest. */
+const MAX_TEXT_BYTES = 512 * 1024;
+
+/** Fetches a small text file (for example DASHPlaylist.mpd) from an allowlisted CDN host. */
+export async function fetchText(url: string, timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS): Promise<string> {
+  if (!isAllowedMediaUrl(url)) {
+    throw new MediaFetchError('Host is not permitted by allowlist.', 'DISALLOWED_HOST');
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { method: 'GET', credentials: 'include', signal: controller.signal });
+    if (!response.ok) {
+      throw new MediaFetchError(`HTTP ${response.status}`, 'NETWORK_ERROR', response.status);
+    }
+    const text = await response.text();
+    if (text.length > MAX_TEXT_BYTES) throw new MediaFetchError('Text resource too large.', 'SIZE_EXCEEDED');
+    return text;
+  } catch (err) {
+    if (err instanceof MediaFetchError) throw err;
+    throw new MediaFetchError(err instanceof Error ? err.message : String(err), 'NETWORK_ERROR');
+  } finally {
+    clearTimeout(timer);
+  }
+}

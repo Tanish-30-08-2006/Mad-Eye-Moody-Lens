@@ -58,3 +58,32 @@ pytest reddit_extension/backend/tests -v
 >     log.warning("reddit_extension_router_unavailable")
 > ```
 > The host backend starts normally in Docker containers even without the extension backend present. Incorporating extension routes into containerized deployments requires a Docker build update that must be approved by the repository owner.
+
+## Detection brain (the model seam)
+
+Endpoints never touch model code: they call `brain.get_brain()`. Pick it with `MML_BRAIN`:
+
+| `MML_BRAIN` | Meaning |
+|---|---|
+| `auto` (default) | The host pipeline when its workers are up; otherwise `503`, unless `MML_ALLOW_MOCK=true` |
+| `host` | Force the host pipeline (needs `app.*`) |
+| `stub` | Deterministic demo brain, every result marked mock |
+
+Run without the host: `MML_BRAIN=stub uvicorn moody_lens_ext.standalone:app --port 8000`.
+Verdicts and feedback are stored in `backend/data/extension.sqlite3` (`MML_EXT_DATA_DIR` to move it).
+
+Endpoints added: `POST /detect/batch`, `GET /jobs/{id}/explain` (501 unless the brain can explain),
+`GET /brain/status`, `GET /verdicts/lookup`, `POST /feedback`.
+
+Checklist (see `docs/BRAIN-INTEGRATION.md` for the full table and the plug-in steps):
+
+- [ ] `POST /detect` image: `analyze_image` (stub / host)
+- [ ] `POST /detect` video + audio: `analyze_video` (stub / host)
+- [ ] `POST /detect/batch`: `analyze_image` (stub / host)
+- [ ] `POST /detect-url`: `analyze_video` (501 unless flag; stub / host)
+- [ ] `GET /jobs/{id}/explain`: `explain` (501)
+- [ ] `GET /brain/status`, `GET /health`: `describe` (stub / host)
+- Always working, no brain: `GET /jobs/{id}`, `POST /feedback`, `GET /verdicts/lookup`
+
+Tests: `pytest tests` runs the reusable brain contract suite (`brain/contract_tests.py`) against
+the stub, plus the endpoint tests. The same suite runs against the host brain when `app.*` is importable.

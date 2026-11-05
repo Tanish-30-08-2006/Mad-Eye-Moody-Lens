@@ -8,6 +8,7 @@
 
 import { createLogger } from './logger';
 import type { DetectionJob } from './schema';
+import type { ScanMeta } from './scan-meta';
 
 const log = createLogger('cache');
 
@@ -20,6 +21,8 @@ export interface CacheEntry {
   postId: string;
   mediaHash: string;
   result: DetectionJob;
+  /** Extension-side notes (hints, audio note) saved with the verdict. */
+  meta?: ScanMeta;
   modelVersions?: Record<string, string> | null;
   cachedAt: number;
   expiresAt: number;
@@ -158,6 +161,7 @@ export async function setCachedResult(
   result: DetectionJob,
   ttlMs: number = DEFAULT_CACHE_TTL_MS,
   maxEntries: number = DEFAULT_MAX_CACHE_ENTRIES,
+  meta?: ScanMeta,
 ): Promise<void> {
   const key = makeCacheKey(postId, mediaUrl);
   const now = Date.now();
@@ -166,6 +170,7 @@ export async function setCachedResult(
     postId,
     mediaHash: hashUrl(mediaUrl),
     result,
+    meta,
     modelVersions: result.model_versions ?? null,
     cachedAt: now,
     expiresAt: now + ttlMs,

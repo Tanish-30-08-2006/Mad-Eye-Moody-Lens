@@ -106,7 +106,7 @@ describe('images', () => {
     expect(res).toMatchObject({ type: 'JOB_STATUS', status: 'completed', result: job });
     expect(m.fetchMediaBlob).toHaveBeenCalledWith('https://i.redd.it/a.jpg');
     expect(m.submitDetection).toHaveBeenCalledWith(expect.any(Blob), undefined, expect.objectContaining({ mediaType: 'image' }));
-    expect(m.setCachedResult).toHaveBeenCalledWith('t3_a', 'https://i.redd.it/a.jpg', job);
+    expect(m.setCachedResult).toHaveBeenCalledWith('t3_a', 'https://i.redd.it/a.jpg', job, undefined, undefined, expect.objectContaining({ hints: [] }));
   });
 
   it('returns a cached verdict without any network call', async () => {

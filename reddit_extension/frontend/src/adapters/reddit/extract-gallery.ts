@@ -7,8 +7,11 @@
 import type { MediaRef } from '../types';
 import { collectImageUrls, galleryRoot, readPostBase } from './extract-common';
 
+/** The backend scans at most this many images of one gallery. */
+export const MAX_GALLERY_IMAGES = 10;
+
 export function galleryCandidates(post: HTMLElement): string[] {
-  return collectImageUrls(galleryRoot(post));
+  return collectImageUrls(galleryRoot(post)).slice(0, MAX_GALLERY_IMAGES);
 }
 
 export function extractGallery(post: HTMLElement): MediaRef | null {

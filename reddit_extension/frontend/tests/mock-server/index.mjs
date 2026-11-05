@@ -85,6 +85,19 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 202, { job_id: jobId });
   }
 
+  // ── Brain, batch, lookup, feedback (always demo data: the mock is never silent) ──
+  if (method === 'GET' && pathname === '/api/v1/brain/status') {
+    return sendJson(res, 200, { name: 'mock-server', version: '0', is_mock: true, capabilities: { image: true, video: true, audio: false, explain: false } });
+  }
+  if (method === 'POST' && pathname === '/api/v1/detect/batch') {
+    const jobId = `job_batch_${Date.now()}`;
+    const now = new Date().toISOString();
+    mockJobs.set(jobId, { job_id: jobId, status: 'completed', overall_score: 0.5, label: 'inconclusive', mock: true, created_at: now, updated_at: now });
+    return sendJson(res, 202, { job_id: jobId });
+  }
+  if (method === 'GET' && pathname === '/api/v1/verdicts/lookup') return sendJson(res, 404, { error: 'miss' });
+  if (method === 'POST' && pathname === '/api/v1/feedback') return sendJson(res, 200, { ok: true });
+
   // ── POST /api/v1/detect-url ───────────────────────────────────────────────
   if (method === 'POST' && pathname === '/api/v1/detect-url') {
     const jobId = `job_url_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;

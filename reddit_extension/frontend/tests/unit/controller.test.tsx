@@ -130,12 +130,12 @@ describe('content controller', () => {
     });
 
     await act(async () => finish({ type: 'JOB_STATUS', status: 'completed', result: job() }));
-    expect(popoverContainer.textContent).toContain('LIKELY FAKE');
+    expect(popoverContainer.textContent).toContain('Likely manipulated');
     expect(lensOf(post)!.dataset.verdict).toBe('likely_fake');
 
     await act(async () => popover.hide());
     await act(async () => lensOf(post)!.click());
-    expect(popoverContainer.textContent).toContain('LIKELY FAKE');
+    expect(popoverContainer.textContent).toContain('Likely manipulated');
     expect(sent).toHaveLength(1);
   });
 
@@ -161,7 +161,7 @@ describe('content controller', () => {
 
     const retry = Array.from(popoverContainer.querySelectorAll('button')).find((b) => b.textContent === 'Retry')!;
     await act(async () => retry.click());
-    expect(popoverContainer.textContent).toContain('LIKELY FAKE');
+    expect(popoverContainer.textContent).toContain('Likely manipulated');
     expect(calls).toBe(2);
   });
 
@@ -179,7 +179,7 @@ describe('content controller', () => {
     const agree = Array.from(popoverContainer.querySelectorAll('button')).find((b) => b.textContent === 'I agree')!;
     await act(async () => { agree.click(); await vi.advanceTimersByTimeAsync(10); });
     expect(sent.map((m) => m.type)).toEqual(['SCAN_MEDIA', 'SET_CONSENT', 'SCAN_MEDIA']);
-    expect(popoverContainer.textContent).toContain('LIKELY FAKE');
+    expect(popoverContainer.textContent).toContain('Likely manipulated');
   });
 
   it('video scans send all candidate renditions plus the audio URL', async () => {
@@ -193,12 +193,12 @@ describe('content controller', () => {
     expect(sent[0]).toMatchObject({ payload: { mediaType: 'video', audioUrl: 'https://v.redd.it/v/DASH_audio.mp4' } });
   });
 
-  it('a media post with nothing extractable gets a clear message and no network call', async () => {
+  it('a media post with nothing in the DOM asks the worker to resolve it from the post JSON', async () => {
     const post = makePost({ id: 't3_empty', type: 'image' });
     await boot([post]);
     await act(async () => lensOf(post)!.click());
-    expect(sent).toHaveLength(0);
-    expect(popoverContainer.textContent).toContain("Couldn't find scannable media");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ type: 'SCAN_MEDIA', payload: { postId: 't3_empty', mediaUrls: [], resolve: true } });
   });
 
   it('SPA navigation closes the popover and removes every lens', async () => {
@@ -247,7 +247,7 @@ describe('content controller', () => {
 
   it('showExternal renders context-menu results with no anchor', async () => {
     await act(async () => controller.showExternal({ state: 'result', job: job() }));
-    expect(popoverContainer.textContent).toContain('LIKELY FAKE');
+    expect(popoverContainer.textContent).toContain('Likely manipulated');
     await act(async () => controller.showExternal({ state: 'loading' }));
     expect(popoverContainer.querySelector('.moody-lens-spinner')).not.toBeNull();
   });

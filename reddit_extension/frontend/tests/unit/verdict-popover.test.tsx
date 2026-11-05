@@ -37,7 +37,7 @@ describe('VerdictPopover', () => {
 
   it('shows the gauge with the overall score and the verdict label', async () => {
     current = await render(<VerdictPopover view={{ kind: 'result', job: baseJob }} onClose={() => {}} />);
-    expect(current.container.textContent).toContain('LIKELY FAKE');
+    expect(current.container.textContent).toContain('Likely manipulated');
     expect(current.container.textContent).toContain('85%');
     expect(current.container.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('85');
   });
@@ -94,5 +94,60 @@ describe('VerdictPopover', () => {
     current = await render(<VerdictPopover view={{ kind: 'loading' }} onClose={onClose} />);
     await act(async () => (current!.container.querySelector('[aria-label="Close"]') as HTMLElement).click());
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('VerdictPopover – signals, timeline, sharing, feedback', () => {
+  const rich: DetectionJob = {
+    ...baseJob,
+    cache_key: 'a'.repeat(64),
+    signals: [{ kind: 'artifact', text: 'Unusual skin texture', severity: 'medium' }],
+    timeline: [
+      { start: 0, end: 1, score: 0.2 },
+      { start: 1, end: 2, score: 0.9 },
+    ],
+  };
+  const result = (job: DetectionJob, extra: object = {}) => ({
+    kind: 'result' as const, job, thresholds: { realBelow: 0.3, fakeAbove: 0.7 }, context: { permalink: 'https://www.reddit.com/r/x/comments/a/', sourceUrls: ['https://i.redd.it/a.jpg'] }, ...extra,
+  });
+
+  it('lists signals, draws the timeline and always shows the disclaimer', async () => {
+    current = await render(<VerdictPopover view={result(rich)} onClose={() => {}} />);
+    const text = current.container.textContent ?? '';
+    expect(text).toContain('Unusual skin texture');
+    expect(current.container.querySelector('[aria-label^="Suspicion over time"]')).not.toBeNull();
+    expect(text).toContain('Automated estimate, not proof');
+  });
+
+  it('has labelled share buttons that copy text', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    current = await render(<VerdictPopover view={result(rich)} onClose={() => {}} />);
+    for (const label of ['Copy summary', 'Copy as Reddit comment', 'Download result card', 'Copy report to mods', 'Find source']) {
+      expect(current.container.querySelector(`button[aria-label="${label}"]`), label).not.toBeNull();
+    }
+    await act(async () => current!.container.querySelector<HTMLButtonElement>('button[aria-label="Copy summary"]')!.click());
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Automated estimate, not proof'));
+  });
+
+  it('reveals reverse-search links with a note that the image URL is sent', async () => {
+    current = await render(<VerdictPopover view={result(rich)} onClose={() => {}} />);
+    await act(async () => current!.container.querySelector<HTMLButtonElement>('button[aria-label="Find source"]')!.click());
+    expect(current.container.querySelectorAll('a[href^="https://"]').length).toBeGreaterThanOrEqual(3);
+    expect(current.container.textContent).toMatch(/sends this image/i);
+  });
+
+  it('sends feedback with the cache key and the verdict', async () => {
+    const onFeedback = vi.fn(async () => true);
+    current = await render(<VerdictPopover view={result(rich)} onClose={() => {}} onFeedback={onFeedback} />);
+    const up = current.container.querySelector<HTMLButtonElement>('button[aria-label*="right" i], button[aria-label*="agree" i]');
+    expect(up).not.toBeNull();
+    await act(async () => up!.click());
+    expect(onFeedback).toHaveBeenCalledWith(expect.objectContaining({ cacheKey: 'a'.repeat(64), verdict: 'likely_fake' }));
+  });
+
+  it('badges demo data with a dashed DEMO DATA label', async () => {
+    current = await render(<VerdictPopover view={result({ ...rich, mock: true })} onClose={() => {}} />);
+    expect(current.container.textContent).toContain('DEMO DATA');
   });
 });

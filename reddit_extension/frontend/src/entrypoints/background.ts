@@ -17,7 +17,9 @@ import {
   setupContextMenu,
   handleContextMenuClick,
 } from '../background/handlers/context-menu';
-import { checkHealth, getJobStatus } from '../core/api-client';
+import { checkHealth, getBrainStatus, getJobStatus } from '../core/api-client';
+import { handleFeedback } from '../background/handlers/feedback';
+import { handleCommand } from '../background/handlers/commands';
 import { getConsent, setConsent } from '../core/consent';
 import { clearCache } from '../core/cache';
 import { bindDebugToSettings } from '../core/debug';
@@ -37,6 +39,11 @@ export default defineBackground(() => {
     setupContextMenu();
   } catch (err) {
     log.warn('Could not setup context menus:', err);
+  }
+
+  // Keyboard shortcut: scan the post nearest the middle of the active tab.
+  if (typeof chrome !== 'undefined' && chrome.commands?.onCommand) {
+    chrome.commands.onCommand.addListener(handleCommand);
   }
 
   // Context menu click listener
@@ -174,6 +181,18 @@ export default defineBackground(() => {
           clearCache()
             .then(() => sendResponse({ type: 'OK' }))
             .catch((err) => sendResponse({ type: 'ERROR', error: toFriendlyError(err).message }));
+          return true;
+        }
+
+        case 'GET_BRAIN_STATUS': {
+          getBrainStatus()
+            .then((brain) => sendResponse({ type: 'BRAIN_STATUS', brain }))
+            .catch(() => sendResponse({ type: 'BRAIN_STATUS', brain: null }));
+          return true;
+        }
+
+        case 'SEND_FEEDBACK': {
+          handleFeedback(message).then(sendResponse);
           return true;
         }
 

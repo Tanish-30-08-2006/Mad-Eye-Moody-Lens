@@ -14,6 +14,12 @@ export default defineConfig({
     description:
       'In-feed deepfake detection for Reddit. Scan posts for AI-generated or manipulated media.',
     permissions: ['storage', 'contextMenus', 'alarms'],
+    commands: {
+      'scan-nearest': {
+        suggested_key: { default: 'Alt+Shift+L' },
+        description: 'Scan the post nearest the middle of the screen',
+      },
+    },
     host_permissions: [
       'https://*.reddit.com/*',
       'http://localhost:8000/*',

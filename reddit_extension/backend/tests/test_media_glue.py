@@ -47,6 +47,17 @@ class FakeAnalysisError(Exception):
         self.status_code = status_code
 
 
+def _forget_extension_modules():
+    """Drop modules that bound the previous (fake) host; services stay so monkeypatches on them keep working."""
+    for name in list(sys.modules):
+        if name.startswith("moody_lens_ext.") and not name.startswith("moody_lens_ext.services"):
+            sys.modules.pop(name, None)
+            # `from pkg import sub` prefers the parent's cached attribute, so clear that too.
+            parent = sys.modules.get(name.rsplit(".", 1)[0])
+            if parent is not None and hasattr(parent, name.rsplit(".", 1)[1]):
+                delattr(parent, name.rsplit(".", 1)[1])
+
+
 def _install_fake_host(monkeypatch, state: dict):
     """Registers fake `app.*` modules and returns a freshly imported moody_lens_ext.media."""
     def mod(name: str, **attrs):
@@ -96,21 +107,23 @@ def _install_fake_host(monkeypatch, state: dict):
     sys.modules["app"].services = sys.modules["app.services"]
     sys.modules["app.services"].heartbeat = heartbeat
 
-    sys.modules.pop("moody_lens_ext.media", None)
+    _forget_extension_modules()
     media = importlib.import_module("moody_lens_ext.media")
     monkeypatch.setattr(media, "EXTENSION_JOBS", {}, raising=True)
     return media
 
 
 @pytest.fixture
-def env(monkeypatch):
+def env(monkeypatch, tmp_path):
+    monkeypatch.delenv("MML_BRAIN", raising=False)
+    monkeypatch.setenv("MML_EXT_DATA_DIR", str(tmp_path / "ext-data"))
     state = {"saved": [], "runner_calls": [], "queues": {"inference.fast": 1, "inference.video": 1}}
     before = set(glob.glob(os.path.join(tempfile.gettempdir(), "mml-ext-*")))
     media = _install_fake_host(monkeypatch, state)
     app = FastAPI()
     app.include_router(media.router)
     yield SimpleNamespace(client=TestClient(app), state=state, media=media, before=before)
-    sys.modules.pop("moody_lens_ext.media", None)
+    _forget_extension_modules()
 
 
 def leaked_workspaces(env) -> set[str]:

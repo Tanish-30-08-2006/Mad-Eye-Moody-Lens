@@ -21,6 +21,8 @@ export interface MediaRef {
   postId: string;
   /** Human-readable post title. */
   title?: string;
+  /** The author labelled this post as AI-made (title tag or flair). Shown as a disclosure, not a finding. */
+  disclosedAi?: boolean;
 }
 
 /** A point in the DOM where the lens button should be mounted. */
@@ -55,8 +57,17 @@ export interface SiteAdapter {
   /** Extract media references from a single post element; null for text/link/no-media. */
   extractMedia(post: HTMLElement): MediaRef | null;
 
+  /** Post id and permalink of an element, even when its media could not be extracted (media-resolve fallback). */
+  identify(post: HTMLElement): { postId: string; permalink: string } | null;
+
+  /** The media elements of a post, for the optional "blur until clicked" feature. */
+  mediaElements(post: HTMLElement): HTMLElement[];
+
   /** Find the mount point for the lens button in a post. */
   getMountPoint(post: HTMLElement): MountPoint | null;
+
+  /** Optional hook for adapters whose pages hold more than one kind of element (posts and comments). */
+  readonly observedSelector?: string;
 
   /** Debug-only: describe what the extractors see in a post. */
   describe(post: HTMLElement): unknown;

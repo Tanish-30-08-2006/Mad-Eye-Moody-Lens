@@ -7,7 +7,9 @@
  */
 
 import { z } from 'zod';
-import type { DetectionJob, HealthResponse, JobStatus } from './schema';
+import type { BrainStatus, DetectionJob, HealthResponse, JobStatus } from './schema';
+import { FeedbackLabelEnum } from './schema';
+import type { ProvenanceHint, ScanMeta } from './scan-meta';
 import type { ExtensionSettings } from './settings';
 import { isAllowedMediaUrl } from './media-url';
 
@@ -20,18 +22,30 @@ export const PingRequestSchema = z.object({
 /** https + allowlisted CDN host only; anything else is rejected at the message boundary. */
 const MediaUrlSchema = z.string().url().refine(isAllowedMediaUrl, 'Media URL must be https on an allowed Reddit CDN host');
 
-export const ScanOriginSchema = z.enum(['manual', 'auto', 'context-menu']);
+/** `visible` = the popup's "Scan visible images" button: user-initiated but subject to the per-minute cap. */
+export const ScanOriginSchema = z.enum(['manual', 'auto', 'context-menu', 'visible']);
 export type ScanOrigin = z.infer<typeof ScanOriginSchema>;
 
-export const ScanMediaPayloadSchema = z.object({
-  mediaUrls: z.array(MediaUrlSchema).min(1).max(100),
-  audioUrl: MediaUrlSchema.optional(),
-  postId: z.string().min(1),
-  permalink: z.string(),
-  mediaType: z.enum(['image', 'video', 'audio']),
-  /** Who asked: a lens click, the auto-scan feature or the context menu. */
-  origin: ScanOriginSchema.optional(),
-});
+export const MediaKindSchema = z.enum(['image', 'gallery', 'video', 'gif']);
+
+export const ScanMediaPayloadSchema = z
+  .object({
+    /** Empty only together with `resolve`: then the service worker looks the media up itself. */
+    mediaUrls: z.array(MediaUrlSchema).max(100),
+    audioUrl: MediaUrlSchema.optional(),
+    postId: z.string().min(1),
+    permalink: z.string(),
+    mediaType: z.enum(['image', 'video', 'audio']),
+    /** What the post holds; used for gallery batching and the local history. */
+    kind: MediaKindSchema.optional(),
+    /** Several images that belong together: scanned through /detect/batch. */
+    gallery: z.boolean().optional(),
+    /** DOM extraction found nothing: resolve the media from the post's JSON instead. */
+    resolve: z.boolean().optional(),
+    /** Who asked: a lens click, the auto-scan feature, the popup or the context menu. */
+    origin: ScanOriginSchema.optional(),
+  })
+  .refine((p) => p.mediaUrls.length > 0 || p.resolve === true, 'At least one media URL is required');
 
 export const ScanMediaRequestSchema = z.object({
   type: z.literal('SCAN_MEDIA'),
@@ -67,6 +81,18 @@ export const CheckHealthRequestSchema = z.object({ type: z.literal('CHECK_HEALTH
 
 export const ClearCacheRequestSchema = z.object({ type: z.literal('CLEAR_CACHE') });
 
+export const GetBrainStatusRequestSchema = z.object({ type: z.literal('GET_BRAIN_STATUS') });
+
+/** Thumbs up/down on a verdict. Carries only the cache key and labels; no media, no identifiers. */
+export const SendFeedbackRequestSchema = z.object({
+  type: z.literal('SEND_FEEDBACK'),
+  payload: z.object({
+    cacheKey: z.string().regex(/^[0-9a-f]{64}$/i),
+    verdictLabel: z.enum(['likely_real', 'likely_fake', 'inconclusive']),
+    userLabel: FeedbackLabelEnum,
+  }),
+});
+
 export const ExtensionMessageSchema = z.discriminatedUnion('type', [
   PingRequestSchema,
   ScanMediaRequestSchema,
@@ -77,6 +103,8 @@ export const ExtensionMessageSchema = z.discriminatedUnion('type', [
   SetConsentRequestSchema,
   CheckHealthRequestSchema,
   ClearCacheRequestSchema,
+  GetBrainStatusRequestSchema,
+  SendFeedbackRequestSchema,
 ]);
 
 export type ExtensionMessage = z.infer<typeof ExtensionMessageSchema>;
@@ -86,6 +114,7 @@ export type GetJobStatusRequest = z.infer<typeof GetJobStatusRequestSchema>;
 export type CancelJobRequest = z.infer<typeof CancelJobRequestSchema>;
 export type GetSettingsRequest = z.infer<typeof GetSettingsRequestSchema>;
 export type SetConsentRequest = z.infer<typeof SetConsentRequestSchema>;
+export type SendFeedbackRequest = z.infer<typeof SendFeedbackRequestSchema>;
 
 // ── Response Schemas and Types ──────────────────────────────────────────────
 
@@ -103,6 +132,21 @@ export interface JobStatusResponse {
   type: 'JOB_STATUS';
   status: JobStatus;
   result?: DetectionJob;
+  /** Extension-side notes about this scan (provenance hints, audio note). */
+  meta?: ScanMeta;
+}
+
+/** Local-only mode: nothing was uploaded; these are the metadata hints found. */
+export interface LocalHintsResponse {
+  type: 'LOCAL_HINTS';
+  hints: ProvenanceHint[];
+  meta: ScanMeta;
+}
+
+export interface BrainStatusResultResponse {
+  type: 'BRAIN_STATUS';
+  /** null when the backend is unreachable or has no brain available. */
+  brain: BrainStatus | null;
 }
 
 export interface SettingsResponse {
@@ -137,6 +181,8 @@ export type ExtensionResponse =
   | SettingsResponse
   | ConsentResponse
   | HealthResultResponse
+  | LocalHintsResponse
+  | BrainStatusResultResponse
   | OkResponse
   | ErrorResponse;
 
@@ -187,16 +233,29 @@ export const ShowResultMessageSchema = z.object({
   type: z.literal('SHOW_RESULT'),
   payload: z.discriminatedUnion('state', [
     z.object({ state: z.literal('loading') }),
-    z.object({ state: z.literal('result'), job: z.custom<DetectionJob>((v) => !!v && typeof v === 'object') }),
+    z.object({
+      state: z.literal('result'),
+      job: z.custom<DetectionJob>((v) => !!v && typeof v === 'object'),
+      meta: z.custom<ScanMeta>((v) => !!v && typeof v === 'object').optional(),
+    }),
+    z.object({ state: z.literal('local'), hints: z.custom<ProvenanceHint[]>((v) => Array.isArray(v)) }),
     z.object({ state: z.literal('error'), message: z.string(), code: z.string().optional() }),
   ]),
 });
 
 export const GetPageStatusMessageSchema = z.object({ type: z.literal('GET_PAGE_STATUS') });
 
+/** From the popup: scan the images currently on screen. */
+export const ScanVisibleMessageSchema = z.object({ type: z.literal('SCAN_VISIBLE') });
+
+/** From the keyboard shortcut: scan the post nearest the middle of the viewport. */
+export const ScanNearestMessageSchema = z.object({ type: z.literal('SCAN_NEAREST') });
+
 export const TabMessageSchema = z.discriminatedUnion('type', [
   ShowResultMessageSchema,
   GetPageStatusMessageSchema,
+  ScanVisibleMessageSchema,
+  ScanNearestMessageSchema,
 ]);
 
 export type TabMessage = z.infer<typeof TabMessageSchema>;
@@ -208,6 +267,13 @@ export interface PageStatusResponse {
   postsSeen: number;
   /** Lens buttons currently mounted. */
   lensButtons: number;
+  /** Image posts on screen right now that "Scan visible images" would scan. */
+  visibleImages?: number;
+}
+
+export interface ScanVisibleResponse {
+  type: 'SCAN_VISIBLE_RESULT';
+  queued: number;
 }
 
 export function isTabMessage(msg: unknown): msg is TabMessage {
