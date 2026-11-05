@@ -1,5 +1,5 @@
 """
-functional-ui-models-backend/backend/tests/test_media_api.py – Tests for v1 media detection API.
+reddit_extension/backend/tests/test_media_api.py – Tests for v1 media detection API.
 
 Covers:
 1. Happy path image upload -> 202 -> GET job -> completed verdict
@@ -19,7 +19,7 @@ import io
 import pytest
 from PIL import Image
 
-from app.api.v1.media import (
+from moody_lens_ext.media import (
     DetectionJob,
     DetectResponse,
     HealthResponse,

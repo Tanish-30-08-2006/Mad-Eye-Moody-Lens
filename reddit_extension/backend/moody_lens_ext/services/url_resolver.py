@@ -1,5 +1,5 @@
 """
-functional-ui-models-backend/backend/app/services/url_resolver.py – Tier-2 fallback URL ingestion using yt-dlp.
+reddit_extension/backend/moody_lens_ext/services/url_resolver.py – Tier-2 fallback URL ingestion using yt-dlp.
 
 Runs yt-dlp in an isolated subprocess behind a feature flag (ENABLE_URL_RESOLVER)
 to resolve and download media from links when client-side acquisition fails.

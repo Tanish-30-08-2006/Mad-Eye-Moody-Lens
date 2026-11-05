@@ -102,8 +102,11 @@ def create_app() -> FastAPI:
         log.exception("unhandled_error", error_type=type(exc).__name__)
         return JSONResponse({"error": INTERNAL_ERROR_MESSAGE}, status_code=500)
 
-    from app.api.v1.media import router as v1_media_router
-    app.include_router(v1_media_router)
+    try:
+        from moody_lens_ext.media import router as v1_media_router
+        app.include_router(v1_media_router)
+    except ImportError:
+        log.warning("reddit_extension_router_unavailable")
     app.include_router(router)
     return app
 
