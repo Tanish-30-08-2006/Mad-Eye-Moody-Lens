@@ -1,0 +1,783 @@
+/**
+ * ui/styles.css – Plain CSS for the lens button and the shared popover.
+ *
+ * Injected into each shadow root (WXT cssInjectionMode 'ui'), so Reddit's CSS cannot leak in and
+ * ours cannot leak out. Every colour, size and duration comes from the variables in tokens.css.
+ */
+
+@import './tokens.css';
+
+:host {
+  all: initial;
+  font-family: var(--ml-font);
+  font-size: var(--ml-fs-md);
+  line-height: 1.4;
+  color: var(--ml-text);
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ── Lens button host: top-right inside the media; only the button takes clicks ── */
+
+:host(moody-lens-button-host) {
+  position: absolute;
+  top: var(--ml-space-2);
+  right: var(--ml-space-2);
+  z-index: 2147483000;
+  display: block;
+  max-width: 100%;
+  pointer-events: none;
+}
+
+/* Small media (set from the content script): a smaller lens, tucked closer to the corner. */
+:host(moody-lens-button-host[data-compact]) {
+  top: var(--ml-space-1);
+  right: var(--ml-space-1);
+}
+
+.moody-lens-btn {
+  --size: 28px;
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: 1px solid var(--ml-lens-border);
+  border-radius: calc(var(--size) / 2);
+  background: var(--ml-lens-bg);
+  color: var(--ml-accent);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.78;
+  transition: opacity var(--ml-ease), box-shadow var(--ml-ease), padding var(--ml-ease);
+}
+
+:host(moody-lens-button-host[data-compact]) .moody-lens-btn {
+  --size: 22px;
+}
+
+.moody-lens-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+:host(moody-lens-button-host[data-compact]) .moody-lens-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.moody-lens-btn:hover,
+.moody-lens-btn:focus-visible {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--ml-accent);
+}
+
+.moody-lens-btn:focus-visible {
+  outline: 2px solid var(--ml-lens-text);
+  outline-offset: 2px;
+}
+
+/* Scanning: an orange ring spins around the button. */
+.moody-lens-btn[data-state='scanning'] {
+  opacity: 1;
+}
+
+.moody-lens-btn[data-state='scanning']::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--ml-accent);
+  border-right-color: var(--ml-accent);
+  animation: ml-spin 0.9s linear infinite;
+}
+
+.moody-lens-btn[data-state='error'] {
+  opacity: 1;
+  color: var(--ml-warn);
+  border-color: var(--ml-warn);
+}
+
+/* Done: a verdict-coloured dot; the label chip appears on hover or focus. */
+.moody-lens-btn[data-state='done'],
+.moody-lens-btn[data-state='local'] {
+  opacity: 1;
+}
+
+.moody-lens-btn-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot, var(--ml-accent));
+  border: 2px solid var(--ml-lens-bg);
+}
+
+.moody-lens-btn[data-verdict='likely_real'] {
+  --dot: var(--ml-real);
+}
+.moody-lens-btn[data-verdict='likely_fake'] {
+  --dot: var(--ml-fake);
+}
+.moody-lens-btn[data-verdict='inconclusive'] {
+  --dot: var(--ml-warn);
+}
+.moody-lens-btn[data-verdict='disclosed'],
+.moody-lens-btn[data-state='local'] {
+  --dot: var(--ml-accent);
+}
+.moody-lens-btn[data-mock='true'] .moody-lens-btn-dot {
+  background: var(--ml-mock);
+  border-style: dashed;
+  border-color: var(--ml-lens-text);
+}
+
+.moody-lens-chip-label {
+  display: none;
+  padding: 0 10px 0 0;
+  font-size: var(--ml-fs-sm);
+  font-weight: var(--ml-fw-heading);
+  color: var(--ml-lens-text);
+  white-space: nowrap;
+}
+
+.moody-lens-btn:hover .moody-lens-chip-label,
+.moody-lens-btn:focus-visible .moody-lens-chip-label {
+  display: inline;
+}
+
+.moody-lens-btn:hover:has(.moody-lens-chip-label),
+.moody-lens-btn:focus-visible:has(.moody-lens-chip-label) {
+  padding-left: 8px;
+}
+
+/* ── Popover ─────────────────────────────────────────────────────────────── */
+
+.moody-lens-popover {
+  position: fixed;
+  z-index: 2147483647;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  background: var(--ml-surface);
+  color: var(--ml-text);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius);
+  box-shadow: var(--ml-shadow);
+  font-size: var(--ml-fs-md);
+  animation: ml-pop var(--ml-ease) both;
+}
+
+.moody-lens-popover[data-closing='true'] {
+  animation: ml-pop-out var(--ml-ease) both;
+}
+
+.moody-lens-popover:focus {
+  outline: none;
+}
+
+.moody-lens-popover-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ml-space-2);
+  padding: 12px var(--ml-space-3);
+  border-bottom: 1px solid var(--ml-border);
+}
+
+.moody-lens-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ml-accent-soft);
+  color: var(--ml-accent);
+}
+
+.moody-lens-popover-title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--ml-fs-lg);
+  font-weight: var(--ml-fw-heading);
+}
+
+.moody-lens-popover-close,
+.moody-lens-icon-btn {
+  all: unset;
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ml-radius-sm);
+  color: var(--ml-muted);
+  cursor: pointer;
+  transition: background var(--ml-ease), color var(--ml-ease);
+}
+
+.moody-lens-popover-close:hover,
+.moody-lens-icon-btn:hover:not(:disabled) {
+  background: var(--ml-raised);
+  color: var(--ml-text);
+}
+
+.moody-lens-icon-btn[aria-pressed='true'] {
+  background: var(--ml-accent-soft);
+  color: var(--ml-accent-text);
+}
+
+.moody-lens-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.moody-lens-popover button:focus-visible,
+.moody-lens-popover summary:focus-visible,
+.moody-lens-popover a:focus-visible {
+  outline: none;
+  box-shadow: var(--ml-focus-ring);
+}
+
+/* Tooltips for the icon buttons (also exposed as aria-labels). */
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ml-raised);
+  border: 1px solid var(--ml-border);
+  color: var(--ml-text);
+  font-size: var(--ml-fs-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.moody-lens-popover-content {
+  padding: var(--ml-space-3);
+}
+
+.moody-lens-verdict-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.moody-lens-verdict-details[data-verdict='likely_fake'] {
+  --verdict: var(--ml-fake);
+  --verdict-soft: var(--ml-fake-soft);
+  --verdict-text: var(--ml-fake-text);
+}
+.moody-lens-verdict-details[data-verdict='likely_real'] {
+  --verdict: var(--ml-real);
+  --verdict-soft: var(--ml-real-soft);
+  --verdict-text: var(--ml-real-text);
+}
+.moody-lens-verdict-details[data-verdict='inconclusive'] {
+  --verdict: var(--ml-warn);
+  --verdict-soft: var(--ml-warn-soft);
+  --verdict-text: var(--ml-warn-text);
+}
+.moody-lens-verdict-details[data-mock='true'] {
+  --verdict: var(--ml-mock);
+  --verdict-soft: transparent;
+  --verdict-text: var(--ml-muted);
+}
+
+.moody-lens-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ml-space-2);
+  justify-content: center;
+}
+
+.moody-lens-badges:empty {
+  display: none;
+}
+
+.moody-lens-demo-badge,
+.moody-lens-disclosed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--ml-fs-sm);
+  font-weight: var(--ml-fw-heading);
+  letter-spacing: 0.04em;
+}
+
+/* Demo data is always unmistakable: dashed, grey, never verdict-coloured. */
+.moody-lens-demo-badge {
+  border: 1px dashed var(--ml-mock);
+  color: var(--ml-muted);
+}
+
+.moody-lens-disclosed {
+  border: 1px solid var(--ml-accent);
+  background: var(--ml-accent-soft);
+  color: var(--ml-accent-text);
+  letter-spacing: 0;
+}
+
+/* Gauge */
+
+.moody-lens-gauge {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  margin: 0 auto;
+}
+
+.moody-lens-gauge-track {
+  stroke: var(--ml-border);
+}
+.moody-lens-gauge-stop-start {
+  stop-color: var(--ml-accent);
+}
+.moody-lens-gauge-stop-end {
+  stop-color: var(--verdict, var(--ml-accent));
+}
+.moody-lens-gauge-arc {
+  transition: stroke-dasharray 400ms ease;
+}
+
+.moody-lens-gauge-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ml-fs-display);
+  font-weight: var(--ml-fw-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.moody-lens-verdict-badge {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--verdict-soft, var(--ml-raised));
+  border: 1px solid var(--verdict, var(--ml-border));
+  color: var(--verdict-text, var(--ml-text));
+  font-size: var(--ml-fs-md);
+  font-weight: var(--ml-fw-heading);
+}
+
+.moody-lens-verdict-details[data-mock='true'] .moody-lens-verdict-badge {
+  border-style: dashed;
+}
+
+.moody-lens-note {
+  margin: 0;
+  color: var(--ml-muted);
+  font-size: var(--ml-fs-sm);
+}
+
+.moody-lens-warn {
+  color: var(--ml-warn-text);
+}
+
+.moody-lens-section-title {
+  margin: 0 0 6px;
+  font-size: var(--ml-fs-sm);
+  font-weight: var(--ml-fw-heading);
+  color: var(--ml-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Model rows */
+
+.moody-lens-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.moody-lens-breakdown-item {
+  display: grid;
+  grid-template-columns: 56px 1fr 52px;
+  align-items: center;
+  gap: var(--ml-space-2);
+  font-size: var(--ml-fs-sm);
+}
+
+.moody-lens-breakdown-item.not-run {
+  grid-template-columns: 56px 1fr;
+  color: var(--ml-muted);
+}
+
+.moody-lens-breakdown-modality {
+  text-transform: capitalize;
+}
+
+.moody-lens-breakdown-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ml-border);
+  overflow: hidden;
+}
+
+.moody-lens-breakdown-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ml-accent), var(--verdict, var(--ml-accent)));
+}
+
+.moody-lens-breakdown-score {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Timeline */
+
+.moody-lens-timeline-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 40px;
+}
+
+.moody-lens-timeline-bar {
+  min-width: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ml-warn);
+}
+.moody-lens-timeline-bar[data-verdict='likely_fake'] {
+  background: var(--ml-fake);
+}
+.moody-lens-timeline-bar[data-verdict='likely_real'] {
+  background: var(--ml-real);
+}
+
+.moody-lens-timeline-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: var(--ml-fs-sm);
+  color: var(--ml-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gallery chips */
+
+.moody-lens-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--ml-space-2);
+}
+
+.moody-lens-chip {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius-sm);
+  background: var(--ml-raised);
+  font-size: var(--ml-fs-sm);
+  cursor: pointer;
+  transition: border-color var(--ml-ease), background var(--ml-ease);
+}
+
+.moody-lens-chip:hover {
+  border-color: var(--ml-accent);
+}
+.moody-lens-chip[aria-pressed='true'] {
+  border-color: var(--ml-accent);
+  background: var(--ml-accent-soft);
+}
+
+.moody-lens-chip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ml-muted);
+}
+.moody-lens-chip[data-verdict='likely_fake'] .moody-lens-chip-dot {
+  background: var(--ml-fake);
+}
+.moody-lens-chip[data-verdict='likely_real'] .moody-lens-chip-dot {
+  background: var(--ml-real);
+}
+.moody-lens-chip[data-verdict='inconclusive'] .moody-lens-chip-dot {
+  background: var(--ml-warn);
+}
+
+.moody-lens-chip-num {
+  font-weight: var(--ml-fw-heading);
+}
+.moody-lens-chip-score {
+  margin-left: auto;
+  color: var(--ml-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Collapsible sections */
+
+.moody-lens-collapsible {
+  border-top: 1px solid var(--ml-border);
+  padding-top: 10px;
+  font-size: var(--ml-fs-sm);
+}
+
+.moody-lens-collapsible summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ml-space-2);
+  cursor: pointer;
+  list-style: none;
+  font-weight: var(--ml-fw-heading);
+  border-radius: 6px;
+}
+.moody-lens-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+.moody-lens-collapsible[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.moody-lens-collapsible ul {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.moody-lens-collapsible li {
+  display: flex;
+  gap: var(--ml-space-2);
+}
+.moody-lens-signal-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--ml-muted);
+}
+.moody-lens-collapsible li[data-severity='high'] .moody-lens-signal-dot {
+  background: var(--ml-fake);
+}
+.moody-lens-collapsible li[data-severity='medium'] .moody-lens-signal-dot {
+  background: var(--ml-warn);
+}
+
+/* Actions */
+
+.moody-lens-action-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ml-border);
+}
+.moody-lens-action-spacer {
+  flex: 1;
+}
+
+.moody-lens-sources {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: var(--ml-radius-sm);
+  background: var(--ml-raised);
+  border: 1px solid var(--ml-border);
+}
+.moody-lens-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ml-space-2);
+  margin-top: 8px;
+}
+.moody-lens-source-links a {
+  color: var(--ml-accent-text);
+  font-size: var(--ml-fs-sm);
+  font-weight: var(--ml-fw-heading);
+  text-decoration: none;
+  border-radius: 4px;
+}
+.moody-lens-source-links a:hover {
+  text-decoration: underline;
+}
+
+.moody-lens-toast {
+  min-height: 20px;
+  margin-top: 6px;
+  font-size: var(--ml-fs-sm);
+  color: var(--ml-muted);
+}
+
+.moody-lens-disclaimer {
+  padding: 10px var(--ml-space-3);
+  border-top: 1px solid var(--ml-border);
+  text-align: center;
+  font-size: var(--ml-fs-sm);
+  color: var(--ml-muted);
+}
+
+/* Cards: consent and error */
+
+.moody-lens-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--ml-space-3);
+  border: 1px solid var(--ml-border);
+  border-radius: var(--ml-radius);
+  background: var(--ml-raised);
+}
+.moody-lens-card p {
+  margin: 0;
+}
+.moody-lens-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: var(--ml-fw-heading);
+}
+.moody-lens-error-text {
+  color: var(--ml-muted);
+}
+
+.moody-lens-actions {
+  display: flex;
+  gap: var(--ml-space-2);
+}
+
+.moody-lens-btn-primary,
+.moody-lens-btn-secondary {
+  all: unset;
+  box-sizing: border-box;
+  padding: 8px 16px;
+  border-radius: var(--ml-radius-sm);
+  font-size: var(--ml-fs-md);
+  font-weight: var(--ml-fw-heading);
+  cursor: pointer;
+  transition: background var(--ml-ease);
+}
+.moody-lens-btn-primary {
+  background: var(--ml-accent);
+  color: var(--ml-on-accent);
+}
+.moody-lens-btn-primary:hover {
+  background: var(--ml-accent-hover);
+}
+.moody-lens-btn-primary:active {
+  background: var(--ml-accent-pressed);
+}
+.moody-lens-btn-secondary {
+  border: 1px solid var(--ml-border);
+  color: var(--ml-text);
+}
+.moody-lens-btn-secondary:hover {
+  background: var(--ml-raised);
+}
+
+/* Loading skeleton */
+
+.moody-lens-spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.moody-lens-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.moody-lens-spinner-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.moody-lens-skeleton {
+  display: block;
+  border-radius: var(--ml-radius-sm);
+  background: linear-gradient(90deg, var(--ml-raised) 25%, var(--ml-border) 50%, var(--ml-raised) 75%);
+  background-size: 200% 100%;
+  animation: ml-shimmer 1.4s linear infinite;
+}
+.moody-lens-skeleton-circle {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+}
+.moody-lens-skeleton-pill {
+  width: 140px;
+  height: 26px;
+  border-radius: 999px;
+}
+.moody-lens-skeleton-line {
+  width: 100%;
+  height: 12px;
+}
+.moody-lens-skeleton-line.short {
+  width: 60%;
+}
+
+@keyframes ml-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ml-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes ml-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes ml-pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

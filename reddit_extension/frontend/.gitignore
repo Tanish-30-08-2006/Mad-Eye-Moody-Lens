@@ -1,0 +1,8 @@
+node_modules/
+.output/
+.wxt/
+dist/
+test-results/
+*.tgz
+.env
+.DS_Store

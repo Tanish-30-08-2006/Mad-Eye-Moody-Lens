@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Moody Lens – UI preview</title>
+    <style>
+      :root { color-scheme: dark light; }
+      body { margin: 0; padding: 24px; font: 14px system-ui, sans-serif; background: #0b0d0e; color: #e8eaeb; }
+      @media (prefers-color-scheme: light) { body { background: #f6f7f8; color: #1a1a1b; } }
+      h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 32px 0 12px; }
+      .note { color: #8a8f94; margin: 0; }
+      .grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+      figure { margin: 0; } figcaption { font-size: 12px; color: #8a8f94; margin-top: 6px; }
+      .media { position: relative; width: 200px; height: 120px; border-radius: 8px; background: linear-gradient(135deg, #6a7fa3, #d9a066 55%, #3b4d3a); overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

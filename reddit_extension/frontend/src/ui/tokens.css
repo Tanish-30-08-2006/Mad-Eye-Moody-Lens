@@ -1,0 +1,89 @@
+/* ui/tokens.css – The ONLY place colours, type and spacing are defined (CSS variables, dark default, light via prefers-color-scheme). */
+
+/* `:host` covers shadow-root UIs, `:root` covers extension pages. */
+:host,
+:root {
+  color-scheme: dark;
+
+  /* Surfaces and text */
+  --ml-bg: #0b0d0e;
+  --ml-surface: #131516;
+  --ml-raised: #1a1d1f;
+  --ml-border: #2b2e31;
+  --ml-text: #e8eaeb;
+  --ml-muted: #8a8f94;
+  --ml-scrim: #0b0d0eb8;
+
+  /* Accent: Reddit orange. Text on it is near-black so it stays readable (5.6:1). */
+  --ml-accent: #ff4500;
+  --ml-accent-hover: #ff5a1f;
+  --ml-accent-pressed: #e03d00;
+  --ml-accent-soft: #ff450020;
+  --ml-accent-text: #ff6a3a;
+  --ml-on-accent: #0b0d0e;
+
+  /* Verdicts: fills, dots and borders. Always shown with an icon AND a text label. */
+  --ml-fake: #e5484d;
+  --ml-real: #46d160;
+  --ml-warn: #f5a524;
+  --ml-mock: #8a8f94;
+  --ml-fake-soft: #e5484d24;
+  --ml-real-soft: #46d16020;
+  --ml-warn-soft: #f5a52420;
+  /* Verdict colours as text (>= 4.5:1 on every surface). */
+  --ml-fake-text: #f2777b;
+  --ml-real-text: #46d160;
+  --ml-warn-text: #f5a524;
+
+  /* Lens button: near-black translucent on any media, in both colour schemes. */
+  --ml-lens-bg: #0b0d0ed9;
+  --ml-lens-border: #ffffff38;
+  --ml-lens-text: #f4f5f6;
+
+  /* Type */
+  --ml-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ml-fs-sm: 13px;
+  --ml-fs-md: 14px;
+  --ml-fs-lg: 16px;
+  --ml-fs-xl: 20px;
+  --ml-fs-display: 32px;
+  --ml-fw-heading: 600;
+
+  /* Space (8px grid), shape, motion */
+  --ml-space-1: 4px;
+  --ml-space-2: 8px;
+  --ml-space-3: 16px;
+  --ml-space-4: 24px;
+  --ml-space-5: 32px;
+  --ml-radius: 12px;
+  --ml-radius-sm: 8px;
+  --ml-shadow: 0 8px 28px #00000066, 0 1px 3px #00000066;
+  --ml-focus-ring: 0 0 0 2px var(--ml-surface), 0 0 0 4px var(--ml-accent);
+  --ml-ease: 150ms ease;
+}
+
+@media (prefers-color-scheme: light) {
+  :host,
+  :root {
+    color-scheme: light;
+    --ml-bg: #f6f7f8;
+    --ml-surface: #ffffff;
+    --ml-raised: #ffffff;
+    --ml-border: #e2e5e8;
+    --ml-text: #1a1a1b;
+    --ml-muted: #6b7075;
+    --ml-scrim: #1a1a1b59;
+    --ml-accent-text: #a83200;
+    --ml-fake-text: #b3262b;
+    --ml-real-text: #17692c;
+    --ml-warn-text: #8a5200;
+    --ml-shadow: 0 8px 28px #1a1a1b2e, 0 1px 3px #1a1a1b33;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host,
+  :root {
+    --ml-ease: 0s;
+  }
+}
