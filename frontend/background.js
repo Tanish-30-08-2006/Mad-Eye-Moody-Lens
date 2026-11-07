@@ -108,6 +108,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         let { imageUrl, imageBase64, isAdvanced } = message;
 
+        // If imageUrl is a data: URL, treat directly as imageBase64
+        if (imageUrl && imageUrl.startsWith("data:")) {
+          imageBase64 = imageUrl;
+          imageUrl = null;
+        }
+
         // If no base64 provided and imageUrl is available, attempt background fetch
         if (!imageBase64 && imageUrl && !imageUrl.startsWith("data:")) {
           const b64 = await urlToBase64(imageUrl);

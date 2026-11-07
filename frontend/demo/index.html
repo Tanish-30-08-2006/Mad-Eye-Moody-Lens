@@ -448,10 +448,7 @@
       });
   </script>
 
-  <!-- Embed content script directly so long-press works in this demo even without unpacked extension loaded -->
-  <script src="../content/content.js"></script>
-
-  <!-- Fallback standalone mock/bridge in case extension APIs are not injected yet -->
+  <!-- Standalone mock/bridge for direct browser testing without extension loaded -->
   <script>
     if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
       window.chrome = window.chrome || {};
@@ -459,14 +456,28 @@
         sendMessage: async function(msg) {
           if (msg.action === "ANALYZE_IMAGE") {
             const endpoint = msg.isAdvanced ? "http://localhost:8000/api/analyze-advanced" : "http://localhost:8000/api/analyze";
-            const payload = msg.imageBase64 ? { image_base64: msg.imageBase64 } : { image_url: msg.imageUrl };
-            const resp = await fetch(endpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
-            });
-            const data = await resp.json();
-            return { status: "success", data };
+            let payload = {};
+            if (msg.imageBase64) {
+              payload = { image_base64: msg.imageBase64 };
+            } else if (msg.imageUrl && msg.imageUrl.startsWith("data:")) {
+              payload = { image_base64: msg.imageUrl };
+            } else {
+              payload = { image_url: msg.imageUrl };
+            }
+            try {
+              const resp = await fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+              });
+              const data = await resp.json();
+              if (!resp.ok) {
+                return { status: "error", error: data.detail || `Server error (${resp.status})` };
+              }
+              return { status: "success", data };
+            } catch (err) {
+              return { status: "error", error: "Could not connect to backend at http://localhost:8000" };
+            }
           }
           return { status: "ok" };
         },
@@ -474,5 +485,8 @@
       };
     }
   </script>
+
+  <!-- Embed content script directly so long-press works in this demo even without unpacked extension loaded -->
+  <script src="../content/content.js"></script>
 </body>
 </html>
