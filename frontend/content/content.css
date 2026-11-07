@@ -1,0 +1,548 @@
+/* Mad-Eye Moody Lens Content Script Styles */
+
+:root {
+  --mml-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mml-bg-dark: #12151c;
+  --mml-bg-panel: #1a1e28;
+  --mml-border: #2a3245;
+  --mml-cyan: #00d2ff;
+  --mml-red: #ff3b5c;
+  --mml-yellow: #ffb800;
+  --mml-green: #00e676;
+  --mml-text: #e1e7f0;
+  --mml-text-dim: #8b9bb4;
+}
+
+/* ---------------- Hold-to-Scan HUD Ring Indicator ---------------- */
+.mml-hold-ring-container {
+  position: fixed;
+  z-index: 2147483640;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.15s ease-out;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.7));
+}
+
+.mml-hold-ring-svg {
+  width: 72px;
+  height: 72px;
+  transform: rotate(-90deg);
+}
+
+.mml-hold-ring-bg {
+  fill: rgba(18, 21, 28, 0.85);
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 4;
+}
+
+.mml-hold-ring-progress {
+  fill: none;
+  stroke: var(--mml-cyan);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 188.5;
+  stroke-dashoffset: 188.5;
+  transition: stroke-dashoffset 0.05s linear;
+}
+
+.mml-hold-ring-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  color: var(--mml-cyan);
+  user-select: none;
+}
+
+.mml-hold-ring-label {
+  margin-top: 8px;
+  background: rgba(18, 21, 28, 0.92);
+  color: var(--mml-cyan);
+  font-family: var(--mml-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 210, 255, 0.3);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ---------------- Floating Verdict Pill attached to Image ---------------- */
+.mml-floating-badge {
+  position: absolute;
+  z-index: 2147483630;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(18, 21, 28, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--mml-border);
+  border-radius: 20px;
+  padding: 6px 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  font-family: var(--mml-font);
+  animation: mml-fade-in 0.2s ease-out;
+  cursor: default;
+  max-width: 320px;
+}
+
+@keyframes mml-fade-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.mml-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+}
+
+.mml-badge-pill.fake {
+  background: rgba(255, 59, 92, 0.2);
+  color: #ff5277;
+  border: 1px solid rgba(255, 59, 92, 0.4);
+}
+
+.mml-badge-pill.partial {
+  background: rgba(255, 184, 0, 0.2);
+  color: #ffc425;
+  border: 1px solid rgba(255, 184, 0, 0.4);
+}
+
+.mml-badge-pill.real {
+  background: rgba(0, 230, 118, 0.2);
+  color: #00e676;
+  border: 1px solid rgba(0, 230, 118, 0.4);
+}
+
+.mml-badge-btn {
+  background: #2a3449;
+  color: var(--mml-text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.mml-badge-btn:hover {
+  background: var(--mml-cyan);
+  color: #000;
+  border-color: var(--mml-cyan);
+}
+
+.mml-badge-close {
+  background: transparent;
+  border: none;
+  color: var(--mml-text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.mml-badge-close:hover {
+  color: #fff;
+}
+
+/* ---------------- Advanced Analysis & Heatmap Modal ---------------- */
+.mml-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: rgba(8, 10, 15, 0.82);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-family: var(--mml-font);
+  animation: mml-fade-in 0.25s ease-out;
+}
+
+.mml-modal-card {
+  background: var(--mml-bg-dark);
+  border: 1px solid var(--mml-border);
+  border-radius: 16px;
+  width: 900px;
+  max-width: 96vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+/* Modal Header */
+.mml-modal-header {
+  padding: 16px 22px;
+  background: var(--mml-bg-panel);
+  border-bottom: 1px solid var(--mml-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mml-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mml-logo-icon {
+  font-size: 22px;
+}
+
+.mml-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.mml-modal-subtitle {
+  font-size: 11px;
+  color: var(--mml-text-dim);
+  margin: 2px 0 0 0;
+}
+
+.mml-modal-close-btn {
+  background: #252b3b;
+  border: 1px solid var(--mml-border);
+  color: var(--mml-text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.15s;
+}
+
+.mml-modal-close-btn:hover {
+  background: var(--mml-red);
+  color: #fff;
+  border-color: var(--mml-red);
+}
+
+/* Modal Body */
+.mml-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Scope Banner */
+.mml-scope-banner {
+  padding: 12px 18px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mml-scope-banner.entire {
+  background: rgba(255, 59, 92, 0.15);
+  border: 1px solid rgba(255, 59, 92, 0.35);
+  color: #ff5277;
+}
+
+.mml-scope-banner.partial {
+  background: rgba(255, 184, 0, 0.15);
+  border: 1px solid rgba(255, 184, 0, 0.35);
+  color: #ffc425;
+}
+
+.mml-scope-banner.authentic {
+  background: rgba(0, 230, 118, 0.15);
+  border: 1px solid rgba(0, 230, 118, 0.35);
+  color: #00e676;
+}
+
+.mml-scope-badge {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.mml-scope-stats {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Heatmap Viewer */
+.mml-viewer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mml-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--mml-bg-panel);
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--mml-border);
+}
+
+.mml-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--mml-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mml-slider-wrap input[type="range"] {
+  width: 140px;
+  accent-color: var(--mml-cyan);
+}
+
+.mml-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mml-view-btn {
+  background: #252b3b;
+  border: 1px solid var(--mml-border);
+  color: var(--mml-text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mml-view-btn.active {
+  background: var(--mml-cyan);
+  color: #000;
+  border-color: var(--mml-cyan);
+}
+
+.mml-canvas-stage {
+  position: relative;
+  background: #090b10;
+  border-radius: 10px;
+  border: 1px solid var(--mml-border);
+  min-height: 360px;
+  max-height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.mml-stage-wrapper {
+  position: relative;
+  max-width: 100%;
+  max-height: 480px;
+  display: inline-block;
+}
+
+.mml-stage-wrapper img.mml-orig-img {
+  display: block;
+  max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  user-select: none;
+}
+
+.mml-stage-wrapper img.mml-heat-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: opacity 0.1s linear;
+}
+
+/* Highlight Bounding Boxes */
+.mml-region-box {
+  position: absolute;
+  border: 2px dashed #ff3b5c;
+  background: rgba(255, 59, 92, 0.15);
+  box-shadow: 0 0 10px rgba(255, 59, 92, 0.5);
+  border-radius: 4px;
+  pointer-events: auto;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.mml-region-box:hover {
+  background: rgba(255, 59, 92, 0.3);
+  box-shadow: 0 0 16px rgba(255, 59, 92, 0.8);
+}
+
+.mml-region-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  transform: translateY(-4px);
+  background: #ff3b5c;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Side by Side Mode */
+.mml-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.mml-side-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #090b10;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.mml-side-pane span {
+  font-size: 11px;
+  color: var(--mml-text-dim);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.mml-side-pane img {
+  max-width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+}
+
+/* Metrics Grid */
+.mml-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.mml-metric-card {
+  background: var(--mml-bg-panel);
+  border: 1px solid var(--mml-border);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mml-metric-title {
+  font-size: 11px;
+  color: var(--mml-text-dim);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.mml-metric-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.mml-metric-value.warn {
+  color: #ff5277;
+}
+
+.mml-metric-value.notice {
+  color: #ffc425;
+}
+
+.mml-metric-value.good {
+  color: #00e676;
+}
+
+/* Explanation & Heatmap Legend */
+.mml-info-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14px;
+}
+
+.mml-explanation-box {
+  background: var(--mml-bg-panel);
+  border: 1px solid var(--mml-border);
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.mml-explanation-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mml-cyan);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.mml-explanation-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mml-text);
+  margin: 0;
+}
+
+.mml-legend-box {
+  background: var(--mml-bg-panel);
+  border: 1px solid var(--mml-border);
+  padding: 14px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mml-legend-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mml-text-dim);
+  text-transform: uppercase;
+}
+
+.mml-legend-bar {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(to right, #1e3c72, #2a9d8f, #e9c46a, #f4a261, #e76f51, #e63946);
+}
+
+.mml-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--mml-text-dim);
+}

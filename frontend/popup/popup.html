@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moody Lens - Deepfake Tracker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="header-brand">
+        <span class="brand-icon">👁️</span>
+        <div>
+          <h1 class="brand-title">Moody Lens</h1>
+          <p class="brand-tagline">Live Deepfake Tracking</p>
+        </div>
+      </div>
+      <div class="status-indicator" id="status-pill">
+        <span class="status-dot" id="status-dot"></span>
+        <span class="status-text" id="status-text">Checking...</span>
+      </div>
+    </header>
+
+    <!-- Main Content Tabs -->
+    <main class="popup-body">
+      <!-- Feature Card: Live Long-Press Info -->
+      <section class="card feature-card">
+        <div class="feature-header">
+          <span class="feature-badge">⚡ ACTIVE TRACKING</span>
+          <span class="feature-time">> 1.0s Hold</span>
+        </div>
+        <p class="feature-desc">
+          Long-press (hold mouse or touch for <strong>&gt;1.0s</strong>) on any image across the web to instantly scan with the pre-trained EfficientNet-B0 CNN.
+        </p>
+        <div class="feature-toggle-row">
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-live-tracking" checked>
+            <span class="slider"></span>
+          </label>
+          <span class="toggle-label">Enable Live Long-Press Tracking</span>
+        </div>
+      </section>
+
+      <!-- Sandbox Image Test -->
+      <section class="card test-card">
+        <h2 class="card-title">🧪 Instant Image Test Sandbox</h2>
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="image/*" style="display: none;">
+          <div class="dropzone-content" id="dropzone-prompt">
+            <span class="dropzone-icon">📁</span>
+            <span class="dropzone-text">Click or drag image here to test</span>
+            <span class="dropzone-sub">Runs local CNN + Grad-CAM Heatmap</span>
+          </div>
+          <div class="dropzone-preview" id="dropzone-preview" style="display: none;">
+            <img id="preview-img" src="" alt="Test Preview">
+            <div class="preview-overlay" id="preview-loading">
+              <span class="spinner"></span>
+              <span>Running CNN Model...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Scan Result -->
+        <div class="quick-result" id="quick-result" style="display: none;">
+          <div class="result-header">
+            <span class="verdict-tag" id="verdict-tag">AI-GENERATED</span>
+            <span class="score-tag" id="score-tag">94.2%</span>
+          </div>
+          <p class="result-detail" id="result-detail">
+            Manipulation Scope: <strong>Entire Image</strong>
+          </p>
+          <div class="result-actions">
+            <button class="btn btn-primary" id="btn-show-popup-heatmap">🔍 View Grad-CAM Heatmap</button>
+            <button class="btn btn-secondary" id="btn-reset-test">Reset</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Scans History -->
+      <section class="card history-card">
+        <div class="history-header">
+          <h2 class="card-title">🕒 Recent Scans</h2>
+          <button class="btn-clear" id="btn-clear-history" title="Clear History">Clear</button>
+        </div>
+        <div class="history-list" id="history-list">
+          <div class="history-empty">No images scanned yet. Try long-pressing an image!</div>
+        </div>
+      </section>
+
+      <!-- Footer Controls -->
+      <footer class="popup-footer">
+        <a href="../demo/index.html" target="_blank" class="demo-link">
+          🚀 Open Interactive Test Page
+        </a>
+        <div class="api-status-note">
+          Backend: <code id="backend-url-display">http://localhost:8000</code>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

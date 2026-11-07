@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mad-Eye Moody Lens: Live Deepfake Tracking Demo</title>
+  <link rel="stylesheet" href="../content/content.css">
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --card-bg: #141923;
+      --border: #232d3f;
+      --cyan: #00d2ff;
+      --red: #ff3b5c;
+      --green: #00e676;
+      --yellow: #ffb800;
+      --text: #e2e8f0;
+      --text-muted: #8492a6;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 30px 20px;
+      text-align: center;
+    }
+
+    .header-content {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .badge {
+      display: inline-block;
+      background: rgba(0, 210, 255, 0.15);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 210, 255, 0.4);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    p.lead {
+      font-size: 16px;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin: 0 auto 20px;
+    }
+
+    /* Instruction banner */
+    .instruction-card {
+      background: rgba(0, 210, 255, 0.05);
+      border: 1px solid rgba(0, 210, 255, 0.25);
+      border-radius: 12px;
+      padding: 16px 24px;
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-align: left;
+    }
+
+    .instruction-icon {
+      font-size: 32px;
+    }
+
+    .instruction-text h3 {
+      font-size: 15px;
+      color: var(--cyan);
+      margin-bottom: 4px;
+    }
+
+    .instruction-text p {
+      font-size: 13px;
+      color: var(--text);
+      margin: 0;
+    }
+
+    /* Grid Section */
+    .container {
+      max-width: 1100px;
+      margin: 40px auto 0;
+      padding: 0 20px;
+    }
+
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+    }
+
+    .sample-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+    }
+
+    .sample-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--cyan);
+    }
+
+    .sample-img-wrap {
+      width: 100%;
+      height: 240px;
+      background: #000;
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .sample-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .sample-type-tag {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      z-index: 2;
+    }
+
+    .tag-full {
+      background: rgba(255, 59, 92, 0.85);
+      color: #fff;
+    }
+
+    .tag-partial {
+      background: rgba(255, 184, 0, 0.85);
+      color: #000;
+    }
+
+    .tag-real {
+      background: rgba(0, 230, 118, 0.85);
+      color: #000;
+    }
+
+    .sample-body {
+      padding: 16px;
+    }
+
+    .sample-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .sample-desc {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+
+    .sample-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--cyan);
+      background: rgba(0, 210, 255, 0.1);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    /* Live Status Badge */
+    .backend-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      margin-bottom: 30px;
+    }
+
+    .backend-status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 10px rgba(0, 230, 118, 0.6);
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-content">
+      <div class="badge">Mad-Eye Moody Lens • Sprint 3 Live Tracking</div>
+      <h1>Live Deepfake Tracking & Grad-CAM Heatmap Demo</h1>
+      <p class="lead">
+        Test our pre-trained CNN detector. Long-press (press & hold for &gt;1.0s) on any test image below to trigger real-time deepfake analysis, calculate whole vs. partial manipulation scope, and reveal Grad-CAM heatmaps.
+      </p>
+
+      <div class="instruction-card">
+        <div class="instruction-icon">⏱️</div>
+        <div class="instruction-text">
+          <h3>How to Test Live Detection:</h3>
+          <p>
+            Click and <strong>HOLD</strong> your mouse button (or touch and hold on mobile) on any image below for at least <strong>1.0 second</strong>. You'll see a circular HUD progress ring charge up and execute the CNN analysis!
+          </p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Backend Connection Bar -->
+    <div class="backend-banner">
+      <div style="display: flex; align-items: center;">
+        <span class="backend-status-dot" id="demo-status-dot"></span>
+        <span style="font-size: 13px; font-weight: 600;" id="demo-status-text">Connecting to Backend at http://localhost:8000...</span>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted);">
+        Model: <strong>EfficientNet-B0 CNN (Grad-CAM Enabled)</strong>
+      </div>
+    </div>
+
+    <h2 class="section-title">🧪 Benchmark Test Cases</h2>
+    <div class="gallery-grid">
+
+      <!-- Sample 1: Fully AI-Generated -->
+      <article class="sample-card">
+        <div class="sample-img-wrap" data-label="Full AI Generation">
+          <span class="sample-type-tag tag-full">Whole Image AI</span>
+          <img id="sample-ai-full" src="" alt="Synthetic AI Portrait">
+        </div>
+        <div class="sample-body">
+          <h3 class="sample-title">Synthetic Diffusion Portrait</h3>
+          <p class="sample-desc">
+            Entire image generated via Text-to-Image diffusion model (Midjourney / SDXL). High uniform generative frequency artifacts across background and subject.
+          </p>
+          <div class="sample-hint">👉 Long-press image for >1.0s</div>
+        </div>
+      </article>
+
+      <!-- Sample 2: Partial AI Face Swap -->
+      <article class="sample-card">
+        <div class="sample-img-wrap" data-label="Deepfake Face Swap">
+          <span class="sample-type-tag tag-partial">Partial AI (Face Swap)</span>
+          <img id="sample-ai-partial" src="" alt="Deepfake Face Swap">
+        </div>
+        <div class="sample-body">
+          <h3 class="sample-title">Deepfake Face Manipulation</h3>
+          <p class="sample-desc">
+            Authentic photo background with an AI-synthesized face swap (FaceForensics++ style). The heatmap will highlight only the facial boundary.
+          </p>
+          <div class="sample-hint">👉 Long-press image for >1.0s</div>
+        </div>
+      </article>
+
+      <!-- Sample 3: Partial Inpainting -->
+      <article class="sample-card">
+        <div class="sample-img-wrap" data-label="AI Inpainting">
+          <span class="sample-type-tag tag-partial">Partial AI (Inpainted)</span>
+          <img id="sample-ai-inpaint" src="" alt="Inpainted Object">
+        </div>
+        <div class="sample-body">
+          <h3 class="sample-title">AI Inpainting / Object Insert</h3>
+          <p class="sample-desc">
+            Natural landscape where an artificial subject was digitally inpainted using generative fill. Localized spatial anomaly will be flagged.
+          </p>
+          <div class="sample-hint">👉 Long-press image for >1.0s</div>
+        </div>
+      </article>
+
+      <!-- Sample 4: Authentic Photo -->
+      <article class="sample-card">
+        <div class="sample-img-wrap" data-label="Authentic Camera Photo">
+          <span class="sample-type-tag tag-real">Authentic Real</span>
+          <img id="sample-real" src="" alt="Authentic Photo">
+        </div>
+        <div class="sample-body">
+          <h3 class="sample-title">Camera Sensor Photograph</h3>
+          <p class="sample-desc">
+            Unmanipulated original digital camera photograph with natural optical sensor noise, consistent Bayer CFA artifacts, and zero synthetic manipulation.
+          </p>
+          <div class="sample-hint">👉 Long-press image for >1.0s</div>
+        </div>
+      </article>
+
+    </div>
+  </main>
+
+  <!-- Generate High-Quality Benchmark Images dynamically onto Canvases -->
+  <script>
+    // 1. Fully Synthetic Image Generator
+    function makeSyntheticImage() {
+      const c = document.createElement("canvas");
+      c.width = 400; c.height = 300;
+      const ctx = c.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, 400, 300);
+      grad.addColorStop(0, "#2c3e50");
+      grad.addColorStop(0.5, "#4ca1af");
+      grad.addColorStop(1, "#c0392b");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 400, 300);
+
+      // Add synthetic glowing sphere
+      const sphere = ctx.createRadialGradient(200, 150, 10, 200, 150, 80);
+      sphere.addColorStop(0, "#ffffff");
+      sphere.addColorStop(0.4, "#00d2ff");
+      sphere.addColorStop(1, "rgba(0, 210, 255, 0)");
+      ctx.fillStyle = sphere;
+      ctx.fillRect(0, 0, 400, 300);
+
+      // Diffusion noise texture
+      const imgData = ctx.getImageData(0, 0, 400, 300);
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 22;
+        imgData.data[i] = Math.min(255, Math.max(0, imgData.data[i] + noise));
+        imgData.data[i+1] = Math.min(255, Math.max(0, imgData.data[i+1] + noise));
+        imgData.data[i+2] = Math.min(255, Math.max(0, imgData.data[i+2] + noise));
+      }
+      ctx.putImageData(imgData, 0, 0);
+      return c.toDataURL("image/png");
+    }
+
+    // 2. Partial Face Swap Image Generator
+    function makeFaceSwapImage() {
+      const c = document.createElement("canvas");
+      c.width = 400; c.height = 300;
+      const ctx = c.getContext("2d");
+      // Natural background
+      ctx.fillStyle = "#3e4444";
+      ctx.fillRect(0, 0, 400, 300);
+      // Realistic body silhouette
+      ctx.fillStyle = "#1e1e24";
+      ctx.beginPath();
+      ctx.ellipse(200, 280, 120, 90, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Face area (manipulated synthetic head)
+      ctx.fillStyle = "#dfac87";
+      ctx.beginPath();
+      ctx.ellipse(200, 130, 45, 60, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Facial synthetic features with slight boundary mismatch
+      ctx.fillStyle = "#6b3e2e";
+      ctx.beginPath(); ctx.arc(185, 120, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(215, 120, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ab5c5c";
+      ctx.fillRect(190, 155, 20, 6);
+
+      return c.toDataURL("image/png");
+    }
+
+    // 3. Inpainted Image Generator
+    function makeInpaintedImage() {
+      const c = document.createElement("canvas");
+      c.width = 400; c.height = 300;
+      const ctx = c.getContext("2d");
+      // Real forest landscape
+      ctx.fillStyle = "#2d4a22";
+      ctx.fillRect(0, 0, 400, 300);
+      ctx.fillStyle = "#1a3014";
+      ctx.fillRect(0, 200, 400, 100);
+
+      // Inpainted anomaly object in center
+      ctx.fillStyle = "#e74c3c";
+      ctx.beginPath();
+      ctx.arc(200, 180, 35, 0, Math.PI * 2);
+      ctx.fill();
+
+      return c.toDataURL("image/png");
+    }
+
+    // 4. Authentic Camera Image Generator
+    function makeRealImage() {
+      const c = document.createElement("canvas");
+      c.width = 400; c.height = 300;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#16222f";
+      ctx.fillRect(0, 0, 400, 300);
+      ctx.fillStyle = "#e0e6ed";
+      ctx.font = "bold 24px sans-serif";
+      ctx.fillText("Authentic Photography", 60, 155);
+      return c.toDataURL("image/png");
+    }
+
+    document.getElementById("sample-ai-full").src = makeSyntheticImage();
+    document.getElementById("sample-ai-partial").src = makeFaceSwapImage();
+    document.getElementById("sample-ai-inpaint").src = makeInpaintedImage();
+    document.getElementById("sample-real").src = makeRealImage();
+
+    // Check backend health
+    fetch("http://localhost:8000/api/health")
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById("demo-status-dot").style.background = "#00e676";
+        document.getElementById("demo-status-text").textContent = "Connected to Moody Lens Backend (Online)";
+      })
+      .catch(err => {
+        document.getElementById("demo-status-dot").style.background = "#ffb800";
+        document.getElementById("demo-status-text").textContent = "Backend starting / connecting at http://localhost:8000";
+      });
+  </script>
+
+  <!-- Embed content script directly so long-press works in this demo even without unpacked extension loaded -->
+  <script src="../content/content.js"></script>
+
+  <!-- Fallback standalone mock/bridge in case extension APIs are not injected yet -->
+  <script>
+    if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      window.chrome = window.chrome || {};
+      window.chrome.runtime = {
+        sendMessage: async function(msg) {
+          if (msg.action === "ANALYZE_IMAGE") {
+            const endpoint = msg.isAdvanced ? "http://localhost:8000/api/analyze-advanced" : "http://localhost:8000/api/analyze";
+            const payload = msg.imageBase64 ? { image_base64: msg.imageBase64 } : { image_url: msg.imageUrl };
+            const resp = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            return { status: "success", data };
+          }
+          return { status: "ok" };
+        },
+        onMessage: { addListener: () => {} }
+      };
+    }
+  </script>
+</body>
+</html>
