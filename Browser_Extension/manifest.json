@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Mad Eye Moody Lens",
+  "version": "1.1.3",
+  "description": "Checks prominent, visible webpage images using configurable detection APIs.",
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "sidePanel",
+    "scripting",
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "host_permissions": [
+    "https://api.bitmind.ai/*"
+  ],
+  "background": {
+    "service_worker": "backend/background.js"
+  },
+  "action": {
+    "default_popup": "frontend/popup.html",
+    "default_title": "Mad Eye Moody Lens"
+  },
+  "side_panel": {
+    "default_path": "frontend/sidepanel.html"
+  }
+}

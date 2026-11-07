@@ -1,0 +1,21 @@
+id: example-detector
+name: Example Detector
+short_name: Example
+version: 1.0.0
+task: ai_generated_image
+description: Replace this with a short description of the detector.
+enabled: false
+implemented: false
+adapter: adapter.py:Detector
+artifacts:
+  checkpoint: weights/checkpoint.pth
+required_artifacts: [checkpoint]
+settings: {}
+score_semantics: Explain what this model score represents.
+positive_label: Likely AI-generated
+negative_label: Likely real
+paper_title: Paper title
+paper_url: https://example.com/paper
+code_url: https://example.com/code
+weights_url: https://example.com/weights
+license_note: Record the code and weight license.
