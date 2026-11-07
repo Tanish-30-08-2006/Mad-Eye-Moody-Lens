@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mad Eye Moody Lens – Image Review</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <main class="page">
+    <header><div class="mark">M</div><div><h1>Image review</h1><p>Analyze an image with BitMind</p></div></header>
+
+    <section class="card">
+      <h2>Choose an image</h2>
+      <div id="dropzone" class="dropzone" tabindex="0">
+        <div class="drop-icon">＋</div>
+        <strong>Drop an image here</strong>
+        <span>Drag an image from a webpage or your device</span>
+        <span class="or">or</span>
+        <label class="file-button" for="fileInput">Choose file</label>
+        <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      </div>
+      <label for="imageUrl">Or paste a public image URL</label>
+      <input id="imageUrl" type="url" placeholder="https://example.com/photo.jpg">
+      <img id="preview" alt="Selected image preview">
+      <div class="actions">
+        <button id="analyze" class="primary">Analyze image</button>
+        <button id="clear" class="secondary">Clear</button>
+      </div>
+      <p class="hint">JPEG, PNG, WebP and GIF are accepted. Images are sent to BitMind's API for analysis.</p>
+    </section>
+
+    <section class="card">
+      <div class="result-heading"><h2>Detection result</h2><span id="status" class="pill">Not analyzed</span></div>
+      <div id="verdict" class="verdict empty">Your result will appear here.</div>
+      <div class="metrics">
+        <div><span>Confidence</span><strong id="confidence">—</strong></div>
+        <div><span>Similarity</span><strong id="similarity">—</strong></div>
+        <div><span>Request time</span><strong id="duration">—</strong></div>
+      </div>
+      <h3>Detailed review</h3>
+      <p id="explanation" class="explanation">Choose an image and run an analysis to see the detector's result and metric explanations.</p>
+      <details>
+        <summary>Raw API response</summary>
+        <pre id="raw">{ }</pre>
+      </details>
+      <button id="copy" class="secondary full">Copy report</button>
+    </section>
+
+    <section class="card history-card">
+      <div class="result-heading"><h2>Recent local history</h2><button id="refreshHistory" class="text-button">Refresh</button></div>
+      <div id="history" class="history">No detections yet.</div>
+    </section>
+    <p class="privacy">Results are estimates, not proof of authenticity. Local history stores result metadata only; image files are not saved by this extension.</p>
+  </main>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+body { margin: 0; width: 360px; background: #0c1322; color: #edf2ff; font: 13px/1.45 system-ui, sans-serif; }
+.wrap { padding: 17px; }
+header { display:flex; align-items:center; gap:11px; margin:0 0 16px; }
+.mark { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; background:linear-gradient(135deg,#9b8cff,#5b73d9); color:#101020; font-weight:900; }
+h1 { margin:0; font-size:16px; } header p { color:#8fa0bb; margin:1px 0 0; font-size:11px; }
+.card { background:#141e31; border:1px solid #2a3851; border-radius:13px; padding:13px; margin:11px 0; }
+h2 { margin:0; font-size:13px; }
+.row { display:flex; align-items:center; gap:8px; } .between { justify-content:space-between; }
+.pill { padding:4px 8px; border-radius:30px; font-size:10px; font-weight:800; }
+.pill.muted { background:#253249; color:#b4c1d5; } .pill.good { background:#123c2c; color:#8ef0bd; } .pill.bad { background:#47232d; color:#ffadba; }
+label { display:block; margin:12px 0 5px; color:#bdc8da; font-size:11px; font-weight:700; }
+input, select { width:100%; padding:10px; border-radius:8px; border:1px solid #394a66; background:#0c1424; color:#fff; outline:none; }
+input:focus, select:focus { border-color:#a99aff; }
+.actions { display:flex; gap:7px; margin-top:9px; }
+button { border:0; border-radius:8px; padding:9px 11px; cursor:pointer; font:700 11px system-ui; }
+button:disabled { opacity:.55; cursor:wait; }
+.primary { background:#9b8cff; color:#17132b; } .secondary { background:#26344d; color:#e5ebf8; border:1px solid #3b4a64; }
+.full { width:100%; margin-top:9px; }
+.message,.help,.notice,.micro { color:#98a8c0; font-size:10px; margin:8px 0 0; }
+.help { line-height:1.45; } .micro { margin-top:5px; color:#8394af; }
+.notice { color:#d5b982; line-height:1.4; }
+.diagnostics { margin-top:10px; border:1px solid #34445e; border-radius:8px; padding:9px; background:#0c1526; color:#b9c7dc; font:10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
+.review-button { display:flex; justify-content:space-between; width:100%; padding:12px; background:#1c2940; border:1px solid #394c69; color:#eef2ff; margin-top:12px; }
+footer { color:#7e8ca4; font-size:10px; text-align:center; margin-top:12px; }

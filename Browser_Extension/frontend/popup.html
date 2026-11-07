@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mad Eye Moody Lens</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="mark">M</div>
+      <div><h1>Mad Eye Moody Lens</h1><p>Image authenticity checker</p></div>
+    </header>
+
+    <section class="card">
+      <div class="row between">
+        <h2>BitMind API</h2>
+        <span id="keyState" class="pill muted">Not configured</span>
+      </div>
+      <label for="apiKey">API key</label>
+      <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
+      <div class="actions">
+        <button id="saveKey" class="primary">Save key</button>
+        <button id="testKey" class="secondary">Test key</button>
+      </div>
+      <p id="keyMessage" class="message">Your key is stored locally in this Chrome profile.</p>
+    </section>
+
+    <section class="card">
+      <div class="row between">
+        <h2>Automatic scanning</h2>
+        <span id="scanState" class="pill muted">Off</span>
+      </div>
+      <p class="help">Scans only prominent images that are substantially visible. Small avatars, logos, icons, navigation and sidebars are skipped.</p>
+
+      <label for="thresholdSelect">Minimum image size</label>
+      <select id="thresholdSelect">
+        <option value="standard">Standard · 220 × 140 px</option>
+        <option value="large">Large only · 320 × 200 px</option>
+        <option value="xlarge">Extra large · 480 × 300 px</option>
+      </select>
+      <p class="micro">Images smaller than this threshold are not sent to BitMind.</p>
+
+      <button id="toggleScan" class="primary full">Enable scanning on websites</button>
+      <button id="scanNow" class="secondary full">Scan this tab now</button>
+      <div class="diagnostics" id="diagnostics">No scan report from this tab yet.</div>
+      <p class="notice">Scanning is opt-in. Image content is sent to BitMind. Duplicate public image URLs use a 24-hour local cache.</p>
+    </section>
+
+    <button id="openReview" class="review-button">Open full image review <span>↗</span></button>
+    <footer>Right-click an image → Analyze image with Mad Eye Moody Lens.</footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
