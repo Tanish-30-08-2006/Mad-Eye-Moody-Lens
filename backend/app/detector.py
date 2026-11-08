@@ -1,8 +1,9 @@
 """Pretrained CNN deepfake detector with Grad-CAM and Spatial Anomaly Analysis.
 
-Incorporates the pre-trained EfficientNet-B0 CNN architecture from vishwam-dev,
-providing both whole-image synthesis scoring and localized face/patch manipulation
-tracking with Grad-CAM heatmaps.
+Incorporates the pre-trained EfficientNet-B0 CNN architecture (from FaceForensics++ c23)
+with automatic weight caching, OpenCV Haar-cascade facial cropping, Grad-CAM explainability,
+and calibrated spatial anomaly analysis to accurately separate real photographs from
+AI-generated content and localized deepfake face swaps.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from PIL import Image, ImageChops, ImageEnhance
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.hub import download_url_to_file, get_dir
 from torchvision import models, transforms
 
 from app.heatmap import (
@@ -42,59 +44,79 @@ class DeepfakeDetectorCNN:
         self.transform = transforms.Compose([
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
         ])
         self.is_loaded = False
         self._load_model()
 
     def _load_model(self) -> None:
-        """Initializes the EfficientNet-B0 CNN with 2-way classification head."""
+        """Initializes the EfficientNet-B0 CNN and ensures real pre-trained weights are cached."""
         try:
-            # Build EfficientNet-B0 backbone (same architecture as vishwam-dev)
             model = models.efficientnet_b0(weights=None)
             model.classifier[1] = nn.Linear(model.classifier[1].in_features, 2)
 
-            # Check if weights are cached or in checkpoints directory
-            cache_dir = os.path.expanduser("~/.cache/torch/hub/checkpoints")
+            cache_dir = os.path.join(get_dir(), "checkpoints")
+            os.makedirs(cache_dir, exist_ok=True)
             cached_path = os.path.join(cache_dir, "efficientnet_b0_ffpp_c23.pth")
 
-            if os.path.exists(cached_path):
-                state = torch.load(cached_path, map_location=self.device, weights_only=True)
-                if isinstance(state, dict) and "state_dict" in state:
-                    state = state["state_dict"]
-                state = {k.removeprefix("module."): v for k, v in state.items()}
-                model.load_state_dict(state)
-                print(f"[Detector] Loaded pre-trained weights from {cached_path}")
-            else:
-                # Initialize with pre-trained feature weights or heuristic calibration
-                print("[Detector] Pretrained weights not yet cached; initializing with calibrated weights.")
+            # Automatically download the 16MB weights if not present
+            if not os.path.exists(cached_path):
+                print(f"[Detector] Downloading pre-trained face model weights from {FACE_WEIGHTS_URL}...")
+                download_url_to_file(FACE_WEIGHTS_URL, cached_path, progress=False)
+
+            state = torch.load(cached_path, map_location=self.device, weights_only=True)
+            if isinstance(state, dict) and "state_dict" in state:
+                state = state["state_dict"]
+            state = {k.removeprefix("module."): v for k, v in state.items()}
+            model.load_state_dict(state)
+            print(f"[Detector] Loaded pre-trained weights from {cached_path}")
 
             self.model = model.to(self.device).eval()
             self.is_loaded = True
         except Exception as e:
-            print(f"[Detector] Warning during model initialization: {e}. Running with calibrated CNN engine.")
+            print(f"[Detector] Warning during model initialization: {e}. Running with calibrated fallback.")
             self.model = None
             self.is_loaded = False
 
-    def _detect_faces_heuristic(self, img: Image.Image) -> List[Tuple[int, int, int, int]]:
-        """Detects prominent face or subject regions (x, y, w, h) via skin-chroma & edge density."""
+    def _detect_faces(self, img: Image.Image, margin: float = 0.25, max_faces: int = 4) -> List[Tuple[Tuple[int, int, int, int], Image.Image]]:
+        """
+        Detects frontal faces using OpenCV Haar Cascade, matching the FaceForensics++ preprocessing pipeline.
+        Returns list of ((x, y, w, h), crop_image) tuples.
+        """
         w, h = img.size
+        crops: List[Tuple[Tuple[int, int, int, int], Image.Image]] = []
+
+        try:
+            import cv2
+            rgb = np.asarray(img.convert("RGB"))
+            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+            cascade = cv2.CascadeClassifier(cascade_path)
+            boxes = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
+
+            if len(boxes) > 0:
+                boxes = sorted((tuple(int(v) for v in b) for b in boxes), key=lambda b: b[2] * b[3], reverse=True)[:max_faces]
+                for x, y, bw, bh in boxes:
+                    dx, dy = int(bw * margin), int(bh * margin)
+                    x0, y0 = max(0, x - dx), max(0, y - dy)
+                    x1, y1 = min(w, x + bw + dx), min(h, y + bh + dy)
+                    crops.append(((x0, y0, x1 - x0, y1 - y0), img.crop((x0, y0, x1, y1))))
+                return crops
+        except Exception:
+            pass
+
+        # Fallback skin-chroma region locator
         rgb = np.array(img.convert("RGB"), dtype=np.float32)
         r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
-
-        # Simple robust skin/face color space heuristic: R > G > B, (R-G) > 15
         skin_mask = (r > 95) & (g > 40) & (b > 20) & ((r - g) > 15) & (r > b)
-        if np.sum(skin_mask) > (w * h * 0.02):
-            # Find center of skin mass
+        if np.sum(skin_mask) > (w * h * 0.03):
             ys, xs = np.where(skin_mask)
             min_x, max_x = max(0, int(np.percentile(xs, 5))), min(w, int(np.percentile(xs, 95)))
             min_y, max_y = max(0, int(np.percentile(ys, 5))), min(h, int(np.percentile(ys, 95)))
-            fw = max_x - min_x
-            fh = max_y - min_y
+            fw, fh = max_x - min_x, max_y - min_y
             if fw > 40 and fh > 40:
-                # Return focused region
-                return [(min_x, min_y, fw, fh)]
-        return []
+                crops.append(((min_x, min_y, fw, fh), img.crop((min_x, min_y, min_x + fw, min_y + fh))))
+
+        return crops
 
     def _compute_ela_and_frequency_residuals(self, img: Image.Image) -> Tuple[float, np.ndarray]:
         """
@@ -103,14 +125,14 @@ class DeepfakeDetectorCNN:
         high-frequency spectra and compression signatures compared to real camera sensors.
         """
         import io
-        
-        # 1. Error Level Analysis (re-saving with known JPEG quality)
-        buf = io.BytesIO()
+        w, h = img.size
         img_rgb = img.convert("RGB")
+
+        # 1. Error Level Analysis
+        buf = io.BytesIO()
         img_rgb.save(buf, "JPEG", quality=90)
         buf.seek(0)
         resaved = Image.open(buf)
-        
         diff = ImageChops.difference(img_rgb, resaved)
         extrema = diff.getextrema()
         max_diff = max([ex[1] for ex in extrema])
@@ -118,39 +140,43 @@ class DeepfakeDetectorCNN:
         ela_img = ImageEnhance.Brightness(diff).enhance(scale)
         ela_arr = np.array(ela_img.convert("L"), dtype=np.float32) / 255.0
 
-        # 2. Laplacian high-frequency edge/noise residual
-        w, h = img.size
+        # 2. Laplacian spatial gradients
         small = img_rgb.resize((128, 128), Image.Resampling.BILINEAR)
         arr = np.array(small.convert("L"), dtype=np.float32) / 255.0
-        
-        # Spatial gradients
         gy, gx = np.gradient(arr)
         edge_energy = np.sqrt(gx**2 + gy**2)
-        
-        # Artificial synthesis exhibits either hyper-smooth unnatural gradients
-        # or distinct high-frequency checkerboard / diffusion noise
+
         mean_energy = float(np.mean(edge_energy))
         std_energy = float(np.std(edge_energy))
-        
-        # ELA variance: synthetic images have unnaturally uniform ELA residuals across regions
         ela_var = float(np.var(ela_arr))
         ela_mean = float(np.mean(ela_arr))
-        
-        # Combine into spatial anomaly score
-        norm_score = np.clip(ela_mean * 1.8 + ela_var * 3.5 + (0.05 / (std_energy + 1e-4)) * 0.08, 0.05, 0.95)
-        
-        # Generate 2D activation map (28x28 grid)
+
+        # Camera photos exhibit organic noise variance and natural falloff
+        # Pure synthetic images exhibit hyper-smooth gradients with high uniform ELA residuals
+        synthetic_indicator = (ela_mean * 1.5) + (ela_var * 2.0)
+        is_synthetic_gradient = (std_energy < 0.04) and (mean_energy > 0.02)
+
+        if is_synthetic_gradient:
+            base_score = 0.85
+        elif synthetic_indicator > 0.35:
+            base_score = np.clip(synthetic_indicator * 1.2, 0.40, 0.95)
+        else:
+            base_score = np.clip(synthetic_indicator * 0.8, 0.05, 0.35)
+
+        # 2D activation map
         ela_resized = Image.fromarray((ela_arr * 255).astype(np.uint8)).resize((28, 28), Image.Resampling.BILINEAR)
         spatial_map = np.array(ela_resized, dtype=np.float32) / 255.0
         spatial_map = (spatial_map - spatial_map.min()) / (spatial_map.max() - spatial_map.min() + 1e-6)
-        
-        return norm_score, spatial_map
 
-    def _compute_grad_cam(self, tensor_img: torch.Tensor) -> np.ndarray:
-        """Computes Grad-CAM activations from the final convolutional block of EfficientNet-B0."""
+        return float(base_score), spatial_map
+
+    def _compute_grad_cam(self, tensor_img: torch.Tensor, confidence: float = 1.0) -> np.ndarray:
+        """
+        Computes Grad-CAM activations from the final convolutional block of EfficientNet-B0.
+        Scales activation by class confidence to prevent false-positive failure heat on authentic images.
+        """
         if self.model is None:
-            # Fallback activation array
-            return np.ones((28, 28), dtype=np.float32) * 0.5
+            return np.zeros((28, 28), dtype=np.float32)
 
         target_layer = self.model.features[-1]
         captured: Dict[str, Any] = {}
@@ -159,7 +185,6 @@ class DeepfakeDetectorCNN:
         try:
             x = tensor_img.unsqueeze(0).to(self.device)
             with torch.enable_grad():
-                x.requires_grad = True
                 logits = self.model(x)
                 fake_logit = logits[:, 1].sum()
                 acts = captured["act"]  # [1, C, H, W]
@@ -169,49 +194,54 @@ class DeepfakeDetectorCNN:
             cam = F.relu((weights * acts).sum(dim=1, keepdim=True))  # [1, 1, H, W]
             cam_2d = cam[0, 0].detach().cpu().numpy()
 
-            # Normalize to [0, 1]
             c_min, c_max = cam_2d.min(), cam_2d.max()
-            if c_max > c_min:
-                cam_2d = (cam_2d - c_min) / (c_max - c_min)
-            else:
-                cam_2d = np.zeros_like(cam_2d)
+            span = max(1e-8, c_max - c_min)
+            norm_cam = (cam_2d - c_min) / span
 
-            return cam_2d
+            # Scale heat by prediction confidence: authentic images (low confidence) remain cold
+            calibrated_cam = norm_cam * confidence
+            return calibrated_cam
         except Exception as e:
-            print(f"[Detector] Grad-CAM calculation error: {e}")
-            return np.ones((28, 28), dtype=np.float32) * 0.5
+            print(f"[Detector] Grad-CAM error: {e}")
+            return np.zeros((28, 28), dtype=np.float32)
         finally:
             handle.remove()
 
     def analyze(self, img: Image.Image) -> LiveScanResponse:
         """Fast live analysis designed for <= 1.0s user long-press experience."""
         t0 = time.perf_counter()
-        w, h = img.size
-
-        # 1. Image preprocessing
         img_rgb = img.convert("RGB")
-        tensor_img = self.transform(img_rgb)
 
-        # 2. Forward pass with CNN
-        fake_prob = 0.5
-        if self.model is not None:
-            with torch.inference_mode():
-                x = tensor_img.unsqueeze(0).to(self.device)
-                logits = self.model(x)
-                probs = torch.softmax(logits, dim=1)
-                fake_prob = float(probs[0, 1].item())
-        else:
-            # Calibrated ELA / residual score
-            ela_score, _ = self._compute_ela_and_frequency_residuals(img_rgb)
-            fake_prob = ela_score
+        # 1. Detect faces first (FaceForensics++ model is trained on face crops)
+        faces = self._detect_faces(img_rgb)
 
-        # 3. Check for localized faces
-        faces = self._detect_faces_heuristic(img_rgb)
+        fake_prob = 0.10
         is_partial = False
-        if faces and fake_prob > 0.45:
-            is_partial = True
 
-        # 4. Formulate Verdict
+        if faces and self.model is not None:
+            face_probs = []
+            with torch.inference_mode():
+                for _, crop in faces:
+                    crop_tensor = self.transform(crop).unsqueeze(0).to(self.device)
+                    p_fake = float(torch.softmax(self.model(crop_tensor), dim=1)[0, 1].item())
+                    face_probs.append(p_fake)
+
+            max_face_prob = max(face_probs)
+            fake_prob = max_face_prob
+            if max_face_prob >= 0.50:
+                is_partial = True
+        else:
+            # Whole image / synthetic art analysis
+            ela_score, _ = self._compute_ela_and_frequency_residuals(img_rgb)
+            if self.model is not None:
+                with torch.inference_mode():
+                    tensor_img = self.transform(img_rgb).unsqueeze(0).to(self.device)
+                    cnn_score = float(torch.softmax(self.model(tensor_img), dim=1)[0, 1].item())
+                fake_prob = 0.5 * cnn_score + 0.5 * ela_score
+            else:
+                fake_prob = ela_score
+
+        # 2. Formulate Verdict
         if fake_prob >= 0.65:
             verdict: Verdict = "AI-GENERATED"
             label = "AI-Generated Image"
@@ -246,80 +276,90 @@ class DeepfakeDetectorCNN:
         t0 = time.perf_counter()
         w, h = img.size
         img_rgb = img.convert("RGB")
-        tensor_img = self.transform(img_rgb)
 
-        # 1. Base inference
-        fake_prob = 0.5
-        cam_map: Optional[np.ndarray] = None
-
-        if self.model is not None:
-            with torch.inference_mode():
-                x = tensor_img.unsqueeze(0).to(self.device)
-                logits = self.model(x)
-                probs = torch.softmax(logits, dim=1)
-                fake_prob = float(probs[0, 1].item())
-
-            # Grad-CAM on fake class
-            cam_map = self._compute_grad_cam(tensor_img)
-
-        # Also get ELA & frequency map for spatial richness
-        ela_score, ela_map = self._compute_ela_and_frequency_residuals(img_rgb)
-        if cam_map is None:
-            fake_prob = ela_score
-            combined_map = ela_map
-        else:
-            # Blend Grad-CAM semantic focus with ELA pixel-level frequency cues
-            from PIL import Image as PImage
-            cam_resized = np.array(
-                PImage.fromarray((cam_map * 255).astype(np.uint8)).resize((28, 28), PImage.Resampling.BILINEAR)
-            ) / 255.0
-            combined_map = 0.65 * cam_resized + 0.35 * ela_map
-
-        # 2. Detect face crops and score them
-        face_rects = self._detect_faces_heuristic(img_rgb)
+        # 1. Detect faces
+        faces = self._detect_faces(img_rgb)
         face_boxes_with_prob: List[Tuple[int, int, int, int, float]] = []
-        for fx, fy, fw, fh in face_rects:
-            # Estimate face region probability
-            crop = img_rgb.crop((fx, fy, fx + fw, fy + fh))
-            crop_tensor = self.transform(crop)
+
+        fake_prob = 0.10
+        cam_map: Optional[np.ndarray] = None
+        is_partial = False
+
+        if faces and self.model is not None:
+            # FaceForensics++ branch: Evaluate face crops
+            face_probs = []
+            face_cams = []
+
+            for (bx, by, bw, bh), crop in faces:
+                crop_tensor = self.transform(crop)
+                with torch.inference_mode():
+                    logits = self.model(crop_tensor.unsqueeze(0).to(self.device))
+                    p = float(torch.softmax(logits, dim=1)[0, 1].item())
+                face_probs.append(p)
+                face_boxes_with_prob.append((bx, by, bw, bh, p))
+
+                # Compute face Grad-CAM scaled by confidence
+                face_cam = self._compute_grad_cam(crop_tensor, confidence=p)
+                face_cams.append(face_cam)
+
+            fake_prob = max(face_probs)
+            if fake_prob >= 0.45:
+                is_partial = True
+
+            # Construct spatial heatmap overlay placing face CAM onto the original canvas
+            full_cam = np.zeros((h, w), dtype=np.float32)
+            for ((bx, by, bw, bh), _), fcam in zip(faces, face_cams):
+                fcam_img = Image.fromarray((fcam * 255).astype(np.uint8)).resize((bw, bh), Image.Resampling.BILINEAR)
+                full_cam[by : by + bh, bx : bx + bw] = np.maximum(
+                    full_cam[by : by + bh, bx : bx + bw], np.array(fcam_img, dtype=np.float32) / 255.0
+                )
+            combined_map = full_cam
+        else:
+            # Whole image / synthetic art branch
+            ela_score, ela_map = self._compute_ela_and_frequency_residuals(img_rgb)
+            tensor_img = self.transform(img_rgb)
+            cnn_score = 0.5
+
             if self.model is not None:
                 with torch.inference_mode():
-                    logits_crop = self.model(crop_tensor.unsqueeze(0).to(self.device))
-                    p_face = float(torch.softmax(logits_crop, dim=1)[0, 1].item())
+                    logits = self.model(tensor_img.unsqueeze(0).to(self.device))
+                    cnn_score = float(torch.softmax(logits, dim=1)[0, 1].item())
+                cam_2d = self._compute_grad_cam(tensor_img, confidence=cnn_score)
             else:
-                p_face, _ = self._compute_ela_and_frequency_residuals(crop)
-            face_boxes_with_prob.append((fx, fy, fw, fh, p_face))
+                cam_2d = np.zeros((28, 28), dtype=np.float32)
 
-        # 3. Generate heatmap overlay & 4x4 patch grid
+            fake_prob = 0.5 * cnn_score + 0.5 * ela_score
+            cam_resized = np.array(
+                Image.fromarray((cam_2d * 255).astype(np.uint8)).resize((28, 28), Image.Resampling.BILINEAR)
+            ) / 255.0
+            combined_map = 0.65 * cam_resized + 0.35 * (ela_map * fake_prob)
+
+        # 2. Generate thermal heatmap overlay
         overlay_img, ai_area_percentage, patch_grid = generate_heatmap_overlay(
-            combined_map, target_size=(w, h), alpha_intensity=0.80
+            combined_map, target_size=(w, h), alpha_intensity=0.85
         )
 
-        # 4. Extract highlighted regions (bounding boxes)
+        # 3. Extract highlighted bounding boxes
         highlighted_regions = extract_highlighted_regions(
-            combined_map, target_size=(w, h), face_boxes=face_boxes_with_prob
+            combined_map, target_size=(w, h), face_boxes=face_boxes_with_prob, ai_threshold=0.35
         )
 
-        # 5. Whole vs Partial Determination Logic
-        # - "entire_image": AI artifacts spread uniformly across >= 55% of the image, or all quadrants show high score
-        # - "partial": Specific faces/regions are manipulated (5% to 55%), while rest is authentic
-        # - "authentic": Area < 5% and overall fake_probability < 0.35
-        
+        # 4. Scope Classification
         flat_patches = [val for row in patch_grid for val in row]
-        patch_variance = float(np.var(flat_patches))
+        patch_var = float(np.var(flat_patches))
 
-        if (ai_area_percentage >= 55.0) or (fake_prob >= 0.75 and patch_variance < 0.04):
+        if (ai_area_percentage >= 50.0) or (fake_prob >= 0.70 and patch_var < 0.05 and not is_partial):
             manipulation_scope: ManipulationScope = "entire_image"
             scope_verdict = "Entire Image is AI-Generated"
             manipulation_type = "fully_synthetic"
             verdict: Verdict = "AI-GENERATED"
             label = "Fully Synthetic (AI Diffusion / GAN)"
             explanation = (
-                f"Global analysis confirms the entire image was generated synthetically. "
-                f"Spatial artifacts cover {ai_area_percentage:.1f}% of the canvas with uniform generative patterns "
-                f"typical of text-to-image models (Stable Diffusion, Midjourney, DALL-E)."
+                f"Global analysis confirms the entire image is synthetically generated. "
+                f"Generative model artifacts cover {ai_area_percentage:.1f}% of the canvas with uniform frequency patterns "
+                f"characteristic of text-to-image models (Stable Diffusion, Midjourney, DALL-E)."
             )
-        elif (ai_area_percentage >= 4.0) or (any(r.is_ai for r in highlighted_regions)) or (fake_prob >= 0.40):
+        elif (is_partial) or (ai_area_percentage >= 4.0) or (any(r.is_ai for r in highlighted_regions)) or (fake_prob >= 0.40):
             manipulation_scope = "partial"
             scope_verdict = f"Partially AI-Generated ({ai_area_percentage:.1f}% affected)"
             manipulation_type = "partially_manipulated"
@@ -327,8 +367,8 @@ class DeepfakeDetectorCNN:
             label = "Localized AI Manipulation / Face Swap"
             explanation = (
                 f"Localized deepfake manipulation detected affecting approximately {ai_area_percentage:.1f}% "
-                f"of the frame. The highlighted bounding boxes show synthetic anomalies (such as face re-enactment "
-                f"or inpainting), while the surrounding regions retain authentic camera sensor noise."
+                f"of the frame. The highlighted bounding boxes show synthetic anomalies (such as facial re-enactment "
+                f"or inpainting), while surrounding regions retain authentic camera sensor noise."
             )
         else:
             manipulation_scope = "authentic"
@@ -338,12 +378,11 @@ class DeepfakeDetectorCNN:
             label = "Authentic Camera Photograph"
             explanation = (
                 f"No significant AI synthesis patterns were detected (manipulation area: {ai_area_percentage:.1f}%). "
-                f"The image exhibits natural sensor noise, organic illumination falloff, and authentic JPEG compression."
+                f"The image exhibits natural sensor noise, consistent illumination, and authentic optical compression."
             )
 
-        # 6. Blended preview image
+        # 5. Composite preview image
         blended = blend_images(img_rgb, overlay_img)
-
         duration_ms = int((time.perf_counter() - t0) * 1000)
 
         return AdvancedScanResponse(
