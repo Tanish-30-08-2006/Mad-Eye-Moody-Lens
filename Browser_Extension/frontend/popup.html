@@ -15,7 +15,21 @@
 
     <section class="card">
       <div class="row between">
-        <h2>BitMind API</h2>
+        <h2>Detection provider</h2>
+        <span id="providerState" class="pill muted">Not configured</span>
+      </div>
+      <label for="providerSelect">Active provider</label>
+      <select id="providerSelect">
+        <option value="bitmind">BitMind Oracle</option>
+        <option value="custom">Custom REST API</option>
+      </select>
+      <p class="help">BitMind is the original provider. Configure a compatible REST detector in provider settings before selecting Custom REST API.</p>
+      <button id="manageProviders" class="secondary full">Manage provider settings ↗</button>
+    </section>
+
+    <section class="card" id="bitmindCard">
+      <div class="row between">
+        <h2>BitMind API credentials</h2>
         <span id="keyState" class="pill muted">Not configured</span>
       </div>
       <label for="apiKey">API key</label>
@@ -24,7 +38,7 @@
         <button id="saveKey" class="primary">Save key</button>
         <button id="testKey" class="secondary">Test key</button>
       </div>
-      <p id="keyMessage" class="message">Your key is stored locally in this Chrome profile.</p>
+      <p id="keyMessage" class="message">The key is stored in this Chrome profile and is not exposed to webpage scripts.</p>
     </section>
 
     <section class="card">
@@ -40,12 +54,12 @@
         <option value="large">Large only · 320 × 200 px</option>
         <option value="xlarge">Extra large · 480 × 300 px</option>
       </select>
-      <p class="micro">Images smaller than this threshold are not sent to BitMind.</p>
+      <p class="micro">Images smaller than this threshold are not submitted to the selected provider.</p>
 
       <button id="toggleScan" class="primary full">Enable scanning on websites</button>
       <button id="scanNow" class="secondary full">Scan this tab now</button>
       <div class="diagnostics" id="diagnostics">No scan report from this tab yet.</div>
-      <p class="notice">Scanning is opt-in. Image content is sent to BitMind. Duplicate public image URLs use a 24-hour local cache.</p>
+      <p class="notice">Scanning is opt-in. Images or image URLs are sent to the selected provider. Duplicate public image URLs use a provider-specific 24-hour local cache.</p>
     </section>
 
     <button id="openReview" class="review-button">Open full image review <span>↗</span></button>

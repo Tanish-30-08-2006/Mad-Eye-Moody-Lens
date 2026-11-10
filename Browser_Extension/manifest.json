@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Mad Eye Moody Lens",
-  "version": "1.1.3",
-  "description": "Checks prominent, visible webpage images using configurable detection APIs.",
+  "version": "1.2.0",
+  "description": "Screens prominent webpage images using BitMind or a configurable image-detection REST API.",
   "permissions": [
     "storage",
     "contextMenus",
@@ -26,5 +26,6 @@
   },
   "side_panel": {
     "default_path": "frontend/sidepanel.html"
-  }
+  },
+  "options_page": "frontend/options.html"
 }
