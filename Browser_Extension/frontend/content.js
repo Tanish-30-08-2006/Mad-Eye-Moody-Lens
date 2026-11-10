@@ -16,7 +16,10 @@
   const isX = /(^|\.)((x\.com)|(twitter\.com))$/i.test(location.hostname);
 
   let thresholdName = "standard";
-  let enabled = true;
+  let activeProviderName = "bitmind";
+  let activeProviderVersion = "0";
+  let enabled = false;
+  let scanGeneration = 0;
   let intersectionObserver = null;
   let mutationObserver = null;
   let resizeObserver = null;
@@ -310,8 +313,8 @@
       job.targets.add(candidate);
       states.set(candidate, { url, status: job.status });
       stats.cachedOrDeduped++;
-      if (job.status === 'queued') setBadge(candidate, 'queued', 'Queued', 'Waiting for an available BitMind request slot.');
-      else if (job.status === 'running') setBadge(candidate, 'loading', 'Checking', 'BitMind is analyzing this image.');
+      if (job.status === 'queued') setBadge(candidate, 'queued', 'Queued', 'Waiting for an available detection request slot.');
+      else if (job.status === 'running') setBadge(candidate, 'loading', 'Checking', 'The selected provider is analyzing this image.');
       else if (job.result) applyResult(candidate, url, job.result);
       reportStats();
       return;
@@ -322,7 +325,7 @@
     queue.push(job);
     states.set(candidate, { url, status: 'queued' });
     stats.queued++;
-    setBadge(candidate, 'queued', 'Queued', 'Waiting for an available BitMind request slot.');
+    setBadge(candidate, 'queued', 'Queued', 'Waiting for an available detection request slot.');
     reportStats();
     pumpQueue();
   }
@@ -339,20 +342,23 @@
       return;
     }
     const data = result.response;
-    const rawConfidence = Number(data.confidence);
+    const rawConfidence = data.confidence === null || data.confidence === undefined || data.confidence === '' ? NaN : Number(data.confidence);
     const confidence = Number.isFinite(rawConfidence) ? (rawConfidence <= 1 ? rawConfidence : rawConfidence / 100) : NaN;
     const percent = Number.isFinite(confidence) ? `${Math.round(confidence * 100)}%` : '';
-    if (Number.isFinite(confidence) && confidence < 0.60) {
-      setBadge(candidate, 'uncertain', `UNCERTAIN ${percent}`, 'Low-confidence BitMind prediction. Open Mad Eye Moody Lens for details.');
-    } else if (data.isAI) {
-      setBadge(candidate, 'ai', `AI ${percent}`, 'BitMind classified this image as likely AI-generated. This is an estimate, not proof.');
+    if (data.isAI !== true && data.isAI !== false) {
+      setBadge(candidate, 'uncertain', 'INCONCLUSIVE', 'The selected provider did not return a recognized AI/real verdict. Open Mad Eye Moody Lens for details.');
+    } else if (data.verdict === 'uncertain' || (Number.isFinite(confidence) && confidence < 0.60)) {
+      setBadge(candidate, 'uncertain', `UNCERTAIN ${percent}`, 'Low-confidence provider prediction. Open Mad Eye Moody Lens for details.');
+    } else if (data.isAI === true) {
+      setBadge(candidate, 'ai', `AI ${percent}`, 'The selected provider classified this image as likely AI-generated. This is an estimate, not proof.');
     } else {
-      setBadge(candidate, 'real', `NOT AI ${percent}`, 'BitMind did not classify this image as AI-generated. This is not proof of authenticity.');
+      setBadge(candidate, 'real', `NOT AI ${percent}`, 'The selected provider did not classify this image as AI-generated. This is not proof of authenticity.');
     }
     states.set(candidate, { url, status: 'done', result: data });
   }
 
   async function processJob(job) {
+    const generation = scanGeneration;
     const targets = [...job.targets].filter(candidate => candidate.isConnected && sourceOf(candidate) === job.url && sizeCheck(candidate).ok && visibleCheck(candidate).ok);
     if (!enabled || !targets.length) {
       for (const candidate of job.targets) {
@@ -366,7 +372,7 @@
     job.status = 'running';
     for (const candidate of targets) {
       states.set(candidate, { url: job.url, status: 'running' });
-      setBadge(candidate, 'loading', 'Checking', 'BitMind is analyzing this image.');
+      setBadge(candidate, 'loading', 'Checking', 'The selected provider is analyzing this image.');
     }
     stats.submitted++;
     reportStats();
@@ -377,10 +383,12 @@
       job.status = 'done';
       stats.completed++;
       if (result.cached) stats.cachedOrDeduped++;
-      if (enabled) for (const candidate of job.targets) applyResult(candidate, job.url, result);
+      if (enabled && generation === scanGeneration) {
+        for (const candidate of job.targets) applyResult(candidate, job.url, result);
+      }
     } catch (error) {
       const message = error?.message || 'Unknown image-analysis error.';
-      if (enabled) {
+      if (enabled && generation === scanGeneration) {
         stats.errors++;
         stats.lastError = message;
         for (const candidate of job.targets) {
@@ -390,7 +398,7 @@
         }
       }
     } finally {
-      jobsByUrl.delete(job.url);
+      if (jobsByUrl.get(job.url) === job) jobsByUrl.delete(job.url);
       reportStats();
     }
   }
@@ -532,6 +540,7 @@
 
   function stop() {
     enabled = false;
+    scanGeneration++;
     mutationObserver?.disconnect(); intersectionObserver?.disconnect(); resizeObserver?.disconnect();
     mutationObserver = intersectionObserver = resizeObserver = null;
     observed = new WeakSet();
@@ -546,6 +555,9 @@
   }
 
   function rescan() {
+    scanGeneration++;
+    queue.length = 0;
+    jobsByUrl.clear();
     observed = new WeakSet();
     states = new WeakMap();
     intersectionObserver?.disconnect(); resizeObserver?.disconnect(); mutationObserver?.disconnect();
@@ -554,12 +566,21 @@
     return { ...stats, rejectReasons: { ...stats.rejectReasons }, threshold: preset().label };
   }
 
-  function onStorageChange(changes, area) {
-    if (area !== 'local') return;
-    if (changes.scanEnabled) { if (changes.scanEnabled.newValue) start(); else stop(); }
-    if (changes.scanThreshold) {
-      thresholdName = PRESETS[changes.scanThreshold.newValue] ? changes.scanThreshold.newValue : 'standard';
-      rescan();
+  function applyScannerSettings(settings = {}) {
+    const nextThreshold = PRESETS[settings.scanThreshold] ? settings.scanThreshold : "standard";
+    const thresholdChanged = nextThreshold !== thresholdName;
+    const providerChanged = settings.activeProvider && settings.activeProvider !== activeProviderName;
+    const nextProviderVersion = String(settings.providerVersion ?? activeProviderVersion);
+    const providerConfigChanged = nextProviderVersion !== activeProviderVersion;
+    thresholdName = nextThreshold;
+    activeProviderName = settings.activeProvider || activeProviderName;
+    activeProviderVersion = nextProviderVersion;
+
+    if (settings.scanEnabled && settings.providerConfigured !== false) {
+      if (!enabled) start();
+      else if (thresholdChanged || providerChanged || providerConfigChanged) rescan();
+    } else if (settings.scanEnabled === false || settings.providerConfigured === false) {
+      if (enabled) stop();
     }
   }
 
@@ -568,7 +589,12 @@
       sendResponse({ alive: true, stats: { ...stats, rejectReasons: { ...stats.rejectReasons }, threshold: preset().label, thresholdName } });
       return false;
     }
-    if (message?.type === 'DS_SCAN_NOW') {
+    if (message?.type === 'DS_SETTINGS_CHANGED') {
+      applyScannerSettings(message.settings || {});
+      sendResponse({ alive: true, stats: { ...stats, rejectReasons: { ...stats.rejectReasons }, threshold: preset().label, thresholdName } });
+      return false;
+    }
+    if (message?.type === 'DS_SCAN_NOW' || message?.type === 'DS_PROVIDER_CHANGED') {
       const current = rescan();
       sendResponse({ alive: true, stats: current });
       return false;
@@ -581,15 +607,12 @@
     dispose() {
       stop();
       chrome.runtime.onMessage.removeListener(onRuntimeMessage);
-      chrome.storage.onChanged.removeListener(onStorageChange);
     },
     getStats() { return { ...stats, rejectReasons: { ...stats.rejectReasons }, threshold: preset().label, thresholdName }; }
   };
   globalThis[CONTROLLER_KEY] = controller;
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
-  chrome.storage.onChanged.addListener(onStorageChange);
-  chrome.storage.local.get({ scanThreshold: 'standard' }).then(value => {
-    thresholdName = PRESETS[value.scanThreshold] ? value.scanThreshold : 'standard';
-    start();
-  }).catch(start);
+  chrome.runtime.sendMessage({ type: 'GET_SCANNER_SETTINGS' })
+    .then(applyScannerSettings)
+    .catch(() => { enabled = false; });
 })();
