@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mad Eye Moody Lens – Audio Offscreen</title>
+</head>
+<body>
+  <!--
+    Offscreen document for audio capture and preprocessing.
+    Loaded by background.js via chrome.offscreen API when monitoring starts.
+    This document:
+      1. Receives a MediaStream from tabCapture via port messaging.
+      2. Runs an AudioWorklet to extract PCM float32 chunks.
+      3. Accumulates chunks and sends them to the background service worker.
+      4. Receives inference results back from the background service worker.
+    Audio is NOT recorded or persisted.  Only PCM data is forwarded for
+    local inference; the stream is released on monitoring stop.
+  -->
+  <script src="offscreen.js"></script>
+</body>
+</html>

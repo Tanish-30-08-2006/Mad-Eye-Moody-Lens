@@ -1,24 +1,29 @@
 {
   "manifest_version": 3,
   "name": "Mad Eye Moody Lens",
-  "version": "1.2.0",
-  "description": "Screens prominent webpage images using BitMind or a configurable image-detection REST API.",
+  "version": "2.0.0",
+  "description": "Real-time image and audio deepfake detection with configurable image providers, local AI audio analysis, and ZeroTrue online API.",
   "permissions": [
     "storage",
     "contextMenus",
     "sidePanel",
     "scripting",
-    "tabs"
+    "tabs",
+    "tabCapture",
+    "offscreen"
   ],
   "optional_host_permissions": [
     "http://*/*",
     "https://*/*"
   ],
   "host_permissions": [
-    "https://api.bitmind.ai/*"
+    "https://api.bitmind.ai/*",
+    "https://*.zerotrue.app/*",
+    "https://zerotrue.app/*"
   ],
   "background": {
-    "service_worker": "backend/background.js"
+    "service_worker": "backend/background.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "frontend/popup.html",
@@ -27,5 +32,22 @@
   "side_panel": {
     "default_path": "frontend/sidepanel.html"
   },
-  "options_page": "frontend/options.html"
+  "options_page": "frontend/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "frontend/audio/audio-processor.js",
+        "frontend/audio/audio-alert.js",
+        "frontend/audio/audio-alert.css"
+      ],
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://teams.microsoft.com/*",
+        "https://app.webex.com/*",
+        "https://whereby.com/*",
+        "https://*/*"
+      ]
+    }
+  ]
 }

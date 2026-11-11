@@ -1,10 +1,8 @@
-# Mad Eye Moody Lens – Provider-Configurable Browser Extension
+# Mad Eye Moody Lens – Image & Audio Deepfake Detection Extension
 
-Mad Eye Moody Lens is a Chrome Manifest V3 extension for screening prominent images shown on webpages. It can automatically scan eligible webpage images, analyze an image manually, and display a normalized detection result.
+Mad Eye Moody Lens is a Chrome Manifest V3 extension for real-time deepfake detection across both **images** and **tab audio**. It screens prominent webpage images using configurable providers (BitMind or Custom REST APIs) and performs forensic deepfake analysis on audio played in Chrome tabs or shared audio files using either a local neural network or the ZeroTrue Cloud API.
 
-The extension includes the original **BitMind Oracle** integration and a configurable **Custom REST API** connector. The connector supports common single-request HTTP POST image-detection APIs. It does not claim compatibility with every API protocol: OAuth refresh flows, signed requests, asynchronous job polling, and unusual multi-step protocols require a dedicated adapter.
-
-Detection results are probabilistic signals, not forensic proof that an image is genuine or AI-generated.
+Detection results are probabilistic forensic signals, not mathematical proof of authenticity or authorship.
 
 ## Project structure
 
@@ -16,6 +14,12 @@ Browser_Extension/
 │   └── provider-test-image.png
 ├── backend/
 │   ├── background.js
+│   ├── audio/
+│   │   ├── audio-manager.js
+│   │   ├── audio-risk-engine.js
+│   │   ├── audio-session.js
+│   │   ├── audio-storage.js
+│   │   └── zerotrue-client.js
 │   └── providers/
 │       └── provider-engine.js
 ├── frontend/
@@ -29,7 +33,13 @@ Browser_Extension/
 │   ├── options.js
 │   ├── sidepanel.html
 │   ├── sidepanel.css
-│   └── sidepanel.js
+│   ├── sidepanel.js
+│   └── audio/
+│       ├── audio-alert.css
+│       ├── audio-alert.js
+│       ├── audio-processor.js
+│       ├── offscreen.html
+│       └── offscreen.js
 └── tests/
     └── provider-engine.test.cjs
 ```
@@ -152,6 +162,33 @@ Example mappings:
 Confidence values from 0 to 1 are treated as fractions; values above 1 through 100 are treated as percentages. These values are normalized for display, but they are not assumed to be calibrated or comparable across providers.
 
 An unknown label or missing Boolean verdict is reported as **inconclusive**. It is never silently converted to a not-AI result. A recognized verdict below 0.60 confidence is shown as uncertain.
+
+## Tab Audio Deepfake Detection
+
+Mad Eye Moody Lens v2.0 introduces real-time tab audio forensic inspection to identify AI-generated voices, neural vocoder artifacts, and audio deepfakes.
+
+### Key Capabilities
+
+1. **Auto Playback Capture & Analysis:**
+   - Click **🎵 PLAY & ANALYZE TAB AUDIO (AUTO / 30s)** in the popup or side panel.
+   - Play audio in any Chrome tab (YouTube, Zoom web meeting, Twitter Space, podcast, or meeting audio).
+   - The extension captures the audio stream via Chrome Offscreen API without interfering with tab playback audibility.
+   - When playback stops (detected via post-speech silence gating or HTML5 `ended` events) or reaches the 30-second cap, a complete forensic analysis report is automatically generated.
+
+2. **Drag & Drop Audio File Review:**
+   - Drop any audio clip (`.wav`, `.mp3`, `.m4a`, `.webm`, `.ogg`, `.flac`) directly into the side panel's audio dropzone for instant forensic decoding.
+
+3. **Dual Detection Engine Architecture:**
+   - **Local AI Engine (CUDA/GPU):** Self-hosted PyTorch service running wav2vec 2.0 XLSR-300M + AASIST graph neural network on `ws://127.0.0.1:8765`.
+   - **ZeroTrue Cloud API (https://zerotrue.app):** Online detection option for users without a local GPU. Multi-modal AI voice detector with instant analysis.
+   - **Auto Mode (Default):** Checks if the local GPU service is online; if offline, automatically routes detection through ZeroTrue Online API.
+
+4. **Complete Forensic Report Card:**
+   - Displays overall authenticity verdict (**VERIFIED GENUINE AUDIO** vs. **SYNTHETIC / AI-GENERATED AUDIO**).
+   - Authenticity / Risk Confidence percentage.
+   - Calibrated Countermeasure (CM) score.
+   - Precise processing latency and audio duration.
+   - Detailed explanatory narrative attributing analysis to the active engine.
 
 ## Permissions and privacy
 
