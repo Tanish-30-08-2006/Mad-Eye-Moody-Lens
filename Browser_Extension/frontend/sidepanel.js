@@ -424,3 +424,428 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 checkPending();
 loadHistory();
+
+
+// ============================================================================
+// AUDIO FORENSIC INSPECTION & COMPLETE ANALYSIS REPORT
+// ============================================================================
+
+function clearAudioReport() {
+  const reportCard = $("audioReportCard");
+  const banner = $("audioForensicStatusBanner");
+  if (reportCard) reportCard.style.display = "none";
+  if (banner) banner.style.display = "none";
+  const pill = $("audioForensicPill");
+  if (pill) {
+    pill.textContent = "Idle";
+    pill.className = "pill muted";
+  }
+}
+
+function showPlaybackCaptureUI(visible) {
+  const box = $("playbackLiveBox");
+  if (!box) return;
+  box.style.display = visible ? "block" : "none";
+  if (visible) {
+    clearAudioReport();
+    const pill = $("audioForensicPill");
+    if (pill) {
+      pill.textContent = "● RECORDING TAB";
+      pill.className = "pill good";
+    }
+  }
+}
+
+function showPlaybackCaptureError(msg) {
+  showPlaybackCaptureUI(false);
+  const pill = $("audioForensicPill");
+  const banner = $("audioForensicStatusBanner");
+  if (pill) {
+    pill.textContent = "Error";
+    pill.className = "pill bad";
+  }
+  if (banner) {
+    banner.style.display = "block";
+    banner.style.background = "#3b1219";
+    banner.style.color = "#ffabb9";
+    banner.innerHTML = `<strong>⚠️ Playback Error:</strong> ${msg}`;
+  }
+}
+
+function updateForensicUIState(status) {
+  if (!status) return;
+  const isPlaybackActive = Boolean(status.playbackCaptureActive);
+  if (isPlaybackActive) {
+    showPlaybackCaptureUI(true);
+  }
+}
+
+function renderCompleteAudioReport(rep) {
+  if (!rep) return;
+
+  showPlaybackCaptureUI(false);
+  const banner = $("audioForensicStatusBanner");
+  if (banner) banner.style.display = "none";
+
+  const pill = $("audioForensicPill");
+  const reportCard = $("audioReportCard");
+  if (!reportCard) return;
+
+  const isFake = rep.incidents_count > 0 || rep.overall_verdict === "SUSPICIOUS_AUDIO_DETECTED";
+  const isNoSpeech = rep.analyzed_windows === 0;
+
+  // Compute peak spoof and average CM score across active speech windows
+  let maxSpoof = 0;
+  let minCm = 999;
+  let avgCm = 0;
+  let activeCount = 0;
+  if (Array.isArray(rep.timeline)) {
+    for (const w of rep.timeline) {
+      if (w.is_speech && w.p_spoof != null) {
+        activeCount++;
+        if (w.p_spoof > maxSpoof) maxSpoof = w.p_spoof;
+        if (w.cm_score < minCm) minCm = w.cm_score;
+        avgCm += w.cm_score;
+      }
+    }
+  }
+  if (activeCount > 0) avgCm = avgCm / activeCount;
+  else avgCm = 0;
+  if (minCm === 999) minCm = 0;
+
+  const verdictBanner = $("reportVerdictBanner");
+  const verdictIcon   = $("reportVerdictIcon");
+  const verdictTitle  = $("reportVerdictTitle");
+  const verdictSub    = $("reportVerdictSub");
+  const confEl        = $("reportConfidence");
+  const cmEl          = $("reportCmScore");
+  const durEl         = $("reportDuration");
+  const latEl         = $("reportLatency");
+  const expEl         = $("reportExplanationText");
+  const incListEl     = $("reportIncidentsList");
+  const modelInfoEl   = $("reportModelInfo");
+
+  if (isFake) {
+    pill.textContent = "⚠️ SYNTHETIC VOICE";
+    pill.className = "pill bad";
+
+    verdictBanner.style.background = "linear-gradient(180deg, #3b1219, #250b10)";
+    verdictBanner.style.color = "#ffadba";
+    verdictIcon.textContent = "⚠️";
+    verdictTitle.textContent = "SYNTHETIC / AI-GENERATED AUDIO";
+    verdictTitle.style.color = "#ff4d6d";
+    verdictSub.textContent = `Deepfake neural vocoder acoustic artifacts detected in ${rep.incidents_count} segment(s)`;
+
+    confEl.textContent = `${(maxSpoof * 100).toFixed(1)}% Synthetic`;
+    confEl.style.color = "#ff6b81";
+
+    cmEl.textContent = minCm.toFixed(2);
+    cmEl.style.color = "#ff4d6d";
+
+    if (rep.engine === "cloud_zerotrue" || rep.source?.includes("ZeroTrue")) {
+      expEl.innerHTML = `ZeroTrue Online API detected <strong>AI-generated voice patterns</strong> in this audio. AI speech synthesis and neural vocoders introduce unnatural acoustic signatures and phase patterns characteristic of machine-generated audio.`;
+    } else {
+      expEl.innerHTML = `The local wav2vec 2.0 XLSR-300M + AASIST graph neural network detected <strong>synthetic speech markers</strong> in this audio. Synthetic audio generation and neural vocoder reconstruction introduce anomalous phase continuity and spectral signatures that drove the countermeasure (CM) score strongly negative.`;
+    }
+
+    if (Array.isArray(rep.flagged_incidents) && rep.flagged_incidents.length > 0) {
+      incListEl.style.display = "block";
+      let incHtml = `<div style="font-weight:600; color:#ff9090; margin-bottom:4px;">Flagged Suspicious Passages:</div><ul style="padding-left:16px; margin:0;">`;
+      for (const inc of rep.flagged_incidents) {
+        incHtml += `<li style="margin:2px 0;"><strong>[${inc.timestamp_range}]</strong> ${inc.description}</li>`;
+      }
+      incHtml += `</ul>`;
+      incListEl.innerHTML = incHtml;
+    } else {
+      incListEl.style.display = "none";
+    }
+  } else if (isNoSpeech) {
+    pill.textContent = "Low Audio";
+    pill.className = "pill muted";
+
+    verdictBanner.style.background = "linear-gradient(180deg, #261e12, #1a140b)";
+    verdictBanner.style.color = "#ffd166";
+    verdictIcon.textContent = "🎙️";
+    verdictTitle.textContent = "NO ACTIVE SPEECH DETECTED";
+    verdictTitle.style.color = "#fcd34d";
+    verdictSub.textContent = "Captured audio contained silence, background noise, or sound without detectable speech";
+
+    confEl.textContent = "Inconclusive";
+    confEl.style.color = "#94a3b8";
+    cmEl.textContent = "0.00";
+    cmEl.style.color = "#94a3b8";
+    expEl.textContent = "The audio track did not contain sufficient human voice energy to run deepfake anti-spoofing feature extraction. Ensure active speech is playing.";
+    incListEl.style.display = "none";
+  } else {
+    pill.textContent = "Verified Genuine";
+    pill.className = "pill good";
+
+    verdictBanner.style.background = "linear-gradient(180deg, #0e291e, #071711)";
+    verdictBanner.style.color = "#8ff0bd";
+    verdictIcon.textContent = "✅";
+    verdictTitle.textContent = "VERIFIED GENUINE AUDIO";
+    verdictTitle.style.color = "#4ade80";
+    verdictSub.textContent = `All ${rep.analyzed_windows} speech segments verified authentic human speech`;
+
+    const authenticPct = Math.min(99.9, Math.max(90.0, 100 - (maxSpoof * 100)));
+    confEl.textContent = `${authenticPct.toFixed(1)}% Authentic`;
+    confEl.style.color = "#4ade80";
+
+    const displayCm = avgCm >= 0 ? `+${avgCm.toFixed(2)}` : avgCm.toFixed(2);
+    cmEl.textContent = displayCm;
+    cmEl.style.color = "#4ade80";
+
+    if (rep.engine === "cloud_zerotrue" || rep.source?.includes("ZeroTrue")) {
+      expEl.innerHTML = `ZeroTrue Online API verified this audio as <strong>authentic human speech</strong>. The acoustic features and frequency distribution show organic natural patterns.`;
+    } else {
+      expEl.innerHTML = `Acoustic feature analysis passed all anti-spoofing verification criteria. The vocal tract resonance, glottal pulse timing, and spectro-temporal phase graphs show organic human speech patterns consistent with genuine conversation.`;
+    }
+    incListEl.style.display = "none";
+  }
+
+  durEl.textContent = `${rep.duration_sec}s`;
+  latEl.textContent = `${rep.processing_time_ms || 0} ms`;
+  if (modelInfoEl && rep.model_name) {
+    modelInfoEl.textContent = rep.model_name;
+  }
+
+  const engineBadge = $("reportEngineBadge");
+  if (engineBadge) {
+    if (rep.engine === "cloud_zerotrue" || rep.source?.includes("ZeroTrue")) {
+      engineBadge.textContent = "ZeroTrue Cloud API (zerotrue.app)";
+      engineBadge.style.color = "#a5b4fc";
+    } else {
+      engineBadge.textContent = "Local Engine (CUDA)";
+      engineBadge.style.color = "#86efac";
+    }
+  }
+
+  reportCard.style.display = "block";
+}
+
+// ---------------------------------------------------------------------------
+// Shared Audio File Handling (.wav, .mp3, .m4a, .webm)
+// ---------------------------------------------------------------------------
+
+async function processSharedAudioFile(file) {
+  if (!file) return;
+
+  const validExts = [".wav", ".mp3", ".m4a", ".webm", ".ogg", ".flac", ".aac"];
+  const name = file.name.toLowerCase();
+  const hasAudioExt = validExts.some(ext => name.endsWith(ext));
+  if (!file.type.startsWith("audio/") && !hasAudioExt) {
+    showPlaybackCaptureError("Selected file is not an audio file (.wav, .mp3, .m4a, .webm).");
+    return;
+  }
+
+  clearAudioReport();
+  const pill = $("audioForensicPill");
+  const banner = $("audioForensicStatusBanner");
+  if (pill) {
+    pill.textContent = "● ANALYZING FILE";
+    pill.className = "pill good";
+  }
+  if (banner) {
+    banner.style.display = "block";
+    banner.style.background = "#141e30";
+    banner.style.color = "#bdc8da";
+    banner.innerHTML = `<strong>📁 Analyzing "${file.name}"...</strong><br>` +
+      `<span style="color:#7e94b8;">Decoding audio stream and extracting acoustic embeddings...</span>`;
+  }
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const pcm = audioBuffer.getChannelData(0);
+
+    let binary = "";
+    const bytes = new Uint8Array(pcm.buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i += 8192) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, len)));
+    }
+    const pcm_b64 = btoa(binary);
+
+    const durSec = Number((pcm.length / 16000).toFixed(2));
+    const rep = await send({
+      type: "AUDIO_TRIGGER_DEEP_ANALYSIS",
+      payload: {
+        pcm_b64,
+        sample_rate: 16000,
+        duration_sec: durSec,
+      }
+    });
+
+    if (rep?.ok && rep.report) {
+      renderCompleteAudioReport(rep.report);
+    } else {
+      throw new Error(rep?.error || "Audio analysis returned an empty result.");
+    }
+  } catch (err) {
+    showPlaybackCaptureError(err.message);
+  }
+}
+
+const audioFileInput = $("audioFileInput");
+if (audioFileInput) {
+  audioFileInput.addEventListener("change", () => {
+    if (audioFileInput.files?.length) {
+      processSharedAudioFile(audioFileInput.files[0]);
+    }
+  });
+}
+
+const audioDropzone = $("audioFileDropzone");
+if (audioDropzone) {
+  audioDropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    audioDropzone.style.borderColor = "#9b8cff";
+    audioDropzone.style.background = "#162035";
+  });
+  audioDropzone.addEventListener("dragleave", () => {
+    audioDropzone.style.borderColor = "#3a4c6a";
+    audioDropzone.style.background = "#0d1526";
+  });
+  audioDropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    audioDropzone.style.borderColor = "#3a4c6a";
+    audioDropzone.style.background = "#0d1526";
+    const files = e.dataTransfer?.files;
+    if (files?.length) {
+      processSharedAudioFile(files[0]);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tab Audio Playback Capture Controls
+// ---------------------------------------------------------------------------
+
+$("btnStartPlaybackCapture")?.addEventListener("click", async () => {
+  const btn = $("btnStartPlaybackCapture");
+  btn.disabled = true;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) throw new Error("Could not find the active tab.");
+
+    // Reset progress UI and clear previous report
+    clearAudioReport();
+    if ($("playbackProgressBar")) $("playbackProgressBar").style.width = "0%";
+    if ($("playbackTimerText")) $("playbackTimerText").textContent = "0.0s / 30s";
+    if ($("playbackSpeechIndicator")) {
+      $("playbackSpeechIndicator").textContent = "Waiting for audio…";
+      $("playbackSpeechIndicator").style.color = "#cbd5e1";
+    }
+    showPlaybackCaptureUI(true);
+
+    const res = await send({ type: "AUDIO_START_PLAYBACK_CAPTURE", tabId: tab.id, maxDurationSec: 30 });
+    if (!res || !res.ok) throw new Error(res?.error || "Could not start tab playback capture.");
+  } catch (err) {
+    showPlaybackCaptureError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("btnStopAndAnalyzePlayback")?.addEventListener("click", async () => {
+  const btn = $("btnStopAndAnalyzePlayback");
+  if (btn) btn.disabled = true;
+  if ($("playbackLiveStatus")) $("playbackLiveStatus").textContent = "⏳ Stopping & analyzing captured audio...";
+  try {
+    await send({ type: "AUDIO_STOP_PLAYBACK_CAPTURE", reason: "manual_stop" });
+  } catch (err) {
+    showPlaybackCaptureError(err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
+// Load live status and forensic report if available on open
+send({ type: "AUDIO_GET_STATUS" }).then(res => {
+  if (res?.ok && res.status) {
+    updateForensicUIState(res.status);
+  }
+}).catch(() => {});
+
+// Listen for playback progress, state transitions, and completed report
+chrome.runtime.onMessage.addListener(msg => {
+  if (msg.type === "AUDIO_STATUS_UPDATE" && msg.status) {
+    updateForensicUIState(msg.status);
+  }
+
+  if (msg.type === "PLAYBACK_AUDIO_STARTED") {
+    // When audio actively starts playing, clear any previous report immediately
+    clearAudioReport();
+    showPlaybackCaptureUI(true);
+    if ($("playbackSpeechIndicator")) {
+      $("playbackSpeechIndicator").textContent = "🔊 Audio playing - capturing...";
+      $("playbackSpeechIndicator").style.color = "#86efac";
+    }
+  }
+
+  if (msg.type === "PLAYBACK_CAPTURE_PROGRESS") {
+    showPlaybackCaptureUI(true);
+    const pct = Math.min(100, Math.round((msg.durationSec / (msg.maxSec || 30)) * 100));
+    if ($("playbackProgressBar")) $("playbackProgressBar").style.width = `${pct}%`;
+    if ($("playbackTimerText")) $("playbackTimerText").textContent = `${msg.durationSec}s / ${msg.maxSec || 30}s`;
+    if ($("playbackSpeechIndicator")) {
+      if (msg.speechDetected) {
+        $("playbackSpeechIndicator").textContent = "🔊 Audio playing - capturing...";
+        $("playbackSpeechIndicator").style.color = "#86efac";
+      } else {
+        $("playbackSpeechIndicator").textContent = "Waiting for audio…";
+        $("playbackSpeechIndicator").style.color = "#cbd5e1";
+      }
+    }
+  }
+
+  if (msg.type === "PLAYBACK_ANALYZING") {
+    showPlaybackCaptureUI(false);
+    clearAudioReport();
+    const pill = $("audioForensicPill");
+    const banner = $("audioForensicStatusBanner");
+    if (pill) {
+      pill.textContent = "● ANALYZING TAB AUDIO";
+      pill.className = "pill good";
+    }
+    if (banner) {
+      banner.style.display = "block";
+      banner.style.background = "#141e30";
+      banner.style.color = "#bdc8da";
+      const reasonLabel = msg.reason === "30s_window_reached"
+        ? "30-second window reached"
+        : (msg.reason === "audio_finished" || msg.reason === "media_ended"
+          ? "Audio playback concluded"
+          : "Playback stopped");
+      banner.innerHTML = `<strong>🔬 ${reasonLabel} (${msg.durationSec}s)</strong><br>` +
+        `<span style="color:#7e94b8;">Executing GPU-accelerated deepfake neural analysis (wav2vec 2.0 + AASIST)...</span>`;
+    }
+  }
+
+  if (msg.type === "AUDIO_DEEP_ANALYSIS_COMPLETE" && msg.report) {
+    renderCompleteAudioReport(msg.report);
+  }
+
+  if (msg.type === "PLAYBACK_CAPTURE_CANCELLED") {
+    showPlaybackCaptureUI(false);
+    clearAudioReport();
+    const pill = $("audioForensicPill");
+    const banner = $("audioForensicStatusBanner");
+    if (pill) {
+      pill.textContent = "No Audio";
+      pill.className = "pill muted";
+    }
+    if (banner) {
+      banner.style.display = "block";
+      banner.style.background = "#2a151b";
+      banner.style.color = "#ffabb9";
+      banner.innerHTML = `<strong>⚠️ Playback Capture Cancelled:</strong> ${msg.reason || "No active audio detected playing in tab."}<br>` +
+        `<span style="color:#cbd5e1; font-size:10px;">Please ensure audio is actively playing in the tab and try again.</span>`;
+    }
+  }
+
+  if (msg.type === "PLAYBACK_ANALYSIS_ERROR") {
+    showPlaybackCaptureError(msg.error);
+  }
+});

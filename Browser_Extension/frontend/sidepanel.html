@@ -3,12 +3,100 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Mad Eye Moody Lens – Image Review</title>
+  <title>Mad Eye Moody Lens – Detailed Review</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
   <main class="page">
-    <header><div class="mark">M</div><div><h1>Image review</h1><p>Analyze an image with your selected provider</p></div></header>
+    <header><div class="mark">M</div><div><h1>Detailed Forensic Review</h1><p>Real-time Audio &amp; Image Inspection</p></div></header>
+
+    <!-- AUDIO DEEPFAKE FORENSIC ANALYSIS -->
+    <section class="card audio-forensic-card" id="audioForensicSection">
+      <div class="result-heading">
+        <h2>🎙️ Audio Deepfake Forensic Report</h2>
+        <span id="audioForensicPill" class="pill muted">Idle</span>
+      </div>
+      <p style="font-size: 11px; color: #8fa0bb; margin: 4px 0 10px;">
+        High-precision neural deepfake detection (wav2vec 2.0 XLSR-300M + AASIST). Play audio in any Chrome tab or drop an audio file to receive a complete forensic authenticity report once playback stops.
+      </p>
+
+      <!-- TAB AUDIO PLAYBACK CAPTURE & AUTO-ANALYSIS -->
+      <button id="btnStartPlaybackCapture" class="primary full" style="margin-bottom: 8px; font-weight: 800; background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none; padding: 10px;">🎵 PLAY &amp; ANALYZE TAB AUDIO (AUTO / 30s)</button>
+
+      <!-- LIVE PLAYBACK CAPTURE STATUS BOX -->
+      <div id="playbackLiveBox" style="display: none; margin-bottom: 10px; padding: 10px; background: #131c31; border: 1px solid #3b4e72; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+          <strong id="playbackLiveStatus" style="color: #a5b4fc;">🎙️ Recording tab audio playback...</strong>
+          <span id="playbackLiveBadge" class="pill good" style="font-size: 9px; padding: 2px 6px;">CAPTURING</span>
+        </div>
+        <div style="background: #1e293b; border-radius: 6px; height: 7px; overflow: hidden; margin: 8px 0 4px;">
+          <div id="playbackProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366f1, #a855f7); transition: width 0.3s ease;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 6px;">
+          <span id="playbackTimerText">0.0s / 30s</span>
+          <span id="playbackSpeechIndicator" style="color: #cbd5e1;">Waiting for audio…</span>
+        </div>
+        <div style="font-size: 10px; color: #7e94b8; margin-bottom: 6px;">
+          Captures audio until playback stops (or 30s window), then automatically generates complete analysis report.
+        </div>
+        <button id="btnStopAndAnalyzePlayback" class="secondary full" style="font-size: 11px; padding: 5px; font-weight: 600;">⏹ Stop &amp; Analyze Captured Audio Now</button>
+      </div>
+
+      <!-- SHARED AUDIO FILE DROPZONE (FOR FILE SHARING) -->
+      <div id="audioFileDropzone" class="dropzone audio-dropzone" tabindex="0" style="margin: 10px 0 8px; padding: 12px 10px; border: 1px dashed #3a4c6a; border-radius: 8px; text-align: center; background: #0d1526; cursor: pointer;">
+        <div style="font-size: 16px; margin-bottom: 2px;">📁</div>
+        <strong style="font-size: 11px; color: #e2ecf8;">Drop a shared audio file here</strong>
+        <div style="font-size: 10px; color: #7e94b8; margin: 2px 0 4px;">For files shared in Zoom chat or downloads (.wav, .mp3, .m4a, .webm)</div>
+        <label class="file-button" for="audioFileInput" style="display: inline-block; padding: 3px 8px; font-size: 10px; background: #1c273c; border: 1px solid #3b4e6d; border-radius: 4px; cursor: pointer; color: #cbd5e1;">Choose audio file</label>
+        <input id="audioFileInput" type="file" accept="audio/*" style="display: none;">
+      </div>
+
+      <!-- STATUS & NOTIFICATION BANNER -->
+      <div id="audioForensicStatusBanner" style="display: none; margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5;"></div>
+
+      <!-- COMPLETE AUDIO FORENSIC REPORT CARD -->
+      <div id="audioReportCard" style="display: none; margin-top: 10px; border-radius: 10px; border: 1px solid #2a3a54; background: #0c1424; overflow: hidden;">
+        <!-- Overall Verdict Header -->
+        <div id="reportVerdictBanner" style="padding: 14px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div id="reportVerdictIcon" style="font-size: 28px; margin-bottom: 4px;">✅</div>
+          <div id="reportVerdictTitle" style="font-size: 15px; font-weight: 800; letter-spacing: 0.5px;">VERIFIED GENUINE AUDIO</div>
+          <div id="reportVerdictSub" style="font-size: 11px; opacity: 0.85; margin-top: 2px;">Authentic human speech characteristics verified</div>
+        </div>
+
+        <!-- Key Metrics Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; background: rgba(0,0,0,0.25);">
+          <div style="background: #131c30; padding: 8px 10px; border-radius: 6px; border: 1px solid #1e2c44;">
+            <div style="font-size: 10px; color: #8fa0bb; text-transform: uppercase;">Confidence / Risk</div>
+            <div id="reportConfidence" style="font-size: 15px; font-weight: 700; color: #e2ecf8; margin-top: 2px;">98.5%</div>
+          </div>
+          <div style="background: #131c30; padding: 8px 10px; border-radius: 6px; border: 1px solid #1e2c44;">
+            <div style="font-size: 10px; color: #8fa0bb; text-transform: uppercase;">Countermeasure (CM)</div>
+            <div id="reportCmScore" style="font-size: 15px; font-weight: 700; color: #6ee7b7; margin-top: 2px;">+4.22</div>
+          </div>
+          <div style="background: #131c30; padding: 8px 10px; border-radius: 6px; border: 1px solid #1e2c44;">
+            <div style="font-size: 10px; color: #8fa0bb; text-transform: uppercase;">Audio Duration</div>
+            <div id="reportDuration" style="font-size: 14px; font-weight: 600; color: #cbd5e1; margin-top: 2px;">14.8s</div>
+          </div>
+          <div style="background: #131c30; padding: 8px 10px; border-radius: 6px; border: 1px solid #1e2c44;">
+            <div style="font-size: 10px; color: #8fa0bb; text-transform: uppercase;">Inference Speed</div>
+            <div id="reportLatency" style="font-size: 14px; font-weight: 600; color: #cbd5e1; margin-top: 2px;">142 ms</div>
+          </div>
+        </div>
+
+        <!-- Detailed Forensic Assessment Narrative -->
+        <div style="padding: 12px; font-size: 11px; line-height: 1.5; color: #bdc8da;">
+          <div style="font-weight: 700; margin-bottom: 4px; color: #e2ecf8; font-size: 12px;">Complete Forensic Assessment</div>
+          <div id="reportExplanationText"></div>
+          <div id="reportIncidentsList" style="margin-top: 8px; display: none;"></div>
+        </div>
+
+        <!-- Footer Model Info -->
+        <div style="padding: 7px 12px; background: #080d17; border-top: 1px solid #1a2538; font-size: 10px; color: #64748b; display: flex; justify-content: space-between;">
+          <span id="reportModelInfo">SSL Anti-Spoofing (wav2vec 2.0 + AASIST)</span>
+          <span id="reportEngineBadge">Local Engine (CUDA)</span>
+        </div>
+      </div>
+    </section>
 
     <section class="card">
       <h2>Choose an image</h2>

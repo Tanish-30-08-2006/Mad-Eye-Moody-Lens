@@ -1,4 +1,17 @@
-importScripts("providers/provider-engine.js");
+import "./providers/provider-engine.js";
+import {
+  startMonitoring,
+  stopMonitoring,
+  getStatus as getAudioStatus,
+  forwardAudioChunk,
+  triggerDeepAnalysis,
+  getLastForensicReport,
+  startTabPlaybackCapture,
+  stopTabPlaybackCapture,
+  handlePlaybackCaptureFinished,
+} from "./audio/audio-manager.js";
+import { AudioStorage } from "./audio/audio-storage.js";
+import { testZeroTrueApiKey } from "./audio/zerotrue-client.js";
 
 // Keep provider credentials and configuration out of webpage content scripts.
 let storageAccessReady = Promise.resolve();
@@ -69,7 +82,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   try { await chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" }); } catch (_) {}
   const existing = await chrome.storage.local.get([
     "apiKey", "apiKeyUpdatedAt", "scanEnabled", "recentDetections", "scanThreshold",
-    "detectionCache", "activeProvider", "customProviderConfig"
+    "detectionCache", "activeProvider", "customProviderConfig",
+    "audioServerToken", "audioServerUrl", "zeroTrueApiKey", "audioEngineMode"
   ]);
   await chrome.storage.local.set({
     apiKey: existing.apiKey ?? "",
@@ -80,7 +94,11 @@ chrome.runtime.onInstalled.addListener(async () => {
     recentDetections: existing.recentDetections ?? [],
     scanThreshold: existing.scanThreshold ?? "standard",
     detectionCache: existing.detectionCache ?? {},
-    scanDiagnostics: null
+    scanDiagnostics: null,
+    audioServerToken: existing.audioServerToken ?? "madeye-local-dev-token-change-me",
+    audioServerUrl:   existing.audioServerUrl   ?? "ws://127.0.0.1:8765",
+    zeroTrueApiKey:   existing.zeroTrueApiKey   ?? "",
+    audioEngineMode:  existing.audioEngineMode  ?? "auto",
   });
   chrome.contextMenus.removeAll(() => chrome.contextMenus.create({
     id: "detection-studio-analyze-image",
@@ -594,6 +612,152 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_HISTORY") {
     getStored().then(settings => sendResponse({ items: settings.recentDetections || [] }))
       .catch(error => sendResponse({ items: [], error: error.message }));
+    return true;
+  }
+
+  // ==================================================================
+  // AUDIO DEEPFAKE DETECTION (TAB MEDIA & ONLINE ZERO TRUE API)
+  // ==================================================================
+
+  if (message.type === "AUDIO_START_MONITORING") {
+    startMonitoring(message.tabId)
+      .then(result => sendResponse({ ok: true, ...result }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_STOP_MONITORING") {
+    stopMonitoring()
+      .then(result => sendResponse({ ok: true, ...result }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_GET_STATUS") {
+    Promise.resolve(getAudioStatus())
+      .then(status => sendResponse({ ok: true, status }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_CHUNK_DATA") {
+    forwardAudioChunk({
+      pcm_b64:     message.pcm_b64,
+      sample_rate: message.sample_rate,
+      channels:    message.channels,
+      num_samples: message.num_samples,
+    });
+    return false;
+  }
+
+  if (message.type === "AUDIO_GET_SESSIONS") {
+    AudioStorage.getSessions()
+      .then(data => sendResponse({ ok: true, ...data }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_CLEAR_SESSIONS") {
+    AudioStorage.clearSessions()
+      .then(() => sendResponse({ ok: true }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_SAVE_SERVER_CONFIG") {
+    chrome.storage.local.set({
+      audioServerToken: message.token || "madeye-local-dev-token-change-me",
+      audioServerUrl:   message.url   || "ws://127.0.0.1:8765",
+    }).then(() => sendResponse({ ok: true }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "OPEN_AUDIO_REPORT") {
+    (async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+    })();
+    return false;
+  }
+
+  if (message.type === "AUDIO_TRIGGER_DEEP_ANALYSIS") {
+    triggerDeepAnalysis(message.payload || message.durationSec || 30)
+      .then(report => sendResponse({ ok: true, report }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_GET_FORENSIC_REPORT") {
+    getLastForensicReport()
+      .then(report => sendResponse({ ok: true, report }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  // ------------------------------------------------------------------
+  // TAB AUDIO PLAYBACK CAPTURE & AUTO DEEPFAKE ANALYSIS (FINISHED OR 30s)
+  // ------------------------------------------------------------------
+
+  if (message.type === "AUDIO_START_PLAYBACK_CAPTURE") {
+    startTabPlaybackCapture(message.tabId, message.maxDurationSec || 30)
+      .then(result => sendResponse({ ok: true, ...result }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "AUDIO_STOP_PLAYBACK_CAPTURE") {
+    stopTabPlaybackCapture(message.reason)
+      .then(result => sendResponse({ ok: true, ...result }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "PLAYBACK_CAPTURE_FINISHED") {
+    handlePlaybackCaptureFinished(message)
+      .then(result => sendResponse({ ok: true, ...result }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "TAB_MEDIA_ENDED") {
+    chrome.runtime.sendMessage({
+      target: "offscreen-audio",
+      type:   "TAB_MEDIA_ENDED",
+    }).catch(() => {});
+    return false;
+  }
+
+  // ------------------------------------------------------------------
+  // ZEROTRUE ONLINE API CONFIGURATION & TESTING (https://zerotrue.app)
+  // ------------------------------------------------------------------
+
+  if (message.type === "SAVE_ZEROTRUE_CONFIG") {
+    const toSave = {};
+    if (message.apiKey != null) toSave.zeroTrueApiKey = String(message.apiKey).trim();
+    if (message.engineMode) toSave.audioEngineMode = message.engineMode;
+    chrome.storage.local.set(toSave)
+      .then(() => sendResponse({ ok: true }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "TEST_ZEROTRUE_KEY") {
+    testZeroTrueApiKey(message.apiKey)
+      .then(res => sendResponse({ ok: true, ...res }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "GET_AUDIO_CONFIG") {
+    chrome.storage.local.get(["zeroTrueApiKey", "audioEngineMode"])
+      .then(cfg => sendResponse({
+        ok: true,
+        zeroTrueConfigured: Boolean(cfg.zeroTrueApiKey),
+        audioEngineMode: cfg.audioEngineMode || "auto",
+        zeroTrueApiKey: cfg.zeroTrueApiKey || "",
+      }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 });

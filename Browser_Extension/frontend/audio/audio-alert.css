@@ -1,0 +1,131 @@
+/* audio-alert.css – in-page overlay for audio deepfake warnings */
+
+#madeye-audio-alert {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2147483647;
+  width: 360px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  overflow: hidden;
+  animation: madEyeSlideIn 0.3s ease;
+}
+
+@keyframes madEyeSlideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+#madeye-audio-alert.suspicious {
+  background: #1a0a0a;
+  border: 2px solid #d94a3c;
+  color: #f5e0e0;
+}
+
+#madeye-audio-alert.uncertain {
+  background: #1a140a;
+  border: 2px solid #c97d1e;
+  color: #f5eddc;
+}
+
+.madeye-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.madeye-alert-header strong {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.madeye-alert-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.madeye-alert-close {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+}
+
+.madeye-alert-close:hover { opacity: 1; }
+
+.madeye-alert-body {
+  padding: 12px 14px;
+}
+
+.madeye-alert-body p {
+  margin: 0 0 8px;
+}
+
+.madeye-alert-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.madeye-alert-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.madeye-alert-table td:first-child {
+  color: rgba(255,255,255,0.55);
+  width: 48%;
+}
+
+.madeye-alert-note {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 10px;
+}
+
+.madeye-alert-footer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.madeye-alert-footer button {
+  flex: 1;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.madeye-btn-report {
+  background: #d94a3c;
+  color: #fff;
+}
+
+.madeye-btn-report:hover { opacity: 0.85; }
+
+.madeye-btn-dismiss {
+  background: rgba(255,255,255,0.12);
+  color: inherit;
+}
+
+.madeye-btn-dismiss:hover { background: rgba(255,255,255,0.2); }
