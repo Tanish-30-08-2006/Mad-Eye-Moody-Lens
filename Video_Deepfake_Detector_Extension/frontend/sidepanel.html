@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BitMind Video Deepfake Studio</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-mark">👁️</div>
+        <div>
+          <h1>BitMind Video Studio</h1>
+          <p class="tagline">Deepfake & Synthetic Media Detector</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span id="globalProviderBadge" class="pill cyan">BitMind Subnet 34</span>
+      </div>
+    </header>
+
+    <!-- Nav Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-analyze">
+        <span class="tab-icon">🔬</span> Video Analysis
+      </button>
+      <button class="tab-btn" data-tab="tab-history">
+        <span class="tab-icon">🕒</span> Tested Videos History <span id="historyCountBadge" class="count-badge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-settings">
+        <span class="tab-icon">⚙️</span> Settings
+      </button>
+    </nav>
+
+    <!-- TAB 1: ANALYZE VIDEO -->
+    <section id="tab-analyze" class="tab-content active">
+      <div class="card">
+        <h2>Choose Video to Inspect</h2>
+        <div id="dropzone" class="dropzone" tabindex="0">
+          <div class="drop-icon">🎬</div>
+          <strong>Drag & drop a video file here</strong>
+          <span class="muted">Supports MP4, WebM, MOV, AVI (Max 50MB)</span>
+          <span class="or-divider">or</span>
+          <label class="btn-file" for="fileInput">Choose Local Video</label>
+          <input type="file" id="fileInput" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo" hidden>
+        </div>
+
+        <div class="url-input-row">
+          <input type="url" id="videoUrlInput" placeholder="Or paste public video URL (https://.../video.mp4)">
+          <button id="loadUrlBtn" class="btn-secondary">Load URL</button>
+        </div>
+
+        <!-- Video Player Preview -->
+        <div id="playerSection" class="player-container hidden">
+          <video id="videoPreview" controls playsinline></video>
+          <div class="video-meta-bar">
+            <span id="metaRes">—</span>
+            <span id="metaDuration">—</span>
+            <span id="metaSize">—</span>
+          </div>
+        </div>
+
+        <!-- Multi-frame filmstrip -->
+        <div id="filmstripSection" class="filmstrip-container hidden">
+          <div class="filmstrip-header">
+            <h3>Extracted Keyframe Samples</h3>
+            <span class="muted">Analyzed across video timeline</span>
+          </div>
+          <div id="filmstripList" class="filmstrip-list"></div>
+        </div>
+
+        <div class="action-bar">
+          <button id="runAnalysisBtn" class="btn-primary" disabled>
+            <span>Analyze Video with BitMind</span>
+          </button>
+          <button id="clearBtn" class="btn-secondary">Clear</button>
+        </div>
+      </div>
+
+      <!-- Result Card -->
+      <div class="card result-card">
+        <div class="row between">
+          <h2>Authenticity Verdict</h2>
+          <span id="verdictPill" class="pill muted">Not analyzed</span>
+        </div>
+
+        <div id="verdictBanner" class="verdict-banner empty">
+          Upload or select a video to evaluate authenticity with BitMind deepfake models.
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <span class="metric-label">Confidence</span>
+            <strong id="confidenceVal" class="metric-value">—</strong>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Synthetic Score</span>
+            <strong id="fakeScoreVal" class="metric-value">—</strong>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Detector Model</span>
+            <strong id="modelNameVal" class="metric-value">—</strong>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Analysis Speed</span>
+            <strong id="latencyVal" class="metric-value">—</strong>
+          </div>
+        </div>
+
+        <div class="explanation-box">
+          <h3>Forensic Summary</h3>
+          <p id="explanationText" class="muted">Analysis signals and frame artifacts will be detailed here.</p>
+        </div>
+
+        <details class="raw-details">
+          <summary>Raw JSON API Response</summary>
+          <pre id="rawResponseText">{ }</pre>
+        </details>
+
+        <button id="copyReportBtn" class="btn-secondary full mt-8">Copy Forensic Report</button>
+      </div>
+    </section>
+
+    <!-- TAB 2: HISTORY -->
+    <section id="tab-history" class="tab-content">
+      <div class="card">
+        <div class="row between">
+          <h2>Scan History</h2>
+          <div class="history-actions">
+            <button id="exportHistoryBtn" class="btn-text">Export JSON</button>
+            <button id="clearHistoryBtn" class="btn-text danger">Clear All</button>
+          </div>
+        </div>
+
+        <!-- Filter & Search -->
+        <div class="search-bar">
+          <input type="text" id="historySearchInput" placeholder="Search by title, website or filename...">
+        </div>
+
+        <div class="filter-pills">
+          <button class="filter-btn active" data-filter="all">All (<span id="countAll">0</span>)</button>
+          <button class="filter-btn" data-filter="fake">Deepfakes (<span id="countFake">0</span>)</button>
+          <button class="filter-btn" data-filter="real">Authentic (<span id="countReal">0</span>)</button>
+          <button class="filter-btn" data-filter="uncertain">Uncertain (<span id="countUncertain">0</span>)</button>
+        </div>
+
+        <!-- History Items List -->
+        <div id="historyList" class="history-list">
+          <div class="empty-history">No videos tested yet. Hover over web videos or upload a video file above to start tracking.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SETTINGS -->
+    <section id="tab-settings" class="tab-content">
+      <div class="card">
+        <h2>BitMind API Configuration</h2>
+        <p class="muted micro">BitMind Bittensor Subnet 34 powers deepfake video detection.</p>
+        
+        <label for="settingsApiKey">BitMind API Key</label>
+        <div class="key-input-group">
+          <input type="password" id="settingsApiKey" placeholder="Enter your BitMind API key">
+          <button id="toggleSettingsKeyVis" class="btn-icon">👁</button>
+        </div>
+
+        <div class="row gap-8 mt-8">
+          <button id="saveSettingsKeyBtn" class="btn-primary">Save Key</button>
+          <button id="testSettingsKeyBtn" class="btn-secondary">Test Connection</button>
+        </div>
+        <p id="settingsMsg" class="micro mt-4"></p>
+      </div>
+
+      <div class="card">
+        <h2>Detection Provider</h2>
+        <label for="activeProviderSelect">Active Engine</label>
+        <select id="activeProviderSelect">
+          <option value="bitmind">BitMind Video Oracle (Default)</option>
+          <option value="custom">Custom REST API Server</option>
+        </select>
+        <p class="muted micro mt-4">For custom in-house Python/FastAPI deepfake detection servers, configure options below.</p>
+        <button id="openAdvancedOptionsBtn" class="btn-secondary full mt-8">Open Advanced Configuration ↗</button>
+      </div>
+
+      <div class="card">
+        <h2>Web Hover Detection</h2>
+        <div class="row between">
+          <span>Enable on all websites</span>
+          <input type="checkbox" id="settingsHoverToggle" checked>
+        </div>
+        <div class="row between mt-8">
+          <span>Auto-detect when hovering</span>
+          <input type="checkbox" id="settingsAutoHoverToggle" checked>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

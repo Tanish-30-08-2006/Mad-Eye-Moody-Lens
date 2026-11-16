@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BitMind Video Deepfake Detector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="mark">👁️</div>
+      <div>
+        <h1>BitMind Video Lens</h1>
+        <p>AI Deepfake Video Detector</p>
+      </div>
+    </header>
+
+    <!-- Provider & Key Status -->
+    <section class="card">
+      <div class="row between">
+        <h2>BitMind API Key</h2>
+        <span id="keyStatusBadge" class="pill muted">Checking...</span>
+      </div>
+      <div class="key-input-group">
+        <input id="apiKeyInput" type="password" placeholder="Paste your BitMind API key" autocomplete="off">
+        <button id="toggleKeyVisibility" class="icon-btn" title="Toggle visibility">👁</button>
+      </div>
+      <div class="actions">
+        <button id="saveKeyBtn" class="primary">Save Key</button>
+        <button id="testKeyBtn" class="secondary">Test Key</button>
+      </div>
+      <p id="keyMsg" class="micro muted">Keys are stored securely in Chrome profile storage and never exposed to webpages.</p>
+    </section>
+
+    <!-- Hover Video Detection Controls -->
+    <section class="card">
+      <div class="row between">
+        <h2>Hover Video Detection</h2>
+        <span id="hoverScanBadge" class="pill muted">Off</span>
+      </div>
+      <p class="help">Hover over any video on any website (YouTube, X/Twitter, Reddit, TikTok, etc.) to reveal authenticity.</p>
+      
+      <div class="row between mt-8">
+        <label for="autoHoverToggle" class="switch-label">Auto-detect on hover</label>
+        <input type="checkbox" id="autoHoverToggle" class="switch-input" checked>
+      </div>
+
+      <div class="mt-8">
+        <label for="hoverDelaySelect">Hover reaction speed</label>
+        <select id="hoverDelaySelect">
+          <option value="250">Fast · 250ms</option>
+          <option value="400" selected>Standard · 400ms</option>
+          <option value="800">Relaxed · 800ms</option>
+        </select>
+      </div>
+
+      <button id="toggleHoverScanBtn" class="primary full mt-12">Enable Hover Detection</button>
+    </section>
+
+    <!-- Quick Upload Video -->
+    <section class="card">
+      <div class="row between">
+        <h2>Quick Video Test</h2>
+        <span class="pill cyan">Upload</span>
+      </div>
+      <p class="help">Select or drop a short video file to test immediately.</p>
+      <label class="drop-target" for="quickVideoInput" id="quickDropTarget">
+        <span class="upload-icon">📁</span>
+        <span id="quickUploadLabel">Choose or drag video (.mp4, .webm)</span>
+        <input type="file" id="quickVideoInput" accept="video/mp4,video/webm,video/quicktime" hidden>
+      </label>
+      <div id="quickScanResult" class="quick-result hidden"></div>
+    </section>
+
+    <!-- Side Panel Link -->
+    <button id="openSidePanelBtn" class="review-btn">
+      <span>Open Full Studio & Video History</span>
+      <span class="arrow">↗</span>
+    </button>
+
+    <footer>
+      Hover any video on any page or right-click → Detect Deepfake with BitMind.
+    </footer>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

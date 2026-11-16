@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BitMind Video Deepfake Detector Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">👁️</div>
+      <div>
+        <h1>BitMind Video Deepfake Detector Settings</h1>
+        <p>Configure BitMind Oracle Subnet 34 or connect a custom deepfake video detection API</p>
+      </div>
+    </header>
+
+    <!-- Provider Selection -->
+    <div class="card">
+      <h2>Active Detection Engine</h2>
+      <label for="engineSelect">Select active provider</label>
+      <select id="engineSelect">
+        <option value="bitmind">BitMind Video Oracle (Bittensor Subnet 34)</option>
+        <option value="custom">Custom Deepfake Video REST API</option>
+      </select>
+    </div>
+
+    <!-- BitMind Section -->
+    <div class="card" id="bitmindSection">
+      <h2>BitMind Video Oracle Credentials</h2>
+      <p class="muted">Obtain an API key from <a href="https://app.bitmind.ai" target="_blank" rel="noopener">app.bitmind.ai</a></p>
+      
+      <label for="bitmindKey">API Key (Bearer Token)</label>
+      <div class="input-row">
+        <input type="password" id="bitmindKey" placeholder="Paste your BitMind API key">
+        <button id="toggleBitmindKey" class="btn-icon">👁</button>
+      </div>
+
+      <label for="bitmindEndpoint" class="mt-8">Endpoint URL</label>
+      <input type="url" id="bitmindEndpoint" value="https://api.bitmind.ai/oracle/v1/34/detect-video">
+
+      <div class="actions mt-12">
+        <button id="saveBitmindBtn" class="btn-primary">Save BitMind Settings</button>
+        <button id="testBitmindBtn" class="btn-secondary">Test Connection</button>
+      </div>
+      <p id="bitmindStatus" class="status-msg"></p>
+    </div>
+
+    <!-- Custom REST API Section -->
+    <div class="card" id="customSection">
+      <h2>Custom Video Detection REST API</h2>
+      <p class="muted">Connect your own Python, FastAPI, Flask, or PyTorch deepfake video detection backend.</p>
+
+      <div class="grid-2">
+        <div>
+          <label for="customName">Provider Display Name</label>
+          <input type="text" id="customName" placeholder="e.g. In-house Deepfake Detector">
+        </div>
+        <div>
+          <label for="customEndpoint">API Endpoint URL</label>
+          <input type="url" id="customEndpoint" placeholder="https://api.example.com/v1/detect-video">
+        </div>
+      </div>
+
+      <div class="grid-2 mt-8">
+        <div>
+          <label for="customAuthType">Authentication Method</label>
+          <select id="customAuthType">
+            <option value="bearer">Bearer Token (Authorization: Bearer ...)</option>
+            <option value="header">Custom Header (e.g. x-api-key)</option>
+            <option value="none">No Authentication / Localhost</option>
+          </select>
+        </div>
+        <div>
+          <label for="customApiKey">API Key / Token</label>
+          <input type="password" id="customApiKey" placeholder="API Secret">
+        </div>
+      </div>
+
+      <div class="grid-2 mt-8">
+        <div>
+          <label for="customTransport">Video Transport Format</label>
+          <select id="customTransport">
+            <option value="multipart">Multipart Form-Data (File Upload)</option>
+            <option value="url_json">JSON with Video URL</option>
+            <option value="base64_json">JSON with Base64 Frame</option>
+            <option value="binary">Raw Binary Video Stream</option>
+          </select>
+        </div>
+        <div>
+          <label for="customVideoField">Video Field Name</label>
+          <input type="text" id="customVideoField" value="video">
+        </div>
+      </div>
+
+      <h3 class="mt-12">Response JSON Field Mappings (Dot Paths)</h3>
+      <div class="grid-3 mt-4">
+        <div>
+          <label for="customIsAIPath">isAI Boolean Path</label>
+          <input type="text" id="customIsAIPath" value="isAI">
+        </div>
+        <div>
+          <label for="customConfidencePath">Confidence Path</label>
+          <input type="text" id="customConfidencePath" value="confidence">
+        </div>
+        <div>
+          <label for="customLabelPath">Label String Path</label>
+          <input type="text" id="customLabelPath" value="label">
+        </div>
+      </div>
+
+      <div class="actions mt-12">
+        <button id="saveCustomBtn" class="btn-primary">Save Custom REST API</button>
+        <button id="testCustomBtn" class="btn-secondary">Test Custom Provider</button>
+      </div>
+      <p id="customStatus" class="status-msg"></p>
+    </div>
+
+    <!-- Web Hover Scanning Settings -->
+    <div class="card">
+      <h2>Web Hover Detection Behavior</h2>
+      <div class="setting-row">
+        <div>
+          <strong>Global Hover Detection</strong>
+          <p class="muted">Show deepfake verification badge when hovering over video elements on any website.</p>
+        </div>
+        <input type="checkbox" id="optHoverScan" checked>
+      </div>
+
+      <div class="setting-row mt-8">
+        <div>
+          <strong>Auto-detect on Hover</strong>
+          <p class="muted">Automatically trigger scan when pointer hovers without needing to click the badge.</p>
+        </div>
+        <input type="checkbox" id="optAutoScan" checked>
+      </div>
+
+      <div class="setting-row mt-8">
+        <div>
+          <strong>Hover Reaction Delay</strong>
+          <p class="muted">Time the cursor must rest on video before triggering automatic analysis.</p>
+        </div>
+        <select id="optHoverDelay">
+          <option value="200">200ms (Immediate)</option>
+          <option value="400" selected>400ms (Recommended)</option>
+          <option value="800">800ms (Gentle)</option>
+        </select>
+      </div>
+
+      <div class="actions mt-12">
+        <button id="saveHoverOptsBtn" class="btn-primary">Save Hover Settings</button>
+      </div>
+      <p id="hoverStatus" class="status-msg"></p>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
