@@ -122,7 +122,7 @@ Reproduce local automated checks (install host `requirements.txt` and `requireme
 (cd reddit_extension/frontend && npm run typecheck && npm test && npm run build)
 ```
 
-Verified branch: `darshan-dev`. Preserved frontend commits: `57fc7ad` (sources and matches), `323c6d7` (verification context), `b47b4a4` (composer checks), `2b3ba0a` (review notes). See the [API inventory](../../frontend/docs/API-CONTRACT.md#endpoint-inventory) and [examples](../../frontend/docs/API-CONTRACT.md#runnable-examples). Verification log follows below.
+Verified branch: `darshan-dev`. Handoff implementation: `beabc58`. Preserved frontend commits: `57fc7ad` (sources and matches), `323c6d7` (verification context), `b47b4a4` (composer checks), `2b3ba0a` (review notes). See the [API inventory](../../frontend/docs/API-CONTRACT.md#endpoint-inventory) and [examples](../../frontend/docs/API-CONTRACT.md#runnable-examples).
 
 | Check | Observed result |
 |---|---|
