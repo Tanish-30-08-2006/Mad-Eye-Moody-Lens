@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { CARD_SIZE, createCardBlob, drawCard, modReportText, redditComment, searchLinks, summaryText, SEARCH_NOTE, type CardPalette } from '../../src/ui/share';
+import { CARD_SIZE, createCardBlob, drawCard, redditComment, searchLinks, summaryText, SEARCH_NOTE, type CardPalette } from '../../src/ui/share';
 import { applyBlur, removeBlur } from '../../src/ui/blur';
 import { DISCLAIMER, verdictForScore, verdictOf, VERDICT_TEXT } from '../../src/core/verdict';
 
@@ -14,7 +14,7 @@ const palette: CardPalette = { bg: '#000', surface: '#111', border: '#222', text
 
 describe('share', () => {
   it('uses probabilistic wording and the disclaimer everywhere', () => {
-    for (const text of [summaryText(data), redditComment(data), modReportText(data)]) {
+    for (const text of [summaryText(data), redditComment(data)]) {
       expect(text).toContain(DISCLAIMER);
       expect(text).toMatch(/likely manipulated/i);
       expect(text).not.toMatch(/\b(is fake|definitely|proven)\b/i);

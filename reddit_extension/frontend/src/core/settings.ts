@@ -29,6 +29,8 @@ export interface ExtensionSettings {
   blurManipulated: boolean;
   /** Auto-scan only these subreddits (lowercase, no "r/"); empty means every subreddit. */
   autoScanSubreddits: string[];
+  /** Communities where the user has opted to prepare review notes. */
+  reviewSubreddits: string[];
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   saveHistory: true,
   blurManipulated: false,
   autoScanSubreddits: [],
+  reviewSubreddits: [],
 };
 
 export const SETTINGS_KEY = 'moody_settings';
@@ -98,6 +101,7 @@ function sanitize(stored: unknown): ExtensionSettings {
     saveHistory: s.saveHistory !== false,
     blurManipulated: s.blurManipulated === true,
     autoScanSubreddits: Array.isArray(s.autoScanSubreddits) ? parseSubreddits(s.autoScanSubreddits as string[]) : [],
+    reviewSubreddits: Array.isArray(s.reviewSubreddits) ? parseSubreddits(s.reviewSubreddits as string[]) : [],
   };
 }
 

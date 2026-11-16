@@ -51,19 +51,23 @@ async function fetchFirstUsable(candidates: string[]): Promise<FetchedMedia & { 
 }
 
 /** Downloads gallery images three at a time; failures are counted, not fatal. */
-async function fetchGallery(urls: string[]): Promise<{ blobs: Blob[]; missing: number }> {
+async function fetchGallery(urls: string[]): Promise<{ blobs: Blob[]; indices: number[]; missing: number }> {
   const capped = urls.slice(0, MAX_GALLERY_IMAGES);
   const blobs: Blob[] = [];
+  const indices: number[] = [];
   let lastError: unknown;
   for (let i = 0; i < capped.length; i += 3) {
     const results = await Promise.allSettled(capped.slice(i, i + 3).map((u) => fetchMediaBlob(u)));
-    for (const r of results) {
-      if (r.status === 'fulfilled') blobs.push(r.value.blob);
+    for (const [offset, r] of results.entries()) {
+      if (r.status === 'fulfilled') {
+        blobs.push(r.value.blob);
+        indices.push(i + offset);
+      }
       else lastError = r.reason;
     }
   }
   if (blobs.length === 0) throw lastError ?? new MediaFetchError('No gallery image could be downloaded.', 'NETWORK_ERROR');
-  return { blobs, missing: capped.length - blobs.length };
+  return { blobs, indices, missing: urls.length - blobs.length };
 }
 
 /** Waits for the job unless the backend already knew this media (hash cache hit). */
@@ -94,11 +98,16 @@ async function fetchAudio(payload: ScanPayload, videoUrl: string, mpdUrl: string
 async function scanImages(payload: ScanPayload, meta: ScanMeta): Promise<DetectionJob> {
   const submitMeta = { postId: payload.postId, permalink: payload.permalink };
 
-  if (payload.gallery && payload.mediaUrls.length > 1) {
-    const { blobs, missing } = await fetchGallery(payload.mediaUrls);
+  if (payload.gallery) {
+    const { blobs, indices, missing } = await fetchGallery(payload.mediaUrls);
     if (missing > 0) meta.galleryMissing = missing;
+    meta.exactScope = 'gallery';
     meta.hints = dedupeHints((await Promise.all(blobs.map(hintsFromBlob))).flat());
-    return finishJob((await submitBatch(blobs, submitMeta)).job_id, payload);
+    const job = await finishJob((await submitBatch(blobs, submitMeta)).job_id, payload);
+    return {
+      ...job,
+      items: job.items?.flatMap((item) => indices[item.index] === undefined ? [] : [{ ...item, index: indices[item.index]! }]),
+    };
   }
 
   const media = await fetchMediaBlob(payload.mediaUrls[0]!);

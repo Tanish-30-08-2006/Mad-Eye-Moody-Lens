@@ -62,6 +62,10 @@ Source design: Reddit's [reposting help](https://support.reddithelp.com/hc/en-us
 
 Reddit's [post and comment help](https://support.reddithelp.com/hc/en-us/articles/360060422572-How-do-I-post-and-comment-on-Reddit) covers community, post type and tags; its [Data API reference](https://www.reddit.com/dev/api/#GET_r_{subreddit}_about_rules) documents the rules and link-flair reads and their scopes. The extension uses bounded, session-visible reads on Reddit's own host and reuses the existing host permissions. Those web-session JSON endpoints may be blocked or require login/OAuth. The adapter owns the known DOM controls, the content entry point owns the single shadow panel, and the worker caches parsed policy for five minutes (up to 48 communities). Results, uploads and user-authored wording stay separate. No policy or inference result modifies the native draft, posts, or blocks submission.
 
+**Prepare review note.** Add participating communities in Options. In the Lens, review or edit the note before copying it. It names the canonical post link, the relevant rules when verified, and any linked original and attributed disclosure. A real scan may include the specific gallery item or measured video range. Unknown rules, unavailable analysis, and earlier image matches remain explicitly qualified. The note builder and clipboard live in the existing popover; policy is loaded on demand through the same read-only worker as the composer. This is a local note, not a report, modmail, comment, or removal. Reddit documents [user reporting](https://support.reddithelp.com/hc/en-us/articles/360058309512-How-do-I-report-a-post-or-comment) and [moderator queues](https://support.reddithelp.com/hc/en-us/articles/15484440494356-Moderation-Queue) as distinct workflows.
+
+Use the [manual walkthrough](frontend/docs/MANUAL-TEST.md), [API contract](frontend/docs/API-CONTRACT.md), and [model integration guide](backend/docs/BRAIN-INTEGRATION.md) for fixture and deployment checks.
+
 ### 1. Frontend Extension (`reddit_extension/frontend`)
 
 ```bash
@@ -74,7 +78,7 @@ pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm lint
 
-# Run unit and contract tests (188 tests)
+# Run unit and contract tests
 pnpm test
 
 # Build for Chrome MV3 (.output/chrome-mv3)

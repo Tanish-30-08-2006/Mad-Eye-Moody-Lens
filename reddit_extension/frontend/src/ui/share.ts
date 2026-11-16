@@ -34,14 +34,15 @@ export function sourceContext(source: PostSource): string[] {
 export function contextText(source: PostSource, job?: DetectionJob, meta?: ScanMeta, thresholds?: Thresholds): string {
   const lines = [source.current.permalink ?? '', ...sourceContext(source)];
   if (job?.status !== 'completed' || job.mock !== false || !meta?.exactScope) return lines.filter(Boolean).join('\n');
-  if (job.items?.length) return lines.filter(Boolean).join('\n'); // Gallery detail belongs in the item-aware review note.
+  if (meta.exactScope === 'gallery' || job.items?.length) return lines.filter(Boolean).join('\n'); // Gallery detail belongs in the item-aware review note.
   const verdict = verdictOf(job, thresholds);
   const models = job.models;
   if (meta.exactScope === 'video' && models?.audio && !meta.audioNotScanned && verdictForScore(models.audio.score, thresholds) === 'likely_fake') {
     lines.push('Moody Lens flagged possible synthetic audio in this video. ' + DISCLAIMER + '.');
   } else if (verdict === 'likely_fake') {
     const video = meta.exactScope === 'video';
-    if (video ? models?.face : models?.face || models?.image) {
+    const visual = video ? [models?.face] : [models?.image, models?.face];
+    if (visual.some((model) => model && verdictForScore(model.score, thresholds) === 'likely_fake')) {
       lines.push('Moody Lens flagged possible manipulation in ' + (video ? 'the video frames' : 'this image') + '. ' + DISCLAIMER + '.');
     }
   } else if (verdict === 'inconclusive' && (models?.audio || models?.face || models?.image)) {
@@ -80,18 +81,6 @@ export function redditComment(d: ShareData): string {
   if (d.disclosedAi) lines.push('>', '> The author disclosed this post as AI-made.');
   if (d.mock) lines.push('>', `> **${DEMO_NOTE}**`);
   lines.push('', `^(Scanned with ${BRAND})`);
-  return lines.join('\n');
-}
-
-/** Neutral text for a moderator report: describes the estimate, makes no accusation. */
-export function modReportText(d: ShareData): string {
-  const lines = [
-    'This post may contain AI-generated or manipulated media.',
-    `An automated scan (${BRAND}) rated it "${VERDICT_TEXT[d.verdict].toLowerCase()}" with ${scoreText(d)}.`,
-    `${DISCLAIMER}; please review it yourself.`,
-  ];
-  if (d.permalink) lines.push(`Post: ${d.permalink}`);
-  if (d.mock) lines.push(DEMO_NOTE);
   return lines.join('\n');
 }
 

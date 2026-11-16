@@ -789,6 +789,15 @@
   margin: 0 0 0.35rem;
 }
 
+.moody-lens-card a {
+  color: var(--ml-accent-text);
+  text-underline-offset: 0.15em;
+}
+
+.moody-lens-provenance summary {
+  cursor: pointer;
+}
+
 .moody-lens-text-preview {
   box-sizing: border-box;
   display: block;

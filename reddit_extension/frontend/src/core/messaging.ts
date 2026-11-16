@@ -312,7 +312,7 @@ export function isTabMessage(msg: unknown): msg is TabMessage {
  */
 export async function sendMessage(
   message: ExtensionMessage,
-  timeoutMs: number = 30000,
+  timeoutMs: number = message.type === 'SCAN_MEDIA' || message.type === 'SCAN_DRAFT' ? 480_000 : 30_000,
 ): Promise<ExtensionResponse> {
   const validation = validateMessage(message);
   if (!validation.success) {

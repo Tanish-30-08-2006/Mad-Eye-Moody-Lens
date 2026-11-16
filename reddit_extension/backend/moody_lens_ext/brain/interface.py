@@ -76,7 +76,7 @@ class BrainResult:
     label: str
     models: Dict[str, Optional[ModelOutput]] = field(default_factory=_no_models)
     model_versions: Dict[str, str] = field(default_factory=dict)
-    timeline: List[TimelinePoint] = field(default_factory=list)  # video only
+    timeline: List[TimelinePoint] = field(default_factory=list)  # measured video frames or audio windows
     signals: List[Signal] = field(default_factory=list)
     latency_ms: int = 0
     mock: bool = False  # True means demo data; the API passes it through untouched

@@ -25,7 +25,7 @@ export const TimelineEntrySchema = z.object({
   start: z.number().min(0),
   end: z.number().min(0),
   score: z.number().min(0).max(1),
-});
+}).refine((range) => range.end > range.start, 'Timeline range must have positive duration');
 
 export type TimelineEntry = z.infer<typeof TimelineEntrySchema>;
 
@@ -87,7 +87,7 @@ export const DetectionJobSchema = z.object({
   models: JobModelsSchema.nullable().optional(),
   model_versions: z.record(z.string(), z.string()).nullable().optional(),
   mock: z.boolean().nullable().optional(),
-  /** Video only; the UI draws a timeline only when this is present and non-empty. */
+  /** Detector-provided ranges in seconds, shown only if present. */
   timeline: z.array(TimelineEntrySchema).nullable().optional(),
   /** "Why this score" notes from the detector. */
   signals: z.array(SignalEntrySchema).nullable().optional(),

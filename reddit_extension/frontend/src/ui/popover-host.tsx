@@ -14,6 +14,7 @@ export interface PopoverHandlers {
   onRetry?: () => void;
   onAcceptConsent?: () => void;
   canCopyEvidence?: () => boolean;
+  loadReviewPolicy?: VerdictPopoverProps['loadReviewPolicy'];
   onFeedback?: VerdictPopoverProps['onFeedback'];
 }
 
@@ -74,6 +75,7 @@ export function createPopoverHost(container: HTMLElement, options: PopoverHostOp
         onRetry={handlers.onRetry}
         onAcceptConsent={handlers.onAcceptConsent}
         canCopyEvidence={handlers.canCopyEvidence}
+        loadReviewPolicy={handlers.loadReviewPolicy}
         onFeedback={handlers.onFeedback}
         closing={closing}
       />,

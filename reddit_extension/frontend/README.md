@@ -6,6 +6,8 @@ Moody Lens is a Manifest V3 browser extension built with **WXT**, **React 19**, 
 
 ## Architecture & Guarantees
 
+See the [verification workflows](../README.md#reddit-verification-workflows), [manual walkthrough](docs/MANUAL-TEST.md), and [authoritative API contract](docs/API-CONTRACT.md).
+
 - **Manifest V3 Compliant**: All media downloads and external network traffic are routed strictly through the background service worker. The content script communicates via typed runtime messaging (`src/core/messaging.ts`).
 - **Encapsulated UI**: The per-post lens trigger is mounted inside an isolated shadow root (`cssInjectionMode: 'ui'`) to prevent Reddit's stylesheets from bleeding into the button and vice versa.
 - **Shared Singleton Popover**: Avoids rendering hundreds of React roots in an infinite scrolling feed by sharing a single verdict popover, placed next to the clicked lens and closed on Esc, outside click or navigation.
@@ -43,7 +45,7 @@ reddit_extension/frontend/
       types.ts              # SiteAdapter, MediaRef, MountPoint
       reddit/               # Selectors, observer, extractors, navigation
     background/
-      handlers/             # Scan handler (consent, cache, queue) and image context menu
+      handlers/             # Post and draft scans (consent, server cache, queue), image context menu
       scan-queue.ts         # 2 concurrent scans, in-flight dedupe, auto-scan rate cap
       rendition.ts          # Picks the progressive MP4 rendition to upload
       errors.ts             # Typed errors to friendly messages
@@ -56,7 +58,7 @@ reddit_extension/frontend/
       messaging.ts          # Typed, validated message passing
       api-client.ts         # Backend REST API client
       schema.ts             # Zod schema definitions for API contracts
-      cache.ts              # Verdict cache (chrome.storage.local)
+      cache.ts              # Helpers to clear legacy browser verdict entries
       settings.ts           # Settings persistence and validation
       consent.ts            # First-run upload consent
       media-url.ts          # Media host allowlist (shared)

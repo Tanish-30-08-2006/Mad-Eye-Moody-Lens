@@ -107,6 +107,7 @@ export async function submitDetection(
       },
       body: formData,
       signal: destination ? AbortSignal.timeout(60_000) : undefined,
+      redirect: destination ? 'error' : 'follow',
     });
   } catch (err) {
     throw new ApiClientError(
@@ -196,6 +197,7 @@ export async function getJobStatus(jobId: string, destination?: string): Promise
     res = await fetch(url, {
       method: 'GET',
       signal: destination ? AbortSignal.timeout(15_000) : undefined,
+      redirect: destination ? 'error' : 'follow',
       headers: {
         'X-Client': 'extension',
       },

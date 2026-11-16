@@ -40,7 +40,7 @@ const VERDICT_ICON: Record<Verdict, React.ReactNode> = {
 
 export const ResultView: React.FC<ResultViewProps> = ({ job, meta, thresholds, context, paletteRoot, onFeedback }) => {
   const [selected, setSelected] = useState<number | null>(null);
-  const items = job.items && job.items.length > 1 ? job.items : null;
+  const items = job.items?.length ? job.items : null;
 
   // A focused gallery image replaces the headline fields; failed images fall back to the overall result.
   const item: BatchItem | undefined = selected !== null ? items?.find((i) => i.index === selected && i.status === 'completed') : undefined;

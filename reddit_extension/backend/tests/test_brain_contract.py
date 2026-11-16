@@ -22,10 +22,11 @@ class TestStubBrainContract(BrainContractSuite):
 
 class TestHostBrainContract(BrainContractSuite):
     @pytest.fixture
-    def brain(self):
+    def brain(self, request):
         pytest.importorskip("app.main")
         from moody_lens_ext.brain.host_brain import HostBrain
 
+        request.getfixturevalue("workers_up")
         return HostBrain()
 
 

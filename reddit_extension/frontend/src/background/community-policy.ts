@@ -3,7 +3,7 @@ import { fetchRedditJson } from './post-json';
 import { ScanQueue } from './scan-queue';
 
 const ai = /\b(?:AI(?:[- ](?:generated|assisted|art|imagery|content|media|images|videos))?|A\.I\.|artificial intelligence|synthetic (?:media|images|audio|video)|deepfakes?)\b/i;
-const uncertainty = /\b(?:unless|except|exempt|may not apply|might|case.by.case|see (?:the )?wiki)\b/i;
+const uncertainty = /\b(?:unless|except|exempt|may|might|only if|case.by.case|see (?:the )?wiki|not (?:prohibited|banned|forbidden))\b/i;
 const prohibit = /(?:^|\b)(?:no\s+(?:(?:posting|sharing)\s+)?(?:AI\b|synthetic\b|deepfakes?\b)|(?:AI[- ]generated|deepfakes?|synthetic media)[^.!?]{0,80}\b(?:prohibited|banned|forbidden|not allowed)|(?:do not|don’t|don't|must not)\s+(?:post|submit|share)[^.!?]{0,50}(?:\bAI\b|synthetic|deepfake))/i;
 const required = /\b(?:must|required|require|mandatory|needs? to|has to|have to)\b/i;
 const record = (v: unknown): Record<string, unknown> =>

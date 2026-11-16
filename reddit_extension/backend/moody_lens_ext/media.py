@@ -7,6 +7,7 @@ brain.get_brain(); nothing in this file touches model code (see the BRAIN-LINK c
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import re
 import uuid
@@ -95,8 +96,8 @@ class DetectionJob(BaseModel):
     label: Optional[VerdictLabelType] = None
     models: Optional[JobModels] = None
     model_versions: Optional[Dict[str, str]] = None
-    mock: Optional[bool] = False
-    # Video only: suspicion per time slice. Absent when the brain has no timeline.
+    mock: Optional[bool] = None
+    # Detector ranges in seconds. Absent when the brain has no timeline.
     timeline: Optional[List[TimelineEntry]] = None
     # "Why this score" notes from the brain.
     signals: Optional[List[SignalEntry]] = None
@@ -255,7 +256,11 @@ def _result_fields(result: BrainResult) -> Dict[str, Any]:
         "models": JobModels(**models).model_dump(),
         "model_versions": result.model_versions or None,
         "mock": result.mock,
-        "timeline": [asdict(p) for p in result.timeline] or None,
+        "timeline": [
+            asdict(p) for p in result.timeline
+            if all(math.isfinite(v) for v in (p.start, p.end, p.score))
+            and 0 <= p.start < p.end and 0 <= p.score <= 1
+        ] or None,
         "signals": [asdict(sig) for sig in result.signals] or None,
     }
 
@@ -312,6 +317,9 @@ def _cached_fields(brain: DetectionBrain, cache_key: str, phash: Optional[str] =
 
 def _remember(brain: DetectionBrain, cache_key: str, kind: str, fields: Dict[str, Any], phash: Optional[str]) -> None:
     try:
+        # A misconfigured mock worker must never populate a real brain's cache.
+        if fields.get("mock") != brain.describe().is_mock:
+            return
         store.get_store().put_verdict(cache_key, _brain_id(brain), kind, fields, phash)
     except Exception:
         logger.exception("Verdict cache write failed")

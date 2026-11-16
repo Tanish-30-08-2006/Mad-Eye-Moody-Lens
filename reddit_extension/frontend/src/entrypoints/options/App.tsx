@@ -61,6 +61,7 @@ export const App: React.FC = () => {
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
   const [subredditText, setSubredditText] = useState('');
+  const [reviewText, setReviewText] = useState('');
   const [consent, setConsentState] = useState(false);
   const [status, setStatus] = useState<Status>(null);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -70,6 +71,7 @@ export const App: React.FC = () => {
       setSettings(s);
       setSaved(s);
       setSubredditText(s.autoScanSubreddits.join(', '));
+      setReviewText(s.reviewSubreddits.join(', '));
     });
     void getConsent().then(setConsentState);
   }, []);
@@ -85,8 +87,10 @@ export const App: React.FC = () => {
     : '"Likely authentic" must be lower than "Likely manipulated".';
   const badSubreddits = useMemo(() => invalidSubreddits(subredditText), [subredditText]);
   const subredditError = badSubreddits.length > 0 ? `Not a subreddit name: ${badSubreddits.join(', ')}` : null;
-  const invalid = !!(urlError || thresholdError || subredditError);
-  const dirty = JSON.stringify(settings) !== JSON.stringify(saved) || parseSubreddits(subredditText).join() !== saved.autoScanSubreddits.join();
+  const badReviewSubs = invalidSubreddits(reviewText);
+  const invalid = !!(urlError || thresholdError || subredditError || badReviewSubs.length);
+  const dirty = JSON.stringify(settings) !== JSON.stringify(saved) || parseSubreddits(subredditText).join() !== saved.autoScanSubreddits.join()
+    || parseSubreddits(reviewText).join() !== saved.reviewSubreddits.join();
 
   const onSave = async () => {
     const apiUrl = normalizeApiUrl(settings.apiUrl);
@@ -96,10 +100,11 @@ export const App: React.FC = () => {
       setStatus({ kind: 'error', text: 'Chrome needs permission to reach that backend address.' });
       return;
     }
-    const next = await saveSettings({ ...settings, apiUrl, autoScanSubreddits: parseSubreddits(subredditText) });
+    const next = await saveSettings({ ...settings, apiUrl, autoScanSubreddits: parseSubreddits(subredditText), reviewSubreddits: parseSubreddits(reviewText) });
     setSettings(next);
     setSaved(next);
     setSubredditText(next.autoScanSubreddits.join(', '));
+    setReviewText(next.reviewSubreddits.join(', '));
     setStatus({ kind: 'ok', text: 'Settings saved.' });
   };
 
@@ -223,6 +228,17 @@ export const App: React.FC = () => {
           title="Blur likely manipulated media until clicked"
           hint="Off by default. Click the lens to reveal. Never applied to demo data."
         />
+      </section>
+
+      <section className="card" aria-labelledby="h-review">
+        <header><h2 id="h-review">Community review notes</h2></header>
+        <div className="field">
+          <label htmlFor="review-subs">Participating subreddits</label>
+          <input id="review-subs" type="text" value={reviewText} spellCheck={false} aria-invalid={!!badReviewSubs.length}
+            onChange={(event) => { setReviewText(event.target.value); setStatus(null); }} placeholder="e.g. pics, art" />
+          <small>Show the manual review note action in these communities. Leave blank to hide it.</small>
+          {!!badReviewSubs.length && <span className="field-error">Enter valid subreddit names.</span>}
+        </div>
       </section>
 
       <section className="card" aria-labelledby="h-sens">

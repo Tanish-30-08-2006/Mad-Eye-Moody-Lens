@@ -2,6 +2,8 @@
 
 This directory houses the backend integration endpoints and services for the Moody Lens Reddit extension.
 
+See the [authoritative API contract](../frontend/docs/API-CONTRACT.md) and the [Sprint 2 integration and deployment guide](docs/BRAIN-INTEGRATION.md).
+
 ## Module Layout
 
 - `moody_lens_ext/`:
@@ -57,7 +59,7 @@ pytest reddit_extension/backend/tests -v
 > except ImportError:
 >     log.warning("reddit_extension_router_unavailable")
 > ```
-> The host backend starts normally in Docker containers even without the extension backend present. Incorporating extension routes into containerized deployments requires a Docker build update that must be approved by the repository owner.
+> The host backend starts normally without the extension module. The host team must package the extension router and verify the deployed OpenAPI routes before testing inference through the extension.
 
 ## Detection brain (the model seam)
 
@@ -71,19 +73,6 @@ Endpoints never touch model code: they call `brain.get_brain()`. Pick it with `M
 
 Run without the host: `MML_BRAIN=stub uvicorn moody_lens_ext.standalone:app --port 8000`.
 Verdicts and feedback are stored in `backend/data/extension.sqlite3` (`MML_EXT_DATA_DIR` to move it).
-
-Endpoints added: `POST /detect/batch`, `GET /jobs/{id}/explain` (501 unless the brain can explain),
-`GET /brain/status`, `GET /verdicts/lookup`, `POST /feedback`.
-
-Checklist (see `docs/BRAIN-INTEGRATION.md` for the full table and the plug-in steps):
-
-- [ ] `POST /detect` image: `analyze_image` (stub / host)
-- [ ] `POST /detect` video + audio: `analyze_video` (stub / host)
-- [ ] `POST /detect/batch`: `analyze_image` (stub / host)
-- [ ] `POST /detect-url`: `analyze_video` (501 unless flag; stub / host)
-- [ ] `GET /jobs/{id}/explain`: `explain` (501)
-- [ ] `GET /brain/status`, `GET /health`: `describe` (stub / host)
-- Always working, no brain: `GET /jobs/{id}`, `POST /feedback`, `GET /verdicts/lookup`
 
 Tests: `pytest tests` runs the reusable brain contract suite (`brain/contract_tests.py`) against
 the stub, plus the endpoint tests. The same suite runs against the host brain when `app.*` is importable.

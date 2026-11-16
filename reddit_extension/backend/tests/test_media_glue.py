@@ -172,6 +172,25 @@ def test_silent_video_without_audio_part_still_works(env, clips):
 
 
 @needs_ffmpeg
+def test_same_video_with_different_audio_never_reuses_the_wrong_verdict(env, clips, tmp_path):
+    other = tmp_path / "other.m4a"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=880:duration=1", "-c:a", "aac", str(other)], check=True)
+
+    def key(audio=None):
+        res = post_video(env, clips, audio=audio)
+        assert res.status_code == 202, res.text
+        return env.client.get(f"/api/v1/jobs/{res.json()['job_id']}").json()["cache_key"]
+
+    silent = key()
+    first = key(clips["audio"])
+    second = key(other.read_bytes())
+    assert len({silent, first, second}) == 3
+    assert key(clips["audio"]) == first
+    assert len(env.state["runner_calls"]) == 3
+    assert leaked_workspaces(env) == set()
+
+
+@needs_ffmpeg
 def test_missing_ffmpeg_with_audio_part_is_a_clear_503_and_cleans_up(env, clips, monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _n: None)
     res = post_video(env, clips, audio=clips["audio"])

@@ -7,13 +7,12 @@
 
 import React, { useState } from 'react';
 import type { FeedbackLabel } from '../core/schema';
-import { AlertIcon, CardIcon, CopyIcon, FlagIcon, SearchIcon, ShareIcon, ThumbDownIcon, ThumbUpIcon } from './icons';
+import { AlertIcon, CardIcon, CopyIcon, SearchIcon, ShareIcon, ThumbDownIcon, ThumbUpIcon } from './icons';
 import {
   SEARCH_NOTE,
   copyText,
   createCardBlob,
   downloadBlob,
-  modReportText,
   readPalette,
   redditComment,
   searchLinks,
@@ -84,18 +83,15 @@ export const ActionRow: React.FC<ActionRowProps> = ({ data, sourceUrl, paletteRo
   return (
     <div className="moody-lens-actions-area">
       <div className="moody-lens-action-row" role="group" aria-label="Share and feedback">
-        <IconButton label="Copy summary" onClick={() => void copy(summaryText(data), 'Summary copied.')}>
+        {!data.mock && <IconButton label="Copy summary" onClick={() => void copy(summaryText(data), 'Summary copied.')}>
           <CopyIcon />
-        </IconButton>
-        <IconButton label="Copy as Reddit comment" onClick={() => void copy(redditComment(data), 'Comment copied.')}>
+        </IconButton>}
+        {!data.mock && <IconButton label="Copy as Reddit comment" onClick={() => void copy(redditComment(data), 'Comment copied.')}>
           <ShareIcon />
-        </IconButton>
-        <IconButton label="Download result card" onClick={() => void downloadCard()}>
+        </IconButton>}
+        {!data.mock && <IconButton label="Download result card" onClick={() => void downloadCard()}>
           <CardIcon />
-        </IconButton>
-        <IconButton label="Copy report to mods" onClick={() => void copy(modReportText(data), 'Report text copied.')}>
-          <FlagIcon />
-        </IconButton>
+        </IconButton>}
         {sourceUrl && (
           <IconButton label="Find source" pressed={sourcesOpen} onClick={() => setSourcesOpen((open) => !open)}>
             <SearchIcon />

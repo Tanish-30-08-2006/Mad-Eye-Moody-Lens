@@ -30,7 +30,10 @@ def get_brain(media_type: Optional[str] = None) -> DetectionBrain:
     if mode == "host":
         if not host_pipeline_available():
             raise BrainUnavailable("MML_BRAIN=host but the host pipeline is not importable.")
-        return HostBrain()
+        host = HostBrain()
+        if media_type is not None and not host.healthy(media_type):
+            raise BrainUnavailable("Inference backend unavailable: no active worker for this media type.")
+        return host
     if mode != "auto":
         raise BrainUnavailable(f"Unknown MML_BRAIN value '{mode}'. Use host, stub or auto.")
 
@@ -38,7 +41,7 @@ def get_brain(media_type: Optional[str] = None) -> DetectionBrain:
     host = HostBrain() if host_pipeline_available() else None
     if host is not None and host.healthy(media_type):
         return host
-    if host is None and host_compat.settings.allow_mock:
+    if host_compat.settings.allow_mock:
         return StubBrain()
     raise BrainUnavailable(
         "Inference backend unavailable: no active workers and mock mode is disabled.",

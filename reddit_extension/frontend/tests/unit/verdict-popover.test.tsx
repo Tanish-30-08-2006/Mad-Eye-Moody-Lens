@@ -123,7 +123,7 @@ describe('VerdictPopover – signals, timeline, sharing, feedback', () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     current = await render(<VerdictPopover view={result(rich)} onClose={() => {}} />);
-    for (const label of ['Copy summary', 'Copy as Reddit comment', 'Download result card', 'Copy report to mods', 'Find source']) {
+    for (const label of ['Copy summary', 'Copy as Reddit comment', 'Download result card', 'Find source']) {
       expect(current.container.querySelector(`button[aria-label="${label}"]`), label).not.toBeNull();
     }
     await act(async () => current!.container.querySelector<HTMLButtonElement>('button[aria-label="Copy summary"]')!.click());

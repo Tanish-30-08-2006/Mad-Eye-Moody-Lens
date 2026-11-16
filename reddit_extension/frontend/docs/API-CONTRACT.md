@@ -607,7 +607,7 @@ images already in the verdict cache) skip the brain.
 ### 8.6 GET /api/v1/brain/status
 
 `200 { name, version, capabilities: { image, face, audio, video, explain }, is_mock, healthy }`.
-`is_mock: true` means demo detection; clients must label it MOCK. `503` when no brain is available.
+`is_mock: true` means demo detection; clients must label it MOCK. `503` when no brain is available. In explicitly selected host mode the route can describe the integration with healthy false while workers are still loading.
 
 ### 8.7 GET /api/v1/jobs/{job_id}/explain
 
@@ -616,9 +616,7 @@ images already in the verdict cache) skip the brain.
 
 ### 8.8 GET /api/v1/verdicts/lookup?sha256=…[&phash=…]
 
-Returns the cached verdict for identical bytes in the `DetectionJob` shape (`job_id: "cached-…"`,
-`status: "completed"`), or `404 NOT_FOUND`. The cache is namespaced by brain (`name@version|mock/real`),
-so a demo verdict is never returned by a real brain. `400` for malformed hashes. Needs no brain.
+Returns the cached verdict in the DetectionJob shape (status completed) or 404 on a miss. Exact image lookups use the file digest; video and audio keys include media kind and all separately supplied inputs, so a video-only digest is not a lookup key. Optional perceptual lookup is for candidate comparison. It is never used by the extension as exact evidence. The active brain namespace isolates model revisions and real/demo modes. Malformed hashes get 400; an unavailable active brain yields a cache miss.
 
 ### 8.9 POST /api/v1/feedback
 
@@ -827,12 +825,14 @@ Field-name parity for all of the above is checked by `backend/tests/test_brain_a
 
 3. **Mock Backend** (`reddit_extension/frontend/tests/mock-server/index.mjs`):
    - Satisfies the same JSON contract, allowing end-to-end integration testing even in environments without PyTorch or Celery workers.
-# Cache identity and evidence scope
+## Cache identity and evidence scope
 
 Detection selects the exact server cache using the media inputs and the current brain's name, revision and real/demo namespace. The exact image key remains SHA-256 of the bytes. Video and audio are domain-separated; a video key includes the separately supplied track digest (or a marker for no separate upload). The browser does not short-circuit video analysis using a video-only hash or persist reusable verdicts keyed by URL. The optional perceptual lookup remains distinct from exact detection and cannot establish attachment evidence. Older unsafe cache entries are excluded by the input-key namespace revision.
 
 For a draft the extension sends only the file and media type to the same detection route; it omits the Reddit post ID, URL and title. The browser caps this flow at 12 MiB and pins polling to the backend confirmed for the upload.
 
-For uncached videos, uploads are validated and any necessary ffprobe, mux or Tier-2 download runs before acceptance. Inference then starts after the 202 response is sent. The job starts pending, moves to processing, then completes or fails; phases do not imply a measured percent complete. There are two concurrent video inference slots per API process; if busy, submit returns 503 VIDEO_BUSY with Retry-After. The response background task owns the files and deletes them on success or failure. Jobs live in memory: restart or another API process cannot recover or poll them. Deploy as one process or with sticky routing until jobs are moved into the host's durable worker system; hard termination can leave temp files for the host's normal temp cleanup.
+For uncached videos, uploads are validated and any necessary ffprobe, mux or Tier-2 download runs before acceptance. Inference then starts after the 202 response is sent. The job starts pending, moves to processing, then completes or fails; phases do not imply a measured percent complete. There are two concurrent video inference slots per API process; if busy, submit returns 503 VIDEO_BUSY with Retry-After. The response background task owns the files and deletes them on success or failure. Extension job IDs live in memory: restart or another API process cannot recover or poll them, even when the host uses a durable underlying worker job. Use a single process or sticky routing; hard termination can leave temp files for the host's normal temp cleanup.
+
+An absent model field means that check did not run. A video's audio score is separate from the face/frame or image check. Localizations are detector time bounds in seconds with start less than end and a score between 0 and 1. The host adapter forwards video frame ranges and standalone audio windows; the shared video pipeline currently supplies an aggregate audio score only. An aggregate-only job has no timeline. Gallery response indices refer to submitted parts; the browser maps successful downloads back to the observed gallery order before displaying evidence. Navigation to an exact Reddit slide or time is not guaranteed and is not asserted in the note.
 
 Health reports API liveness; detailed health only lists checks reported available. Brain status is the inference integration/health probe. An unconnected brain is a 503, never a successful demo unless the deployment explicitly opted into one.

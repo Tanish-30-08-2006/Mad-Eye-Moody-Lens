@@ -110,12 +110,15 @@ export function createController(deps: ControllerDeps): Controller {
 
   const decorate = (post: HTMLElement, st: PostState, view: PopoverView): PopoverView => {
     const media = adapter.extractMedia(post);
+    const subreddit = st.source?.current.subreddit?.toLowerCase();
     return {
       ...view,
       source: st.source,
       imageUrl: media?.kind === 'image' ? media.urls[0] : undefined,
       postKey: st.mountedId,
       openShare: st.openShare,
+      reviewSubreddit: subreddit && deps.getSettings().reviewSubreddits.includes(subreddit) ? subreddit : undefined,
+      postType: media?.kind === 'video' || media?.kind === 'gif' ? 'video' : media ? 'image' : 'unknown',
     };
   };
 
@@ -245,6 +248,12 @@ export function createController(deps: ControllerDeps): Controller {
     return {
       canCopyEvidence: () => !!st && isCurrent(post, st) &&
         (!st.mediaKey || st.view?.kind !== 'result' || st.mediaKey === scopeKey(adapter.extractMedia(post))),
+      loadReviewPolicy: async () => {
+        const subreddit = st?.source?.current.subreddit?.toLowerCase();
+        if (!st || !subreddit || !isCurrent(post, st)) return null;
+        const response = await send({ type: 'GET_COMMUNITY_POLICY', payload: { subreddit } });
+        return isCurrent(post, st) && response.type === 'COMMUNITY_POLICY' ? response.policy : null;
+      },
       onRetry: () => void scan(post, 'manual'),
       onAcceptConsent: () => {
         void send({ type: 'SET_CONSENT', payload: { accepted: true } })

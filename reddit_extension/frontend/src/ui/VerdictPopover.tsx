@@ -17,6 +17,8 @@ import type { PostDetails, PostSource } from '../core/reddit-context';
 import { contextText, searchLinks, SEARCH_NOTE } from './share';
 import { CopyPreview } from './CopyPreview';
 import { authorTitleDisclosure } from '../adapters/reddit/disclosure';
+import { ReviewNote } from './ReviewNote';
+import type { CommunityPolicy, PostType } from '../core/community-policy';
 
 export type PopoverView = (
   | { kind: 'ready' }
@@ -24,7 +26,7 @@ export type PopoverView = (
   | { kind: 'result'; job: DetectionJob; meta?: ScanMeta; thresholds?: Thresholds; context?: ResultContext }
   | { kind: 'local'; hints: ProvenanceHint[] }
   | { kind: 'error'; message: string; code?: string }
-) & { source?: PostSource; imageUrl?: string; postKey?: string; openShare?: boolean };
+) & { source?: PostSource; imageUrl?: string; postKey?: string; openShare?: boolean; reviewSubreddit?: string; postType?: PostType };
 
 export interface VerdictPopoverProps {
   view: PopoverView;
@@ -32,6 +34,7 @@ export interface VerdictPopoverProps {
   onRetry?: () => void;
   onAcceptConsent?: () => void;
   canCopyEvidence?: () => boolean;
+  loadReviewPolicy?: () => Promise<CommunityPolicy | null>;
   onFeedback?: (f: { cacheKey: string; verdict: Verdict; label: FeedbackLabel }) => Promise<boolean>;
   /** Viewport position (px) of the popover's top-left corner. */
   position?: { top: number; left: number };
@@ -41,7 +44,7 @@ export interface VerdictPopoverProps {
 
 const FOCUSABLE = 'button:not([disabled]), textarea, a[href], summary, [tabindex]:not([tabindex="-1"])';
 
-export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, onRetry, onAcceptConsent, canCopyEvidence, onFeedback, position, closing }) => {
+export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, onRetry, onAcceptConsent, canCopyEvidence, loadReviewPolicy, onFeedback, position, closing }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   // Move focus into the dialog when it opens so keyboard users land inside it.
@@ -105,6 +108,16 @@ export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, o
               canCopy={canCopyEvidence}
             />
           </details>
+        )}
+        {view.source?.current.permalink && view.reviewSubreddit && (
+          <ReviewNote
+            source={view.source}
+            subreddit={view.reviewSubreddit}
+            postType={view.postType ?? 'unknown'}
+            scan={view.kind === 'result' ? { state: 'result', job: view.job, meta: view.meta, thresholds: view.thresholds } : { state: view.kind }}
+            loadPolicy={loadReviewPolicy}
+            canCopy={canCopyEvidence}
+          />
         )}
         {view.kind === 'ready' && onRetry && (
           <button type="button" className="moody-lens-btn-primary" onClick={onRetry}>Scan media</button>
