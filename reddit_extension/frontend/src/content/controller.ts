@@ -15,6 +15,7 @@ import type { LensButtonHandle } from '../ui/lens-button';
 import type { PopoverApi, PopoverHandlers } from '../ui/popover-host';
 import type { PopoverView } from '../ui/VerdictPopover';
 import type { ResultContext } from '../ui/ResultView';
+import { redditPost, type PostSource } from '../core/reddit-context';
 
 const log = createLogger('controller');
 
@@ -55,7 +56,13 @@ interface PostState {
   scanning: boolean;
   /** Elements blurred for this post, so a lens click can reveal them. */
   blurred: HTMLElement[];
+  source?: PostSource;
+  sourceKey?: string;
+  mediaKey?: string;
+  mountedId: string;
 }
+
+const scopeKey = (media: MediaRef | null) => JSON.stringify([media?.kind, media?.urls, media?.audioUrl]);
 
 /** Maps an extracted ref to the message payload the service worker validates. */
 function toPayload(media: MediaRef, origin: ScanOrigin) {
@@ -94,6 +101,43 @@ export function createController(deps: ControllerDeps): Controller {
     states.get(post)?.lens.button.setState(state);
   };
 
+  const isCurrent = (post: HTMLElement, st: PostState) =>
+    states.get(post) === st && adapter.getMountPoint(post)?.postId === st.mountedId;
+
+  const decorate = (post: HTMLElement, st: PostState, view: PopoverView): PopoverView => {
+    const media = adapter.extractMedia(post);
+    return {
+      ...view,
+      source: st.source,
+      imageUrl: media?.kind === 'image' ? media.urls[0] : undefined,
+      postKey: st.mountedId,
+    };
+  };
+
+  const loadSource = (post: HTMLElement, st: PostState, media: MediaRef | null) => {
+    const identity = adapter.identify(post);
+    const link = identity && redditPost(identity.permalink);
+    if (!link) return;
+    const imageUrl = media?.kind === 'image' ? media.urls[0] : undefined;
+    const key = JSON.stringify([link.permalink, imageUrl, identity.explicit]);
+    if (st.sourceKey === key) return;
+    st.sourceKey = key;
+    const current = { ...link, title: identity.title, flair: identity.flair };
+    st.source = { current, originals: identity.explicit ? [{ unavailable: true }] : [] };
+    void send({ type: 'GET_POST_SOURCE', payload: { permalink: link.permalink, explicit: !!identity.explicit, imageUrl } })
+      .then((response) => {
+        if (!isCurrent(post, st) || st.sourceKey !== key || scopeKey(adapter.extractMedia(post)) !== scopeKey(media)) return;
+        if (response.type !== 'POST_SOURCE' || !response.source) return;
+        const source = response.source;
+        st.source = {
+          ...source,
+          current: { ...current, ...source.current, title: source.current.title ?? current.title, flair: source.current.flair ?? current.flair },
+        };
+        if (activePost === post && st.view && popover.isOpen()) popover.update(decorate(post, st, st.view));
+      })
+      .catch(() => { /* Keep the local context if Reddit is unavailable. */ });
+  };
+
   const contextFor = (media: MediaRef | null, post: HTMLElement): ResultContext => ({
     permalink: media ? new URL(media.permalink, location.origin).toString() : adapter.identify(post)?.permalink,
     mediaKind: media && media.kind !== 'audio' ? media.kind : undefined,
@@ -121,7 +165,7 @@ export function createController(deps: ControllerDeps): Controller {
     } else {
       setLens(post, quiet ? { kind: 'idle', localOnly: deps.getSettings().localOnly } : { kind: 'error' });
     }
-    if (!quiet && activePost === post) popover.update(view);
+    if (activePost === post && popover.isOpen()) popover.update(decorate(post, st, view));
   };
 
   const toView = (response: ExtensionResponse, media: MediaRef | null, post: HTMLElement): PopoverView => {
@@ -136,10 +180,12 @@ export function createController(deps: ControllerDeps): Controller {
 
   const scan = async (post: HTMLElement, origin: ScanOrigin): Promise<void> => {
     const st = states.get(post);
-    if (!st || st.scanning) return;
+    if (!st || !isCurrent(post, st) || st.scanning) return;
     const quiet = origin === 'auto' || origin === 'visible';
 
     const media = adapter.extractMedia(post);
+    const key = scopeKey(media);
+    st.mediaKey = key;
     if (isDebugLogging()) log.debug('Lens clicked; post debug info:', adapter.describe(post));
 
     // The page gave us no media for a media post: let the service worker look it up from the post JSON.
@@ -150,7 +196,7 @@ export function createController(deps: ControllerDeps): Controller {
         const view: PopoverView = { kind: 'error', message: "Couldn't find scannable media in this post.", code: 'NO_MEDIA' };
         st.view = view;
         setLens(post, { kind: 'error' });
-        popover.show(view, st.lens.button.element, handlersFor(post));
+        popover.show(decorate(post, st, view), st.lens.button.element, handlersFor(post));
       }
       return;
     }
@@ -160,7 +206,7 @@ export function createController(deps: ControllerDeps): Controller {
     setLens(post, { kind: 'scanning' });
     if (!quiet) {
       activePost = post;
-      popover.show(st.view, st.lens.button.element, handlersFor(post));
+      popover.show(decorate(post, st, st.view), st.lens.button.element, handlersFor(post));
     }
 
     const payload = media
@@ -180,6 +226,11 @@ export function createController(deps: ControllerDeps): Controller {
     } catch (err) {
       log.debug('SCAN_MEDIA send failed:', err);
       view = { kind: 'error', message: 'The extension could not be reached. Reload the page and try again.', code: 'SCAN_FAILED' };
+    }
+    if (!isCurrent(post, st)) return;
+    if (scopeKey(adapter.extractMedia(post)) !== key) {
+      finish(post, { kind: 'error', message: 'This post’s media changed. Scan again for a current result.' }, quiet, null);
+      return;
     }
     finish(post, view, quiet, media);
   };
@@ -207,7 +258,11 @@ export function createController(deps: ControllerDeps): Controller {
 
   const onActivate = (post: HTMLElement) => {
     const st = states.get(post);
-    if (!st) return;
+    if (!st || !isCurrent(post, st)) return;
+    const media = adapter.extractMedia(post);
+    loadSource(post, st, media);
+    if (!st.scanning && st.mediaKey !== undefined && st.mediaKey !== scopeKey(media)) st.view = null;
+    if (!st.view && adapter.identify(post)?.explicit) st.view = { kind: 'ready' };
     // Clicking the lens reveals a blurred picture again.
     if (st.blurred.length > 0) {
       removeBlur(st.blurred);
@@ -216,7 +271,7 @@ export function createController(deps: ControllerDeps): Controller {
     // Re-open any finished or in-flight view (result or error details) instead of scanning again.
     if (st.view) {
       activePost = post;
-      popover.show(st.view, st.lens.button.element, handlersFor(post));
+      popover.show(decorate(post, st, st.view), st.lens.button.element, handlersFor(post));
       return;
     }
     void scan(post, 'manual');
@@ -270,7 +325,7 @@ export function createController(deps: ControllerDeps): Controller {
           return;
         }
         mounted = lens;
-        states.set(post, { lens, view: null, scanning: false, blurred: [] });
+        states.set(post, { lens, view: null, scanning: false, blurred: [], mountedId: mount.postId });
         const settings = deps.getSettings();
         if (settings.localOnly) lens.button.setState({ kind: 'idle', localOnly: true });
 

@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '../../core/logger';
-import { OBSERVED_SELECTOR, PROCESSED_MARKER } from './selectors';
+import { ATTR_COMMENT_ID, ATTR_PERMALINK, ATTR_POST_ID, OBSERVED_SELECTOR, PROCESSED_MARKER } from './selectors';
 
 const log = createLogger('reddit-observer');
 
@@ -51,6 +51,8 @@ export function createPostObserver(options: PostObserverOptions): PostObserver {
   let tracked = new WeakSet<HTMLElement>();
   let handled = new WeakSet<HTMLElement>();
   const disposers = new Map<HTMLElement, () => void>();
+  const identity = (post: HTMLElement) => [post.id, post.getAttribute(ATTR_COMMENT_ID), post.getAttribute(ATTR_PERMALINK)].join('|');
+  let identities = new WeakMap<HTMLElement, string>();
   let processed = 0;
 
   // Start watching a post for visibility unless we already know it.
@@ -63,6 +65,7 @@ export function createPostObserver(options: PostObserverOptions): PostObserver {
   const handle = (post: HTMLElement) => {
     if (handled.has(post)) return;
     handled.add(post);
+    identities.set(post, identity(post));
     post.setAttribute(PROCESSED_MARKER, '1');
     processed++;
     try {
@@ -76,7 +79,7 @@ export function createPostObserver(options: PostObserverOptions): PostObserver {
   // Dispose UI for posts Reddit removed from the DOM (virtualised feeds recycle nodes).
   const pruneDisconnected = () => {
     for (const [post, dispose] of disposers) {
-      if (post.isConnected) continue;
+      if (post.isConnected && identity(post) === identities.get(post)) continue;
       disposers.delete(post);
       // Forget the node so it is processed afresh if Reddit re-inserts it.
       tracked.delete(post);
@@ -94,10 +97,10 @@ export function createPostObserver(options: PostObserverOptions): PostObserver {
     timer = null;
     const batch = pending;
     pending = new Set();
+    pruneDisconnected();
     batch.forEach((post) => {
       if (post.isConnected) track(post);
     });
-    pruneDisconnected();
   };
 
   const schedule = () => {
@@ -124,13 +127,21 @@ export function createPostObserver(options: PostObserverOptions): PostObserver {
       );
 
       mutations = new MutationObserver((records) => {
-        // Only added nodes matter; removals are cleaned up lazily in flush().
+        let removed = false;
         for (const record of records) {
-          record.addedNodes.forEach((node) => postsIn(node, pending));
+          if (record.type === 'attributes') {
+            const post = record.target as HTMLElement;
+            if (post.matches(OBSERVED_SELECTOR)) pending.add(post);
+          } else {
+            record.addedNodes.forEach((node) => postsIn(node, pending));
+            removed ||= record.removedNodes.length > 0;
+          }
         }
-        if (pending.size > 0) schedule();
+        if (removed || pending.size > 0) schedule();
       });
-      mutations.observe(root.documentElement ?? root, { childList: true, subtree: true });
+      mutations.observe(root.documentElement ?? root, {
+        childList: true, subtree: true, attributes: true, attributeFilter: [ATTR_POST_ID, ATTR_PERMALINK, ATTR_COMMENT_ID],
+      });
 
       // Initial scan runs immediately so already-rendered posts do not wait for the debounce.
       const initial = new Set<HTMLElement>();
@@ -160,6 +171,7 @@ export function createPostObserver(options: PostObserverOptions): PostObserver {
       root.querySelectorAll(`[${PROCESSED_MARKER}]`).forEach((el) => el.removeAttribute(PROCESSED_MARKER));
       tracked = new WeakSet();
       handled = new WeakSet();
+      identities = new WeakMap();
     },
 
     processedCount: () => processed,

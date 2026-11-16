@@ -21,7 +21,7 @@ import {
   BLUR_TARGET_SELECTOR,
 } from './selectors';
 import { commentImageAnchor, extractComment, hasCommentImages } from './extract-comment';
-import { readDisclosure } from './disclosure';
+import { readDisclosure, readFlair } from './disclosure';
 import { readPostBase } from './extract-common';
 import { extractImage } from './extract-image';
 import { extractGallery } from './extract-gallery';
@@ -103,7 +103,7 @@ export const redditAdapter: SiteAdapter = {
   identify(post: HTMLElement) {
     if (post.matches(COMMENT_SELECTOR)) return null; // Comments have no post JSON to resolve.
     const base = readPostBase(post);
-    return base ? { postId: base.postId, permalink: base.permalink } : null;
+    return base ? { ...base, flair: readFlair(post), explicit: post.getAttribute(ATTR_POST_TYPE) === CROSSPOST_TYPE } : null;
   },
 
   mediaElements(post: HTMLElement): HTMLElement[] {

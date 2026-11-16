@@ -66,6 +66,7 @@ export function createPopoverHost(container: HTMLElement, options: PopoverHostOp
     });
     root.render(
       <VerdictPopover
+        key={view.postKey}
         view={view}
         position={position}
         onClose={hide}

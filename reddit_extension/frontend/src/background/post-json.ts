@@ -7,6 +7,7 @@
 
 import { createLogger } from '../core/logger';
 import { isAllowedMediaUrl } from '../core/media-url';
+import { redditPost, type PostDetails } from '../core/reddit-context';
 
 const log = createLogger('post-json');
 
@@ -85,15 +86,56 @@ function fromPost(post: Json, depth: number): ResolvedMedia | null {
 }
 
 /** Extracts media from a parsed `.json` response; null when nothing allowlisted is found. */
+function listingPost(json: unknown): Json | null {
+  const listing = Array.isArray(json) ? json[0] : json;
+  const child = isObject(listing) && isObject(listing.data) && Array.isArray(listing.data.children) ? listing.data.children[0] : null;
+  return isObject(child) && isObject(child.data) ? child.data : null;
+}
+
 export function parsePostJson(json: unknown): ResolvedMedia | null {
-  try {
-    const listing = Array.isArray(json) ? json[0] : json;
-    const children = isObject(listing) && isObject(listing.data) && Array.isArray(listing.data.children) ? listing.data.children : [];
-    const post = isObject(children[0]) && isObject(children[0].data) ? children[0].data : null;
-    return post ? fromPost(post, 0) : null;
-  } catch {
-    return null;
+  const post = listingPost(json);
+  return post ? fromPost(post, 0) : null;
+}
+
+export function readPostDetails(post: Json): PostDetails {
+  const link = redditPost(str(post.permalink) ?? '');
+  const timestamp = typeof post.created_utc === 'number' ? new Date(post.created_utc * 1000) : null;
+  return {
+    permalink: link?.permalink,
+    subreddit: link?.subreddit ?? str(post.subreddit)?.slice(0, 40),
+    title: str(post.title)?.slice(0, 500),
+    flair: str(post.link_flair_text)?.slice(0, 300),
+    date: timestamp && Number.isFinite(timestamp.getTime()) ? timestamp.toISOString() : undefined,
+    unavailable: !!post.removed_by_category || post.selftext === '[deleted]' || post.selftext === '[removed]',
+  };
+}
+
+/** Explicit parent fields only. A link in selftext or in the post's URL is not a parent. */
+export function readOriginals(post: Json, id: string): PostDetails[] {
+  const originals: PostDetails[] = [];
+  const seen = new Set([id]);
+  for (let depth = 0; depth < 4; depth++) {
+    const parent = Array.isArray(post.crosspost_parent_list) ? post.crosspost_parent_list[0] : null;
+    const details = isObject(parent) ? readPostDetails(parent) : {};
+    const link = redditPost(details.permalink ?? '');
+    const explicitId = /^t3_([a-z0-9]+)$/i.exec(str(post.crosspost_parent) ?? '')?.[1]?.toLowerCase();
+    const embeddedId = isObject(parent) && /^[a-z0-9]+$/i.test(str(parent.id) ?? '') ? str(parent.id)?.toLowerCase() : undefined;
+    if (explicitId && ((link && link.id !== explicitId) || (embeddedId && embeddedId !== explicitId))) {
+      originals.push({ unavailable: true });
+      break;
+    }
+    const parentId = explicitId ?? link?.id ?? embeddedId;
+    if (!parentId || seen.has(parentId)) break;
+    seen.add(parentId);
+    originals.push({
+      ...details,
+      permalink: details.permalink ?? redditPost('/comments/' + parentId)?.permalink,
+      unavailable: details.unavailable || !details.title,
+    });
+    if (!isObject(parent)) break;
+    post = parent;
   }
+  return originals;
 }
 
 /** The `.json` URL for a post permalink, or null when it is not a Reddit https link. */
@@ -107,21 +149,27 @@ export function postJsonUrl(permalink: string): string | null {
   }
 }
 
-export async function resolveFromPostJson(permalink: string): Promise<ResolvedMedia | null> {
+export async function fetchPostListing(permalink: string): Promise<Json | null> {
   const url = postJsonUrl(permalink);
   if (!url) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { credentials: 'include', signal: controller.signal });
+    const res = await fetch(url, { credentials: 'include', signal: controller.signal, redirect: 'error' });
     if (!res.ok) return null;
+    if (Number(res.headers.get('content-length')) > MAX_JSON_BYTES) return null;
     const text = await res.text();
     if (text.length > MAX_JSON_BYTES) return null;
-    return parsePostJson(JSON.parse(text));
+    return listingPost(JSON.parse(text));
   } catch (err) {
     log.debug('Post JSON fallback failed:', err instanceof Error ? err.name : '');
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function resolveFromPostJson(permalink: string): Promise<ResolvedMedia | null> {
+  const post = await fetchPostListing(permalink);
+  return post ? fromPost(post, 0) : null;
 }

@@ -27,6 +27,7 @@ import { toFriendlyError } from '../background/errors';
 import { loadSettings } from '../core/settings';
 import { restoreInFlightJobs } from '../background/keepalive';
 import { pollJobUntilComplete } from '../background/job-poller';
+import { getPostSource, IMAGE_OBSERVATIONS_KEY } from '../background/post-source';
 
 const log = createLogger('background');
 
@@ -127,6 +128,14 @@ export default defineBackground(() => {
           return true;
         }
 
+        case 'GET_POST_SOURCE': {
+          const { permalink, explicit, imageUrl } = message.payload;
+          getPostSource(permalink, explicit, imageUrl)
+            .then((source) => sendResponse({ type: 'POST_SOURCE', source }))
+            .catch(() => sendResponse({ type: 'POST_SOURCE', source: null }));
+          return true;
+        }
+
         case 'CANCEL_JOB': {
           // In v1, cancel acknowledges job cancellation state
           sendResponse({
@@ -178,7 +187,7 @@ export default defineBackground(() => {
         }
 
         case 'CLEAR_CACHE': {
-          clearCache()
+          Promise.all([clearCache(), chrome.storage.local.remove(IMAGE_OBSERVATIONS_KEY)])
             .then(() => sendResponse({ type: 'OK' }))
             .catch((err) => sendResponse({ type: 'ERROR', error: toFriendlyError(err).message }));
           return true;

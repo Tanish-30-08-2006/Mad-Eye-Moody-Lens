@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from '../../core/logger';
+import { sha256 } from '../fingerprint';
 import { fetchMediaBlob, fetchText, MediaFetchError, type FetchedMedia } from '../media-fetcher';
 import { lookupVerdict, submitBatch, submitDetection, submitDetectUrl } from '../../core/api-client';
 import { pollJobUntilComplete } from '../job-poller';
@@ -38,11 +39,6 @@ interface ScanOutcome {
 
 function errorResponse(code: string, message: string): ExtensionResponse {
   return { type: 'ERROR', error: message, code };
-}
-
-async function sha256Hex(blob: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** Tries each progressive MP4 in turn; moves on when one is over the size cap or unavailable. */
@@ -114,7 +110,7 @@ async function scanImages(payload: ScanPayload, meta: ScanMeta): Promise<Detecti
   const media = await fetchMediaBlob(payload.mediaUrls[0]!);
   meta.hints = await hintsFromBlob(media.blob);
   // Reposts are common: a known hash is answered from the backend's cache without uploading.
-  const known = await lookupVerdict(await sha256Hex(media.blob));
+  const known = await lookupVerdict(await sha256(media.blob));
   if (known) {
     meta.fromHashCache = true;
     return known;
@@ -145,7 +141,7 @@ async function scanVideo(payload: ScanPayload, mpdUrl: string | undefined, fallb
   }
 
   meta.hints = await hintsFromBlob(video.blob);
-  const known = await lookupVerdict(await sha256Hex(video.blob));
+  const known = await lookupVerdict(await sha256(video.blob));
   if (known) {
     meta.fromHashCache = true;
     return known;

@@ -12,6 +12,7 @@ import { FeedbackLabelEnum } from './schema';
 import type { ProvenanceHint, ScanMeta } from './scan-meta';
 import type { ExtensionSettings } from './settings';
 import { isAllowedMediaUrl } from './media-url';
+import { redditPost, type PostSource } from './reddit-context';
 
 // ── Zod Schemas for Message Payloads ─────────────────────────────────────────
 
@@ -105,6 +106,14 @@ export const ExtensionMessageSchema = z.discriminatedUnion('type', [
   ClearCacheRequestSchema,
   GetBrainStatusRequestSchema,
   SendFeedbackRequestSchema,
+  z.object({
+    type: z.literal('GET_POST_SOURCE'),
+    payload: z.object({
+      permalink: z.string().max(1000).refine((url) => !!redditPost(url)),
+      explicit: z.boolean(),
+      imageUrl: MediaUrlSchema.optional(),
+    }),
+  }),
 ]);
 
 export type ExtensionMessage = z.infer<typeof ExtensionMessageSchema>;
@@ -175,6 +184,7 @@ export interface ErrorResponse {
 }
 
 export type ExtensionResponse =
+  | { type: 'POST_SOURCE'; source: PostSource | null }
   | PingResponse
   | ScanMediaResponse
   | JobStatusResponse

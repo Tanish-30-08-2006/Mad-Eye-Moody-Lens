@@ -48,6 +48,14 @@ reddit_extension/
 
 ## Getting Started
 
+### Reddit verification workflows
+
+**Original post.** Open the Lens on an explicit repost. The post's own title and flair stay separate from the linked original and any known intermediate repost. A title change is called out. An inaccessible or partial original can still have a usable link. The browser worker reads the existing Reddit post listing and follows its structured parent data, capped at four links; a link pasted into a post is not parent evidence. Metadata is cached in memory for five minutes (up to 96 posts). Reddit can withhold listings or parent fields, especially when signed out or when a community is private. Flair is displayed as observed post flair because it does not identify who applied it.
+
+**Possible earlier match.** Open the Lens on an image in one Reddit post, then on the same bytes in another post. The worker checks SHA-256 in the browser, independent of the model and verdict cache. It records only the canonical post link, fingerprint and first observation time in extension-local storage (up to 300 observations, expiring on access after 30 days; Clear Cache removes them). It chooses the earliest strictly prior observation, excludes the current post, and never transfers flair. Resized, cropped or recompressed screenshots may need the existing **Find source** links: this workflow is exact image matching only, including when optional server perceptual hashing is absent. It does not establish authorship or the first upload, and never claims image matching for audio or video.
+
+Source design: Reddit's [reposting help](https://support.reddithelp.com/hc/en-us/articles/4835584113684-What-is-reposting-fka-crossposting) describes the original preview, [private community help](https://support.reddithelp.com/hc/en-us/articles/360060416112-What-are-public-restricted-private-and-premium-only-communities) describes visibility limits, and [post flair help](https://support.reddithelp.com/hc/en-us/articles/15484545678996-Post-Flair) describes community control of flair. The Reddit adapter owns observed attributes; its observer disposes recycled cards, the content controller rejects stale work, and the worker owns read-only retrieval and matching. See the [API contract](frontend/docs/API-CONTRACT.md) for the model boundary.
+
 ### 1. Frontend Extension (`reddit_extension/frontend`)
 
 ```bash

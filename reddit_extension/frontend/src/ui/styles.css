@@ -781,3 +781,10 @@
     transition: none !important;
   }
 }
+.moody-lens-provenance {
+  overflow-wrap: anywhere;
+}
+
+.moody-lens-provenance p {
+  margin: 0 0 0.35rem;
+}

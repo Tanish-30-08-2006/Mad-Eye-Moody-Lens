@@ -98,6 +98,37 @@ afterEach(async () => {
 });
 
 describe('content controller', () => {
+  it('shows the original before scanning and discards the old response when a card is recycled', async () => {
+    const post = makePost({ id: 't3_first', type: 'crosspost' });
+    post.setAttribute('permalink', '/r/test/comments/first/title/');
+    let resolve!: (r: ExtensionResponse) => void;
+    respond = () => new Promise((done) => { resolve = done; });
+    await boot([post]);
+    await act(async () => lensOf(post)!.click());
+    expect(sent.map((m) => m.type)).toEqual(['GET_POST_SOURCE']);
+    expect(popoverContainer.textContent).toContain('Original post details unavailable');
+    const source: ExtensionResponse = {
+      type: 'POST_SOURCE',
+      source: { current: { title: 'New title' }, originals: [{ title: 'Old title', flair: 'AI Art', permalink: 'https://www.reddit.com/r/art/comments/original/' }] },
+    };
+    await act(async () => resolve(source));
+    expect(popoverContainer.textContent).toContain('Title changed');
+    expect(popoverContainer.textContent).toContain('Original post flair: AI Art');
+
+    post.id = 't3_second';
+    post.setAttribute('permalink', '/r/test/comments/second/title/');
+    await flush();
+    FakeIntersectionObserver.latest.show(post);
+    await flush();
+    await act(async () => lensOf(post)!.click());
+    post.id = 't3_third';
+    post.setAttribute('permalink', '/r/test/comments/third/title/');
+    await act(async () => resolve(source));
+    expect(popoverContainer.textContent).not.toContain('Old title');
+    await flush();
+    expect(popover.isOpen()).toBe(false);
+  });
+
   it('adds a lens to media posts only, never to text or link posts, and never twice', async () => {
     const image = makePost({ id: 't3_img', type: 'image', contentHref: 'https://i.redd.it/a.jpg' });
     const gallery = makePost({ id: 't3_gal', type: 'gallery', inner: '<img src="https://preview.redd.it/1.jpg">' });

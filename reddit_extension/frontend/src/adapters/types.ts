@@ -58,7 +58,7 @@ export interface SiteAdapter {
   extractMedia(post: HTMLElement): MediaRef | null;
 
   /** Post id and permalink of an element, even when its media could not be extracted (media-resolve fallback). */
-  identify(post: HTMLElement): { postId: string; permalink: string } | null;
+  identify(post: HTMLElement): { postId: string; permalink: string; title?: string; flair?: string; explicit?: boolean } | null;
 
   /** The media elements of a post, for the optional "blur until clicked" feature. */
   mediaElements(post: HTMLElement): HTMLElement[];

@@ -13,12 +13,16 @@ import { Hints } from './Signals';
 import { ResultView, type ResultContext } from './ResultView';
 import { Spinner } from './Spinner';
 import { AlertIcon, CloseIcon, InfoIcon, LensIcon } from './icons';
+import type { PostDetails, PostSource } from '../core/reddit-context';
+import { searchLinks, SEARCH_NOTE } from './share';
 
-export type PopoverView =
+export type PopoverView = (
+  | { kind: 'ready' }
   | { kind: 'loading' }
   | { kind: 'result'; job: DetectionJob; meta?: ScanMeta; thresholds?: Thresholds; context?: ResultContext }
   | { kind: 'local'; hints: ProvenanceHint[] }
-  | { kind: 'error'; message: string; code?: string };
+  | { kind: 'error'; message: string; code?: string }
+) & { source?: PostSource; imageUrl?: string; postKey?: string };
 
 export interface VerdictPopoverProps {
   view: PopoverView;
@@ -86,6 +90,19 @@ export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, o
       </div>
 
       <div className="moody-lens-popover-content">
+        {view.source && <Provenance source={view.source} />}
+        {view.kind === 'ready' && onRetry && (
+          <button type="button" className="moody-lens-btn-primary" onClick={onRetry}>Scan media</button>
+        )}
+        {view.kind !== 'result' && view.imageUrl && (
+          <details className="moody-lens-card">
+            <summary>Find source</summary>
+            <p className="moody-lens-note">{SEARCH_NOTE}</p>
+            {searchLinks(view.imageUrl).map((link) => (
+              <p key={link.id}><a href={link.href} target="_blank" rel="noopener noreferrer">{link.label}</a></p>
+            ))}
+          </details>
+        )}
         {view.kind === 'loading' && <Spinner label="Analyzing media..." />}
 
         {view.kind === 'error' && view.code === 'CONSENT_REQUIRED' && (
@@ -150,3 +167,35 @@ export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, o
     </div>
   );
 };
+
+function OriginalLink({ post, children }: { post: PostDetails; children: React.ReactNode }) {
+  return post.permalink ? <a href={post.permalink} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>;
+}
+
+function Provenance({ source }: { source: PostSource }) {
+  const original = source.originals.at(-1);
+  const changed = original?.title && source.current.title && original.title !== source.current.title;
+  if (!original && !source.possible && !source.current.flair) return null;
+  return (
+    <section className="moody-lens-card moody-lens-provenance" aria-label="Post context">
+      {source.current.flair && <p>Current post flair: {source.current.flair}</p>}
+      {original && <>
+        <p className="moody-lens-card-title"><OriginalLink post={original}>Original post</OriginalLink></p>
+        {changed && <p><strong>Title changed</strong></p>}
+        {source.current.title && <p><strong>Current title:</strong> {source.current.title}</p>}
+        {original.title && <p><strong>Original title:</strong> {original.title}</p>}
+        {(original.subreddit || original.date) && <p>{[original.subreddit && 'r/' + original.subreddit, original.date?.slice(0, 10)].filter(Boolean).join(' · ')}</p>}
+        {original.flair && <p>Original post flair: {original.flair}</p>}
+        {original.unavailable && <p className="moody-lens-note">Original post details unavailable.</p>}
+        {source.originals.slice(0, -1).map((post, index) => (
+          <p key={index}><OriginalLink post={post}>Intermediate repost{post.title ? ': ' + post.title : ''}</OriginalLink>
+            {post.flair && <> · Post flair: {post.flair}</>}</p>
+        ))}
+      </>}
+      {source.possible && <>
+        <p className="moody-lens-card-title"><OriginalLink post={source.possible}>Possible earlier match</OriginalLink></p>
+        <p className="moody-lens-note">Exact image bytes observed earlier on this device. This does not establish authorship or when the image first appeared.</p>
+      </>}
+    </section>
+  );
+}

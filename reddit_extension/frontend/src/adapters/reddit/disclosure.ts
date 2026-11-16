@@ -4,7 +4,7 @@
  * Titles and flair are read locally to set a boolean; the text itself is never stored or logged.
  */
 
-import { ATTR_POST_TITLE, FLAIR_SELECTOR } from './selectors';
+import { ATTR_POST_TITLE, FLAIR_SELECTOR, POST_SELECTOR } from './selectors';
 
 // Tags like "[AI]", "(AI)", "[AI art]", "AI generated", "#aiart" in a title.
 const TITLE_PATTERN = /\[\s*(?:ai|a\.i\.)(?:[\s-]*(?:generated|art|image|video|made|assisted))?\s*\]|\(\s*ai\s*\)|\bai[\s-]*generated\b|#ai(?:art|generated)?\b/i;
@@ -16,12 +16,12 @@ export function isDisclosedAi(title: string | null | undefined, flair: string | 
 }
 
 /** Reads the title attribute and flair element of a post. */
+export function readFlair(post: Element): string | undefined {
+  return Array.from(post.querySelectorAll(FLAIR_SELECTOR))
+    .find((flair) => flair.closest(POST_SELECTOR) === post)?.textContent?.trim().slice(0, 300) || undefined;
+}
+
 export function readDisclosure(post: Element): boolean {
-  let flair: string | null = null;
-  try {
-    flair = post.querySelector(FLAIR_SELECTOR)?.textContent ?? null;
-  } catch {
-    flair = null;
-  }
-  return isDisclosedAi(post.getAttribute(ATTR_POST_TITLE), flair);
+  // Flair can belong to a moderator or automation. Never represent it as the author's statement.
+  return isDisclosedAi(post.getAttribute(ATTR_POST_TITLE), null);
 }
