@@ -5,7 +5,50 @@
  * no username and no link to the post.
  */
 
-import { DISCLAIMER, VERDICT_TEXT, percent, type Verdict } from '../core/verdict';
+import { DISCLAIMER, VERDICT_TEXT, percent, verdictOf, verdictForScore, type Thresholds, type Verdict } from '../core/verdict';
+import type { DetectionJob } from '../core/schema';
+import type { PostSource } from '../core/reddit-context';
+import type { ScanMeta } from '../core/scan-meta';
+import { authorTitleDisclosure } from '../adapters/reddit/disclosure';
+
+const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+export function sourceContext(source: PostSource): string[] {
+  const lines: string[] = [];
+  for (const [index, post] of source.originals.entries()) {
+    const role = index === source.originals.length - 1 ? 'Reddit-linked original' : 'Intermediate repost';
+    const disclosure = authorTitleDisclosure(post.title);
+    if (post.permalink) {
+      lines.push(role + ': ' + post.permalink);
+      if (disclosure) lines.push(role + ' — author’s title label: ' + oneLine(disclosure));
+      if (post.flair) lines.push(role + ' — post flair: ' + oneLine(post.flair));
+    }
+  }
+  const ownTag = authorTitleDisclosure(source.current.title);
+  if (ownTag) lines.push('Current post — author’s title label: ' + oneLine(ownTag));
+  if (source.current.flair) lines.push('Current post flair: ' + oneLine(source.current.flair));
+  return lines;
+}
+
+/** A present score from a known real check, scoped to the media the browser resolved and scanned. */
+export function contextText(source: PostSource, job?: DetectionJob, meta?: ScanMeta, thresholds?: Thresholds): string {
+  const lines = [source.current.permalink ?? '', ...sourceContext(source)];
+  if (job?.status !== 'completed' || job.mock !== false || !meta?.exactScope) return lines.filter(Boolean).join('\n');
+  if (job.items?.length) return lines.filter(Boolean).join('\n'); // Gallery detail belongs in the item-aware review note.
+  const verdict = verdictOf(job, thresholds);
+  const models = job.models;
+  if (meta.exactScope === 'video' && models?.audio && !meta.audioNotScanned && verdictForScore(models.audio.score, thresholds) === 'likely_fake') {
+    lines.push('Moody Lens flagged possible synthetic audio in this video. ' + DISCLAIMER + '.');
+  } else if (verdict === 'likely_fake') {
+    const video = meta.exactScope === 'video';
+    if (video ? models?.face : models?.face || models?.image) {
+      lines.push('Moody Lens flagged possible manipulation in ' + (video ? 'the video frames' : 'this image') + '. ' + DISCLAIMER + '.');
+    }
+  } else if (verdict === 'inconclusive' && (models?.audio || models?.face || models?.image)) {
+    lines.push('The Moody Lens scan was inconclusive.');
+  }
+  return lines.filter(Boolean).join('\n');
+}
 
 export interface ShareData {
   score: number | null;

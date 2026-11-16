@@ -125,6 +125,17 @@ def test_repost_is_served_from_cache_without_calling_the_brain(api):
     assert brain.image_calls == 2
 
 
+def test_video_identity_distinguishes_audio_inputs(tmp_path):
+    from moody_lens_ext.media import _input_key
+
+    video, audio_a, audio_b = (tmp_path / name for name in ("video", "audio-a", "audio-b"))
+    for path in (video, audio_a, audio_b):
+        path.write_bytes(path.name.encode())
+    keys = {_input_key(str(video), "video", audio) for audio in (None, str(audio_a), str(audio_b))}
+    assert len(keys) == 3
+    assert _input_key(str(video), "image") not in keys
+
+
 def test_lookup_hit_miss_and_validation(api):
     job = scan(api, png(7))
     hit = api.get(f"{API}/verdicts/lookup", params={"sha256": job["cache_key"]})

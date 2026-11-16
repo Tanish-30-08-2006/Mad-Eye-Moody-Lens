@@ -1,7 +1,7 @@
 /**
  * background/handlers/scan-media.ts – Handler for scan requests (lens click, auto-scan, popup, context menu).
  *
- * Order: consent gate (not needed in local-only mode) -> cache -> auto-scan limits -> shared queue
+ * Order: consent gate (not needed in local-only mode) -> auto-scan limits -> shared queue
  * (dedupe + 2 at a time) -> resolve media if the page gave none -> fetch in the browser session ->
  * local hints -> hash lookup -> upload (single, gallery batch or video + audio) -> poll -> cache + history.
  */
@@ -12,7 +12,6 @@ import { fetchMediaBlob, fetchText, MediaFetchError, type FetchedMedia } from '.
 import { lookupVerdict, submitBatch, submitDetection, submitDetectUrl } from '../../core/api-client';
 import { pollJobUntilComplete } from '../job-poller';
 import { startKeepalive, stopKeepalive } from '../keepalive';
-import { getCachedResult, makeCacheKey, setCachedResult } from '../../core/cache';
 import { getConsent } from '../../core/consent';
 import { addHistory } from '../../core/history';
 import { hintsFromBlob } from '../../core/hints';
@@ -32,21 +31,16 @@ const log = createLogger('scan-media-handler');
 type ScanPayload = ScanMediaRequest['payload'];
 
 /** What a scan produced before it is wrapped into a response. */
-interface ScanOutcome {
-  job: DetectionJob;
-  meta: ScanMeta;
-}
-
 function errorResponse(code: string, message: string): ExtensionResponse {
   return { type: 'ERROR', error: message, code };
 }
 
 /** Tries each progressive MP4 in turn; moves on when one is over the size cap or unavailable. */
-async function fetchFirstUsable(candidates: string[]): Promise<FetchedMedia> {
+async function fetchFirstUsable(candidates: string[]): Promise<FetchedMedia & { url: string }> {
   let lastError: unknown;
   for (const url of candidates.slice(0, 3)) {
     try {
-      return await fetchMediaBlob(url);
+      return { ...(await fetchMediaBlob(url)), url };
     } catch (err) {
       lastError = err;
       const retryable = err instanceof MediaFetchError && (err.code === 'SIZE_EXCEEDED' || err.status === 403 || err.status === 404);
@@ -108,6 +102,7 @@ async function scanImages(payload: ScanPayload, meta: ScanMeta): Promise<Detecti
   }
 
   const media = await fetchMediaBlob(payload.mediaUrls[0]!);
+  meta.exactScope = 'image';
   meta.hints = await hintsFromBlob(media.blob);
   // Reposts are common: a known hash is answered from the backend's cache without uploading.
   const known = await lookupVerdict(await sha256(media.blob));
@@ -129,7 +124,7 @@ async function scanVideo(payload: ScanPayload, mpdUrl: string | undefined, fallb
     throw new ScanError('Video format not supported yet.', 'UNSUPPORTED_VIDEO');
   }
 
-  let video: FetchedMedia;
+  let video: FetchedMedia & { url: string };
   try {
     video = await fetchFirstUsable(choice.candidates);
   } catch (err) {
@@ -141,12 +136,8 @@ async function scanVideo(payload: ScanPayload, mpdUrl: string | undefined, fallb
   }
 
   meta.hints = await hintsFromBlob(video.blob);
-  const known = await lookupVerdict(await sha256(video.blob));
-  if (known) {
-    meta.fromHashCache = true;
-    return known;
-  }
-  const audio = await fetchAudio(payload, choice.candidates[0]!, mpdUrl, meta);
+  meta.exactScope = 'video';
+  const audio = await fetchAudio(payload, video.url, mpdUrl, meta);
   const submitted = await submitDetection(video.blob, audio, {
     postId: payload.postId,
     permalink: payload.permalink,
@@ -181,10 +172,8 @@ async function withResolvedMedia(payload: ScanPayload): Promise<{ payload: ScanP
   };
 }
 
-async function record(settings: ExtensionSettings, payload: ScanPayload, outcome: ScanOutcome, cacheUrl: string): Promise<void> {
-  const { job, meta } = outcome;
+async function record(settings: ExtensionSettings, payload: ScanPayload, job: DetectionJob): Promise<void> {
   if (job.status !== 'completed') return;
-  await setCachedResult(payload.postId, cacheUrl, job, undefined, undefined, meta);
   if (settings.saveHistory) {
     await addHistory({
       postId: payload.postId,
@@ -198,7 +187,7 @@ async function record(settings: ExtensionSettings, payload: ScanPayload, outcome
   }
 }
 
-async function performScan(request: ScanPayload, cacheUrl: string, settings: ExtensionSettings): Promise<ExtensionResponse> {
+async function performScan(request: ScanPayload, settings: ExtensionSettings): Promise<ExtensionResponse> {
   startKeepalive();
   try {
     const { payload, mpdUrl } = await withResolvedMedia(request);
@@ -209,8 +198,8 @@ async function performScan(request: ScanPayload, cacheUrl: string, settings: Ext
       payload.mediaType === 'video'
         ? await scanVideo(payload, mpdUrl, settings.enableUrlDetect, meta)
         : await scanImages(payload, meta);
-    const outcome = { job, meta };
-    await record(settings, payload, outcome, cacheUrl);
+    if (request.mediaUrls.length === 0) delete meta.exactScope;
+    await record(settings, payload, job);
     return { type: 'JOB_STATUS', status: job.status, result: job, meta };
   } finally {
     stopKeepalive();
@@ -222,21 +211,12 @@ async function performScan(request: ScanPayload, cacheUrl: string, settings: Ext
  */
 export async function handleScanMedia(request: ScanMediaRequest): Promise<ExtensionResponse> {
   const { payload } = request;
-  // Without DOM media (resolve mode) the permalink stands in for the media URL in cache keys.
-  const cacheUrl = payload.mediaUrls[0] ?? payload.permalink;
-
   try {
     const settings = await loadSettings();
+    const scanKey = JSON.stringify([settings.apiUrl, settings.localOnly, payload.postId, payload.mediaUrls, payload.audioUrl, payload.kind, payload.mediaType, payload.resolve ? payload.permalink : null]);
     // Local-only mode never uploads, so it needs no upload consent.
     if (!settings.localOnly && !(await getConsent())) {
       return errorResponse('CONSENT_REQUIRED', toFriendlyError(new ScanError('', 'CONSENT_REQUIRED')).message);
-    }
-
-    // Cached verdicts are free, so they bypass the auto-scan caps below.
-    const cached = settings.localOnly ? null : await getCachedResult(payload.postId, cacheUrl);
-    if (cached) {
-      log.debug(`Cache hit for post ${payload.postId}`);
-      return { type: 'JOB_STATUS', status: cached.result.status, result: cached.result, meta: cached.meta };
     }
 
     if (payload.origin === 'auto' || payload.origin === 'visible') {
@@ -252,7 +232,7 @@ export async function handleScanMedia(request: ScanMediaRequest): Promise<Extens
       }
     }
 
-    return await scanQueue.run(makeCacheKey(payload.postId, cacheUrl), () => performScan(payload, cacheUrl, settings));
+    return await scanQueue.run(scanKey, () => performScan(payload, settings));
   } catch (err) {
     const f = toFriendlyError(err);
     log.warn(`Scan failed for post ${payload.postId}: ${f.code}`);

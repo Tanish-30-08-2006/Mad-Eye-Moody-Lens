@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   fetchMediaBlob: vi.fn(),
   submitDetection: vi.fn(),
   submitDetectUrl: vi.fn(),
+  lookupVerdict: vi.fn(),
   pollJobUntilComplete: vi.fn(),
   getCachedResult: vi.fn(),
   setCachedResult: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('../../src/core/api-client', async (orig) => ({
   ...(await orig<typeof import('../../src/core/api-client')>()),
   submitDetection: m.submitDetection,
   submitDetectUrl: m.submitDetectUrl,
+  lookupVerdict: m.lookupVerdict,
 }));
 vi.mock('../../src/background/job-poller', async (orig) => ({
   ...(await orig<typeof import('../../src/background/job-poller')>()),
@@ -86,6 +88,7 @@ beforeEach(() => {
   m.fetchMediaBlob.mockImplementation(async (url: string) => blob(url));
   m.submitDetection.mockResolvedValue({ job_id: 'j1' });
   m.submitDetectUrl.mockResolvedValue({ job_id: 'jurl' });
+  m.lookupVerdict.mockResolvedValue(null);
   m.pollJobUntilComplete.mockResolvedValue(job);
 });
 
@@ -101,19 +104,19 @@ describe('consent gate', () => {
 });
 
 describe('images', () => {
-  it('fetches, uploads, polls and caches the verdict', async () => {
+  it('fetches, uploads and polls the verdict for the current media', async () => {
     const res = await handleScanMedia(req());
     expect(res).toMatchObject({ type: 'JOB_STATUS', status: 'completed', result: job });
     expect(m.fetchMediaBlob).toHaveBeenCalledWith('https://i.redd.it/a.jpg');
     expect(m.submitDetection).toHaveBeenCalledWith(expect.any(Blob), undefined, expect.objectContaining({ mediaType: 'image' }));
-    expect(m.setCachedResult).toHaveBeenCalledWith('t3_a', 'https://i.redd.it/a.jpg', job, undefined, undefined, expect.objectContaining({ hints: [] }));
+    expect(res).toMatchObject({ meta: { exactScope: 'image' } });
   });
 
-  it('returns a cached verdict without any network call', async () => {
+  it('does not reuse an old browser verdict that can hide a server model change', async () => {
     m.getCachedResult.mockResolvedValue({ result: job });
     const res = await handleScanMedia(req());
     expect(res).toMatchObject({ type: 'JOB_STATUS', result: job });
-    expect(m.fetchMediaBlob).not.toHaveBeenCalled();
+    expect(m.fetchMediaBlob).toHaveBeenCalled();
   });
 });
 
@@ -121,11 +124,13 @@ describe('videos', () => {
   const video = (urls: string[], audioUrl?: string) => req({ mediaType: 'video', mediaUrls: urls, audioUrl });
 
   it('uploads the <=480p MP4 plus the audio track', async () => {
+    m.lookupVerdict.mockResolvedValue(job); // Must never return a video-only lookup result.
     await handleScanMedia(video([u('DASH_1080.mp4'), u('DASH_480.mp4'), u('DASH_360.mp4')], u('DASH_audio.mp4')));
     expect(m.fetchMediaBlob.mock.calls.map((c) => c[0])).toEqual([u('DASH_480.mp4'), u('DASH_audio.mp4')]);
     const [mediaBlob, audioBlob] = m.submitDetection.mock.calls[0]!;
     expect(mediaBlob).toBeInstanceOf(Blob);
     expect(audioBlob).toBeInstanceOf(Blob);
+    expect(m.lookupVerdict).not.toHaveBeenCalled();
   });
 
   it('a silent video uploads video only', async () => {
@@ -233,14 +238,12 @@ describe('auto-scan rules', () => {
     expect(res).toMatchObject({ type: 'ERROR', code: 'AUTO_SCAN_DISABLED' });
   });
 
-  it('is rate limited per minute and cached verdicts do not count', async () => {
+  it('is rate limited per minute before contacting the backend', async () => {
     m.loadSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, enableAutoScan: true });
     const spy = vi.spyOn(queueModule.autoScanLimiter, 'tryAcquire').mockReturnValueOnce(true).mockReturnValueOnce(false);
     expect((await handleScanMedia(auto({ postId: 't3_1' }))).type).toBe('JOB_STATUS');
     expect(await handleScanMedia(auto({ postId: 't3_2' }))).toMatchObject({ type: 'ERROR', code: 'RATE_LIMITED' });
 
-    m.getCachedResult.mockResolvedValue({ result: job });
-    expect((await handleScanMedia(auto({ postId: 't3_3' }))).type).toBe('JOB_STATUS');
     expect(spy).toHaveBeenCalledTimes(2);
     spy.mockRestore();
   });

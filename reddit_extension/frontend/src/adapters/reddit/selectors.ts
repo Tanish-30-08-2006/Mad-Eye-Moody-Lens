@@ -115,6 +115,9 @@ export const FLAIR_SELECTOR = 'shreddit-post-flair, [slot="post-flair"], facepla
 /** The `post-type` value of a crosspost; its original media is found in the DOM or via the post JSON. */
 export const CROSSPOST_TYPE = 'crosspost';
 
+/** Only a dedicated native share component is safe to augment. */
+export const SHARE_CONTROL_SELECTOR = 'shreddit-post-share-button';
+
 /** Everything the observer watches: posts and comments. */
 export const OBSERVED_SELECTOR = `${POST_SELECTOR}, ${COMMENT_SELECTOR}`;
 

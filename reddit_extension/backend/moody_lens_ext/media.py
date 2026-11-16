@@ -230,7 +230,15 @@ def _brain_id(brain: DetectionBrain) -> str:
     """Cache namespace: a demo verdict can never be served once a real brain is linked, or vice versa."""
     # BRAIN-LINK: describe
     info = brain.describe()
-    return f"{info.name}@{info.version}|{'mock' if info.is_mock else 'real'}"
+    return f"inputs-v2|{info.name}@{info.version}|{'mock' if info.is_mock else 'real'}"
+
+
+def _input_key(path: str, kind: str, audio_path: Optional[str] = None) -> str:
+    media_digest = _sha256_file(path)
+    if kind == "image":
+        return media_digest  # Existing exact-image lookup contract.
+    audio_digest = _sha256_file(audio_path) if audio_path else "-"
+    return hashlib.sha256(f"{kind}:{media_digest}:{audio_digest}".encode("ascii")).hexdigest()
 
 
 def _result_fields(result: BrainResult) -> Dict[str, Any]:
@@ -335,7 +343,7 @@ def _run_batch(job_id: str, brain: DetectionBrain, paths: List[str]) -> None:
             key = _sha256_file(path)
             phash = store.phash_of(path)
             item["cache_key"] = key
-            fields = _cached_fields(brain, key, phash)
+            fields = _cached_fields(brain, key)
             if fields is None:
                 # BRAIN-LINK: analyze_image
                 result = brain.analyze_image(path)
@@ -465,14 +473,6 @@ async def submit_detection(
         except BrainUnavailable as exc:
             return _unavailable(exc)
 
-        # The key hashes the uploaded media part only, so a repost hits the cache with or without the audio track.
-        cache_key = _sha256_file(saved.path)
-        phash = store.phash_of(saved.path) if kind == "image" else None
-        cached = _cached_fields(brain, cache_key, phash)
-        if cached is not None:
-            job_id = _register_job(status="completed", cache_key=cache_key, **cached)
-            return JSONResponse(status_code=202, content={"job_id": job_id})
-
         job_path: str = saved.path
         audio_path: Optional[str] = None
         if kind == "video":
@@ -482,13 +482,26 @@ async def submit_detection(
                     workspace = video_prep.TempWorkspace()
                     audio_file = await video_prep.save_audio_part(audio, workspace)
                     audio_path = str(audio_file)
-                    job_path = str(await run_in_threadpool(video_prep.combine, saved.path, audio_file, workspace))
+            except VideoPrepError as exc:
+                return _prep_error(exc)
+
+        cache_key = await run_in_threadpool(_input_key, saved.path, kind, audio_path)
+        cached = _cached_fields(brain, cache_key)
+        if cached is not None:
+            job_id = _register_job(status="completed", cache_key=cache_key, **cached)
+            return JSONResponse(status_code=202, content={"job_id": job_id})
+
+        if kind == "video":
+            try:
+                if audio_path and workspace:
+                    job_path = str(await run_in_threadpool(video_prep.combine, saved.path, audio_path, workspace))
                 elif video_prep.ffmpeg_available():
                     # Enforce the duration cap on plain videos too (skipped when ffprobe is absent).
                     await run_in_threadpool(video_prep.enforce_duration_cap, saved.path)
             except VideoPrepError as exc:
                 return _prep_error(exc)
 
+        phash = store.phash_of(saved.path) if kind == "image" else None
         return await _start_job(brain, kind, job_path, audio_path, cache_key, phash)
     finally:
         _remove_quietly(saved.path)
@@ -632,7 +645,7 @@ async def detect_url(req: DetectUrlRequest) -> JSONResponse:
     workspace = video_prep.TempWorkspace()
     try:
         downloaded = await run_in_threadpool(url_resolver.download_reddit_video, req.url, workspace)
-        cache_key = _sha256_file(str(downloaded))
+        cache_key = await run_in_threadpool(_input_key, str(downloaded), "video")
         cached = _cached_fields(brain, cache_key)
         if cached is not None:
             job_id = _register_job(status="completed", cache_key=cache_key, **cached)

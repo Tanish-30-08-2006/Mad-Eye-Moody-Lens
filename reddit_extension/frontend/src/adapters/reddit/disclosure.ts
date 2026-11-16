@@ -10,6 +10,11 @@ import { ATTR_POST_TITLE, FLAIR_SELECTOR, POST_SELECTOR } from './selectors';
 const TITLE_PATTERN = /\[\s*(?:ai|a\.i\.)(?:[\s-]*(?:generated|art|image|video|made|assisted))?\s*\]|\(\s*ai\s*\)|\bai[\s-]*generated\b|#ai(?:art|generated)?\b/i;
 // Flair is short, so a bare "AI" word is enough.
 const FLAIR_PATTERN = /\bai\b|\ba\.i\.|ai[\s-]*(?:generated|art|image|video)/i;
+const AUTHOR_TAG = /^\s*(?:\[(?:AI(?:[- ](?:generated|assisted|art|image|video|made))?|satire)\]|\((?:AI|satire)\))(?=\s|$)/i;
+
+export function authorTitleDisclosure(title?: string): string | undefined {
+  return title?.match(AUTHOR_TAG)?.[0].trim();
+}
 
 export function isDisclosedAi(title: string | null | undefined, flair: string | null | undefined): boolean {
   return (!!title && TITLE_PATTERN.test(title)) || (!!flair && FLAIR_PATTERN.test(flair));
@@ -23,5 +28,6 @@ export function readFlair(post: Element): string | undefined {
 
 export function readDisclosure(post: Element): boolean {
   // Flair can belong to a moderator or automation. Never represent it as the author's statement.
-  return isDisclosedAi(post.getAttribute(ATTR_POST_TITLE), null);
+  const tag = authorTitleDisclosure(post.getAttribute(ATTR_POST_TITLE) ?? undefined);
+  return !!tag && FLAIR_PATTERN.test(tag);
 }

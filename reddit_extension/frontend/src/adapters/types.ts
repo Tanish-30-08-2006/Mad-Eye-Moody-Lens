@@ -65,6 +65,8 @@ export interface SiteAdapter {
 
   /** Find the mount point for the lens button in a post. */
   getMountPoint(post: HTMLElement): MountPoint | null;
+  /** Native share control, when the site exposes a recognized post-owned element. */
+  shareControl?(post: HTMLElement): HTMLElement | null;
 
   /** Optional hook for adapters whose pages hold more than one kind of element (posts and comments). */
   readonly observedSelector?: string;

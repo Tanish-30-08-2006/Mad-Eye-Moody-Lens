@@ -13,6 +13,7 @@ import { computePopoverPosition } from './position';
 export interface PopoverHandlers {
   onRetry?: () => void;
   onAcceptConsent?: () => void;
+  canCopyEvidence?: () => boolean;
   onFeedback?: VerdictPopoverProps['onFeedback'];
 }
 
@@ -72,6 +73,7 @@ export function createPopoverHost(container: HTMLElement, options: PopoverHostOp
         onClose={hide}
         onRetry={handlers.onRetry}
         onAcceptConsent={handlers.onAcceptConsent}
+        canCopyEvidence={handlers.canCopyEvidence}
         onFeedback={handlers.onFeedback}
         closing={closing}
       />,

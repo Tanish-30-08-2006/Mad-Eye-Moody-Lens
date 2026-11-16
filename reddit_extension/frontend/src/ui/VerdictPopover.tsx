@@ -14,7 +14,9 @@ import { ResultView, type ResultContext } from './ResultView';
 import { Spinner } from './Spinner';
 import { AlertIcon, CloseIcon, InfoIcon, LensIcon } from './icons';
 import type { PostDetails, PostSource } from '../core/reddit-context';
-import { searchLinks, SEARCH_NOTE } from './share';
+import { contextText, searchLinks, SEARCH_NOTE } from './share';
+import { CopyPreview } from './CopyPreview';
+import { authorTitleDisclosure } from '../adapters/reddit/disclosure';
 
 export type PopoverView = (
   | { kind: 'ready' }
@@ -22,13 +24,14 @@ export type PopoverView = (
   | { kind: 'result'; job: DetectionJob; meta?: ScanMeta; thresholds?: Thresholds; context?: ResultContext }
   | { kind: 'local'; hints: ProvenanceHint[] }
   | { kind: 'error'; message: string; code?: string }
-) & { source?: PostSource; imageUrl?: string; postKey?: string };
+) & { source?: PostSource; imageUrl?: string; postKey?: string; openShare?: boolean };
 
 export interface VerdictPopoverProps {
   view: PopoverView;
   onClose: () => void;
   onRetry?: () => void;
   onAcceptConsent?: () => void;
+  canCopyEvidence?: () => boolean;
   onFeedback?: (f: { cacheKey: string; verdict: Verdict; label: FeedbackLabel }) => Promise<boolean>;
   /** Viewport position (px) of the popover's top-left corner. */
   position?: { top: number; left: number };
@@ -36,9 +39,9 @@ export interface VerdictPopoverProps {
   closing?: boolean;
 }
 
-const FOCUSABLE = 'button:not([disabled]), a[href], summary, [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'button:not([disabled]), textarea, a[href], summary, [tabindex]:not([tabindex="-1"])';
 
-export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, onRetry, onAcceptConsent, onFeedback, position, closing }) => {
+export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, onRetry, onAcceptConsent, canCopyEvidence, onFeedback, position, closing }) => {
   const ref = useRef<HTMLDivElement>(null);
 
   // Move focus into the dialog when it opens so keyboard users land inside it.
@@ -49,7 +52,8 @@ export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, o
   // Keep Tab / Shift+Tab cycling inside the dialog.
   const trapFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Tab' || !ref.current) return;
-    const focusable = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE));
+    const focusable = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .filter((element) => element.matches('summary') || !element.closest('details:not([open])'));
     if (focusable.length === 0) return;
     const first = focusable[0]!;
     const last = focusable[focusable.length - 1]!;
@@ -91,6 +95,17 @@ export const VerdictPopover: React.FC<VerdictPopoverProps> = ({ view, onClose, o
 
       <div className="moody-lens-popover-content">
         {view.source && <Provenance source={view.source} />}
+        {view.source?.current.permalink && (
+          <details key={view.openShare ? 'native' : 'lens'} className="moody-lens-card moody-lens-provenance" open={view.openShare || undefined}>
+            <summary>Copy with context</summary>
+            <CopyPreview
+              text={contextText(view.source, view.kind === 'result' ? view.job : undefined, view.kind === 'result' ? view.meta : undefined, view.kind === 'result' ? view.thresholds : undefined)}
+              label="Copy with context"
+              permalink={view.source.current.permalink}
+              canCopy={canCopyEvidence}
+            />
+          </details>
+        )}
         {view.kind === 'ready' && onRetry && (
           <button type="button" className="moody-lens-btn-primary" onClick={onRetry}>Scan media</button>
         )}
@@ -184,6 +199,7 @@ function Provenance({ source }: { source: PostSource }) {
         {changed && <p><strong>Title changed</strong></p>}
         {source.current.title && <p><strong>Current title:</strong> {source.current.title}</p>}
         {original.title && <p><strong>Original title:</strong> {original.title}</p>}
+        {authorTitleDisclosure(original.title) && <p>Original author’s title label: {authorTitleDisclosure(original.title)}</p>}
         {(original.subreddit || original.date) && <p>{[original.subreddit && 'r/' + original.subreddit, original.date?.slice(0, 10)].filter(Boolean).join(' · ')}</p>}
         {original.flair && <p>Original post flair: {original.flair}</p>}
         {original.unavailable && <p className="moody-lens-note">Original post details unavailable.</p>}

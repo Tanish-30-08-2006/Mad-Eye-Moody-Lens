@@ -11,6 +11,8 @@ export interface ProvenanceHint {
 }
 
 export interface ScanMeta {
+  /** The worker directly fetched the current attachment; absent for unresolved or server-fetched media. */
+  exactScope?: 'image' | 'video';
   /** The video had (or may have had) sound that could not be fetched, so only the picture was scanned. */
   audioNotScanned?: boolean;
   /** Provenance hints from the media bytes; an empty array means "looked, found none". */

@@ -19,6 +19,7 @@ import {
   MEDIA_CONTAINER_SELECTOR,
   MEDIA_POST_TYPES,
   BLUR_TARGET_SELECTOR,
+  SHARE_CONTROL_SELECTOR,
 } from './selectors';
 import { commentImageAnchor, extractComment, hasCommentImages } from './extract-comment';
 import { readDisclosure, readFlair } from './disclosure';
@@ -129,6 +130,11 @@ export const redditAdapter: SiteAdapter = {
       anchor = null;
     }
     return { postElement: post, anchorElement: anchor ?? post, postId };
+  },
+
+  shareControl(post: HTMLElement): HTMLElement | null {
+    return Array.from(post.querySelectorAll<HTMLElement>(SHARE_CONTROL_SELECTOR))
+      .find((control) => control.closest(POST_SELECTOR) === post) ?? null;
   },
 
   describe(post: HTMLElement) {

@@ -66,6 +66,23 @@ export default defineContentScript({
       popover,
       send: sendMessage,
       getSettings: () => settings,
+      mountShare: async (control, open) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'moody-lens-btn-secondary';
+        button.textContent = 'Copy with context';
+        button.addEventListener('click', () => open(button));
+        const ui = await createShadowRootUi(ctx, {
+          name: 'moody-lens-share-host',
+          position: 'inline',
+          anchor: control,
+          append: 'after',
+          inheritStyles: true,
+          onMount: (container) => container.appendChild(button),
+        });
+        ui.mount();
+        return () => ui.remove();
+      },
       // One tiny shadow-root host per post, top-right of the media.
       mountLens: async ({ anchor, postId, onActivate }) => {
         const restorePosition = ensurePositioned(anchor);

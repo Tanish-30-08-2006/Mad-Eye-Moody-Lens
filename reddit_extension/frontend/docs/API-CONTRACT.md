@@ -827,3 +827,6 @@ Field-name parity for all of the above is checked by `backend/tests/test_brain_a
 
 3. **Mock Backend** (`reddit_extension/frontend/tests/mock-server/index.mjs`):
    - Satisfies the same JSON contract, allowing end-to-end integration testing even in environments without PyTorch or Celery workers.
+# Cache identity and evidence scope
+
+Detection selects the exact server cache using the media inputs and the current brain's name, revision and real/demo namespace. The exact image key remains SHA-256 of the bytes. Video and audio are domain-separated; a video key includes the separately supplied track digest (or a marker for no separate upload). The browser does not short-circuit video analysis using a video-only hash or persist reusable verdicts keyed by URL. The optional perceptual lookup remains distinct from exact detection and cannot establish attachment evidence. Older unsafe cache entries are excluded by the input-key namespace revision.

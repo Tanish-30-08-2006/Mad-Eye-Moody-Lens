@@ -33,6 +33,7 @@ export interface ControllerDeps {
     postId: string;
     onActivate: (button: HTMLButtonElement) => void;
   }) => Promise<MountedLens>;
+  mountShare?: (control: HTMLElement, open: (button: HTMLButtonElement) => void) => Promise<() => void>;
   popover: PopoverApi;
   send: (message: ExtensionMessage) => Promise<ExtensionResponse>;
   getSettings: () => ExtensionSettings;
@@ -60,6 +61,8 @@ interface PostState {
   sourceKey?: string;
   mediaKey?: string;
   mountedId: string;
+  mountedPermalink?: string;
+  openShare?: boolean;
 }
 
 const scopeKey = (media: MediaRef | null) => JSON.stringify([media?.kind, media?.urls, media?.audioUrl]);
@@ -102,7 +105,8 @@ export function createController(deps: ControllerDeps): Controller {
   };
 
   const isCurrent = (post: HTMLElement, st: PostState) =>
-    states.get(post) === st && adapter.getMountPoint(post)?.postId === st.mountedId;
+    states.get(post) === st && adapter.getMountPoint(post)?.postId === st.mountedId
+      && adapter.identify(post)?.permalink === st.mountedPermalink;
 
   const decorate = (post: HTMLElement, st: PostState, view: PopoverView): PopoverView => {
     const media = adapter.extractMedia(post);
@@ -111,6 +115,7 @@ export function createController(deps: ControllerDeps): Controller {
       source: st.source,
       imageUrl: media?.kind === 'image' ? media.urls[0] : undefined,
       postKey: st.mountedId,
+      openShare: st.openShare,
     };
   };
 
@@ -236,7 +241,10 @@ export function createController(deps: ControllerDeps): Controller {
   };
 
   function handlersFor(post: HTMLElement): PopoverHandlers {
+    const st = states.get(post);
     return {
+      canCopyEvidence: () => !!st && isCurrent(post, st) &&
+        (!st.mediaKey || st.view?.kind !== 'result' || st.mediaKey === scopeKey(adapter.extractMedia(post))),
       onRetry: () => void scan(post, 'manual'),
       onAcceptConsent: () => {
         void send({ type: 'SET_CONSENT', payload: { accepted: true } })
@@ -259,6 +267,7 @@ export function createController(deps: ControllerDeps): Controller {
   const onActivate = (post: HTMLElement) => {
     const st = states.get(post);
     if (!st || !isCurrent(post, st)) return;
+    st.openShare = false;
     const media = adapter.extractMedia(post);
     loadSource(post, st, media);
     if (!st.scanning && st.mediaKey !== undefined && st.mediaKey !== scopeKey(media)) st.view = null;
@@ -311,6 +320,7 @@ export function createController(deps: ControllerDeps): Controller {
 
     let disposed = false;
     let mounted: MountedLens | null = null;
+    let removeShare: (() => void) | undefined;
 
     deps
       .mountLens({
@@ -325,7 +335,25 @@ export function createController(deps: ControllerDeps): Controller {
           return;
         }
         mounted = lens;
-        states.set(post, { lens, view: null, scanning: false, blurred: [], mountedId: mount.postId });
+        const identity = adapter.identify(post);
+        const st: PostState = { lens, view: null, scanning: false, blurred: [], mountedId: mount.postId, mountedPermalink: identity?.permalink };
+        states.set(post, st);
+        const share = identity && adapter.shareControl?.(post);
+        if (share && deps.mountShare && redditPost(identity.permalink)) {
+          void deps.mountShare(share, (button) => {
+            if (!isCurrent(post, st)) return;
+            const media = adapter.extractMedia(post);
+            loadSource(post, st, media);
+            if (!st.scanning && st.mediaKey !== undefined && st.mediaKey !== scopeKey(media)) st.view = null;
+            st.openShare = true;
+            st.view ??= { kind: 'ready' };
+            activePost = post;
+            popover.show(decorate(post, st, st.view), button, handlersFor(post));
+          }).then((remove) => {
+            if (disposed) remove();
+            else removeShare = remove;
+          }).catch(() => { /* The Lens remains the stable Share entry point. */ });
+        }
         const settings = deps.getSettings();
         if (settings.localOnly) lens.button.setState({ kind: 'idle', localOnly: true });
 
@@ -352,6 +380,7 @@ export function createController(deps: ControllerDeps): Controller {
       }
       dropState(post);
       mounted?.remove();
+      removeShare?.();
     };
   };
 
