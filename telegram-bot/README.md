@@ -106,6 +106,19 @@ Open Telegram, go to your bot, and send `/start`! Send any picture to see the in
 
 ---
 
+## 🧪 Automated Testing
+
+Run the automated test suite across the bot, API routes, and detection engine:
+
+```bash
+# From telegram-bot directory:
+python run_tests.py
+```
+
+For full system architecture and design specifications, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
 ## 📤 Pushing to Your Branch (`bhavya-dev`)
 
 To stage, commit, and push these changes to GitHub:
