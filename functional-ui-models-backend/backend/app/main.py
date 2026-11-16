@@ -11,6 +11,7 @@ Cross-cutting concerns live here:
 
 from __future__ import annotations
 
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -20,7 +21,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app import __version__
-from app.api.routes import router
+from app.api.routes import router, web_only_router
 from app.core.config import settings
 from app.core.errors import INTERNAL_ERROR_MESSAGE, AnalysisError
 from app.core.logging import bind_context, clear_context, configure_logging, get_logger, new_request_id, request_id_var
@@ -62,7 +63,7 @@ def create_app() -> FastAPI:
             allow_origins=settings.cors_origins if settings.cors_origins else ["*"],
             allow_origin_regex=settings.extension_origin_regex if settings.allow_extension_cors else None,
             allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "X-Request-ID", "X-API-Key", "Authorization"],
+            allow_headers=["Content-Type", "X-Request-ID", "X-API-Key", "Authorization", "X-Client"],
             expose_headers=["X-Request-ID", "Retry-After"],
         )
 
@@ -104,9 +105,13 @@ def create_app() -> FastAPI:
 
     try:
         from moody_lens_ext.media import router as v1_media_router
-        app.include_router(v1_media_router)
-    except ImportError:
+    except ModuleNotFoundError as exc:
+        if exc.name != "moody_lens_ext" or os.getenv("MML_BRAIN") == "host":
+            raise
         log.warning("reddit_extension_router_unavailable")
+        app.include_router(web_only_router)
+    else:
+        app.include_router(v1_media_router)
     app.include_router(router)
     return app
 

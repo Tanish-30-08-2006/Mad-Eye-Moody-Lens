@@ -10,12 +10,13 @@ import hashlib
 import math
 import os
 import re
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any, Dict, List, Literal, Optional
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Lock
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -25,16 +26,27 @@ from pydantic import BaseModel, Field
 from . import store
 from .brain import BrainError, BrainResult, BrainUnavailable, DetectionBrain, get_brain
 from .brain.interface import MODEL_KEYS
-from .host_compat import AnalysisError, NotFound, get_logger, save_upload, settings
+from .host_compat import AnalysisError, get_logger, save_upload, settings
 from .services import url_resolver, video_prep
 from .services.video_prep import VideoPrepError
+
+try:
+    from app.core.ratelimit import check_rate_limit
+    from app.schemas import JobStatus as WebJobStatus
+except ImportError:  # standalone and fake-host contract fixture
+    WebJobStatus = None
+
+    def check_rate_limit(request: Request, bucket: str) -> None:
+        pass
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["media-v1"])
 
-# In-memory store for extension jobs: job_id -> DetectionJob dict
+# ponytail: one API process for Sprint 2; move records and orchestration to shared storage before scaling API replicas.
 EXTENSION_JOBS: Dict[str, Dict[str, Any]] = {}
+_JOB_LOCK = Lock()
+_NEXT_SWEEP = 0.0
 
 MAX_BATCH_IMAGES = 10
 
@@ -51,6 +63,7 @@ class ModelResult(BaseModel):
     score: float = Field(ge=0.0, le=1.0)
     label: str
     confidence: float = Field(ge=0.0, le=1.0)
+    model_id: Optional[str] = None
 
 
 class JobModels(BaseModel):
@@ -59,7 +72,7 @@ class JobModels(BaseModel):
     audio: Optional[ModelResult] = None
 
 
-JobStatusType = Literal["pending", "processing", "completed", "failed", "queued", "running", "done"]
+JobStatusType = Literal["pending", "processing", "completed", "failed"]
 VerdictLabelType = Literal["likely_real", "likely_fake", "inconclusive"]
 
 
@@ -106,6 +119,7 @@ class DetectionJob(BaseModel):
     # Batch jobs only: one entry per uploaded image; the top-level fields are the most suspicious one.
     items: Optional[List[BatchItem]] = None
     error: Optional[str] = None
+    error_code: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -124,7 +138,7 @@ HealthStatusType = Literal["ok", "degraded", "down"]
 class HealthResponse(BaseModel):
     status: HealthStatusType = "ok"
     version: str = "1.0.0"
-    models_available: List[str] = Field(default_factory=lambda: ["image", "face", "audio", "video"])
+    models_available: List[str] = Field(default_factory=list)
     # True when scans would be answered with demo/mock verdicts (no real workers).
     mock: Optional[bool] = None
 
@@ -151,12 +165,26 @@ class BrainCapabilities(BaseModel):
     explain: bool
 
 
+class LoadedModel(BaseModel):
+    model_id: str
+    revision: str
+
+
+class RuntimeModel(BaseModel):
+    configured_id: str
+    configured_revision: Optional[str] = None
+    state: Literal["configured", "loaded", "unavailable"]
+    loaded: List[LoadedModel]
+
+
 class BrainStatusResponse(BaseModel):
     name: str
     version: str
     capabilities: BrainCapabilities
     is_mock: bool
     healthy: bool
+    readiness: Dict[str, bool]
+    models: Dict[str, RuntimeModel] = Field(default_factory=dict)
 
 
 class FeedbackRequest(BaseModel):
@@ -208,9 +236,10 @@ def _unavailable(exc: BrainUnavailable) -> JSONResponse:
 
 
 def _upload_error(exc: AnalysisError) -> JSONResponse:
+    code = {413: "FILE_TOO_LARGE", 415: "UNSUPPORTED_MEDIA_TYPE"}.get(exc.status_code, "VALIDATION_ERROR")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": exc.message, "code": "UNSUPPORTED_MEDIA_TYPE" if exc.status_code == 415 else "VALIDATION_ERROR"},
+        content={"error": exc.message, "code": code},
     )
 
 
@@ -233,7 +262,7 @@ def _brain_id(brain: DetectionBrain) -> str:
     """Cache namespace: a demo verdict can never be served once a real brain is linked, or vice versa."""
     # BRAIN-LINK: describe
     info = brain.describe()
-    return f"inputs-v2|{info.name}@{info.version}|{'mock' if info.is_mock else 'real'}"
+    return f"inputs-v3|{info.name}@{info.version}|{'mock' if info.is_mock else 'real'}"
 
 
 def _input_key(path: str, kind: str, audio_path: Optional[str] = None) -> str:
@@ -277,9 +306,10 @@ def _analyse(brain: DetectionBrain, kind: str, path: str, audio_path: Optional[s
 
 
 def _register_job(**fields: Any) -> str:
+    global _NEXT_SWEEP
     job_id = f"job-{uuid.uuid4().hex}"
     now = _now()
-    EXTENSION_JOBS[job_id] = {
+    job = {
         "job_id": job_id,
         "status": "pending",
         "overall_score": None,
@@ -292,16 +322,49 @@ def _register_job(**fields: Any) -> str:
         "updated_at": now,
         **fields,
     }
+    with _JOB_LOCK:
+        tick = time.monotonic()
+        if tick >= _NEXT_SWEEP:
+            for key in [key for key, value in EXTENSION_JOBS.items() if _expired(value, tick)]:
+                del EXTENSION_JOBS[key]
+            _NEXT_SWEEP = tick + 60
+        _set_job_expiry(job)
+        EXTENSION_JOBS[job_id] = job
     return job_id
 
 
 def _update_job(job_id: str, **fields: Any) -> None:
-    EXTENSION_JOBS[job_id].update(updated_at=_now(), **fields)
+    with _JOB_LOCK:
+        job = EXTENSION_JOBS[job_id]
+        job.update(updated_at=_now(), **fields)
+        _set_job_expiry(job)
+
+
+def _set_job_expiry(job: dict) -> None:
+    if job["status"] in {"completed", "failed"}:
+        job["_expires"] = time.monotonic() + getattr(settings, "job_ttl_h", 24) * 3600
+
+
+def _expired(job: dict, now: float) -> bool:
+    return job.get("_expires", math.inf) <= now
+
+
+def _extension_job(job_id: str) -> Optional[dict]:
+    with _JOB_LOCK:
+        job = EXTENSION_JOBS.get(job_id)
+        if job is not None:
+            if _expired(job, time.monotonic()):
+                del EXTENSION_JOBS[job_id]
+            else:
+                return job.copy()
+    return None
 
 
 def _cached_fields(brain: DetectionBrain, cache_key: str, phash: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """A previous verdict for the same bytes (or a near-identical picture); a cache failure is just a miss."""
     try:
+        if not brain.describe().cacheable:
+            return None
         db = store.get_store()
         found = db.get_verdict(cache_key, _brain_id(brain))
         if found is None and phash:
@@ -311,14 +374,14 @@ def _cached_fields(brain: DetectionBrain, cache_key: str, phash: Optional[str] =
         return None
     if found is not None:
         found.pop("created_at", None)
-        found.pop("cache_key", None)
     return found
 
 
 def _remember(brain: DetectionBrain, cache_key: str, kind: str, fields: Dict[str, Any], phash: Optional[str]) -> None:
     try:
         # A misconfigured mock worker must never populate a real brain's cache.
-        if fields.get("mock") != brain.describe().is_mock:
+        info = brain.describe()
+        if not info.cacheable or fields.get("mock") != info.is_mock:
             return
         store.get_store().put_verdict(cache_key, _brain_id(brain), kind, fields, phash)
     except Exception:
@@ -331,11 +394,14 @@ def _run_analysis(job_id: str, brain: DetectionBrain, kind: str, path: str, audi
     try:
         result = _analyse(brain, kind, path, audio_path)
         fields = _result_fields(result)
-        _update_job(job_id, status="completed", cache_key=cache_key, **fields)
         _remember(brain, cache_key, kind, fields, phash)
         # BRAIN-LINK: describe (explain needs the media later, so only explain-capable brains keep a short-lived copy)
         if brain.describe().capabilities.explain:
-            RETAINED_MEDIA.keep(job_id, path)
+            try:
+                RETAINED_MEDIA.keep(job_id, path)
+            except OSError:
+                logger.exception("Could not retain media for explanation")
+        _update_job(job_id, status="completed", cache_key=cache_key, **fields)
     except BrainError as exc:
         _update_job(job_id, status="failed", error=exc.message)
     except Exception as exc:
@@ -388,7 +454,7 @@ def _run_batch(job_id: str, brain: DetectionBrain, paths: List[str]) -> None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse, response_model_exclude_unset=True)
 def health_v1(request: Request) -> JSONResponse:
     """GET /api/v1/health – Service health and available detection models."""
     # When queried by extension or contract test, include models_available, version and the mock flag
@@ -419,7 +485,7 @@ def health_v1(request: Request) -> JSONResponse:
 
 
 @router.get("/brain/status", response_model=BrainStatusResponse)
-def brain_status() -> JSONResponse:
+def brain_status() -> BrainStatusResponse | JSONResponse:
     """GET /api/v1/brain/status – Which brain answers scans, and whether it is a demo."""
     try:
         brain = get_brain()
@@ -427,20 +493,25 @@ def brain_status() -> JSONResponse:
         return _unavailable(exc)
     # BRAIN-LINK: describe, healthy
     info = brain.describe()
-    return JSONResponse(
-        status_code=200,
-        content={
-            "name": info.name,
-            "version": info.version,
-            "capabilities": asdict(info.capabilities),
-            "is_mock": info.is_mock,
-            "healthy": brain.healthy(),
-        },
+    readiness = {
+        kind: getattr(info.capabilities, kind) and brain.healthy(kind)
+        for kind in ("image", "audio", "video")
+    }
+    models = getattr(brain, "model_status", None)
+    return BrainStatusResponse(
+        name=info.name,
+        version=info.version,
+        capabilities=BrainCapabilities(**asdict(info.capabilities)),
+        is_mock=info.is_mock,
+        healthy=any(readiness.values()),
+        readiness=readiness,
+        models=models() if models else {},
     )
 
 
 @router.post("/detect", response_model=DetectResponse, status_code=202)
 async def submit_detection(
+    request: Request,
     background_tasks: BackgroundTasks,
     media: Optional[UploadFile] = File(None),
     file: Optional[UploadFile] = File(None),
@@ -466,6 +537,7 @@ async def submit_detection(
             status_code=400,
             content={"error": f"Invalid media_type '{kind}'. Must be one of: image, video, audio.", "code": "VALIDATION_ERROR"},
         )
+    await run_in_threadpool(check_rate_limit, request, "video" if kind == "video" else "fast")
 
     # Size check (configurable limit from settings)
     max_mb = settings.max_mb(kind)
@@ -528,7 +600,10 @@ async def submit_detection(
                 return _prep_error(exc)
 
         if kind == "video":
-            response = _queue_video(background_tasks, brain, job_path, audio_path, cache_key, cleanup)
+            response = _queue_job(
+                background_tasks, _VIDEO_SLOTS, "video",
+                lambda job_id: _run_analysis(job_id, brain, kind, job_path, audio_path, cache_key, None), cleanup,
+            )
             handed_off = response.status_code == 202
             return response
         phash = store.phash_of(saved.path) if kind == "image" else None
@@ -546,40 +621,45 @@ async def _start_job(brain: DetectionBrain, kind: str, path: str, audio_path: Op
 
 
 _VIDEO_SLOTS = BoundedSemaphore(2)
+_GALLERY_SLOTS = BoundedSemaphore(1)
 
 
-def _queue_video(
+def _queue_job(
     tasks: BackgroundTasks,
-    brain: DetectionBrain,
-    path: str,
-    audio_path: Optional[str],
-    cache_key: str,
+    slots: BoundedSemaphore,
+    kind: str,
+    run: Callable[[str], None],
     cleanup: Callable[[], None],
 ) -> JSONResponse:
-    """Queue server-owned video files for inference after the 202 body is sent."""
-    if not _VIDEO_SLOTS.acquire(blocking=False):
+    """Hand server-owned work to the existing post-response task hook."""
+    if not slots.acquire(blocking=False):
         return JSONResponse(
             status_code=503,
-            content={"error": "Video analysis is busy. Try again shortly.", "code": "VIDEO_BUSY"},
+            content={"error": f"{kind.title()} analysis is busy. Try again shortly.", "code": f"{kind.upper()}_BUSY"},
             headers={"Retry-After": "10"},
         )
     job_id = _register_job()
 
-    def finish_video() -> None:
+    def finish() -> None:
         try:
-            _run_analysis(job_id, brain, "video", path, audio_path, cache_key, None)
+            run(job_id)
+        except Exception:
+            logger.exception("Background job %s failed", job_id)
+            _update_job(job_id, status="failed", error="The backend could not process this job.")
         finally:
             try:
                 cleanup()
             finally:
-                _VIDEO_SLOTS.release()
+                slots.release()
 
-    tasks.add_task(finish_video)
+    tasks.add_task(finish)
     return JSONResponse(status_code=202, content={"job_id": job_id}, background=tasks)
 
 
 @router.post("/detect/batch", response_model=DetectResponse, status_code=202)
-async def submit_batch(media: List[UploadFile] = File(default=[])) -> JSONResponse:
+async def submit_batch(
+    request: Request, background_tasks: BackgroundTasks, media: List[UploadFile] = File(default=[]),
+) -> JSONResponse:
     """
     POST /api/v1/detect/batch – Up to 10 images (repeat the `media` part) as ONE job.
     The job reports per-image results in `items`; the top-level fields describe the most suspicious image.
@@ -595,8 +675,15 @@ async def submit_batch(media: List[UploadFile] = File(default=[])) -> JSONRespon
     max_mb = settings.max_mb("image")
     if any(u.size is not None and u.size > max_mb * 1024 * 1024 for u in media):
         return _too_large(max_mb)
+    await run_in_threadpool(check_rate_limit, request, "fast")
 
     saved_paths: List[str] = []
+    handed_off = False
+
+    def cleanup() -> None:
+        for path in saved_paths:
+            _remove_quietly(path)
+
     try:
         for upload in media:
             try:
@@ -608,73 +695,39 @@ async def submit_batch(media: List[UploadFile] = File(default=[])) -> JSONRespon
         except BrainUnavailable as exc:
             return _unavailable(exc)
 
-        job_id = _register_job()
-        await run_in_threadpool(_run_batch, job_id, brain, saved_paths)
-        return JSONResponse(status_code=202, content={"job_id": job_id})
+        response = _queue_job(
+            background_tasks, _GALLERY_SLOTS, "gallery", lambda job_id: _run_batch(job_id, brain, saved_paths), cleanup,
+        )
+        handed_off = response.status_code == 202
+        return response
     finally:
-        for path in saved_paths:
-            _remove_quietly(path)
+        if not handed_off:
+            cleanup()
 
 
-@router.get("/jobs/{job_id}")
+@router.get(
+    "/jobs/{job_id}",
+    response_model=DetectionJob | WebJobStatus if WebJobStatus else DetectionJob,
+    responses={404: {"model": ApiError}, 429: {"model": ApiError}},
+)
 def get_job_status(job_id: str, request: Request) -> Any:
     """
     GET /api/v1/jobs/{job_id} – Query the status and verdict of a detection job.
     Returns 404 if job_id is unknown.
     """
-    job_data = EXTENSION_JOBS.get(job_id)
-    if job_data is not None:
-        return JSONResponse(status_code=200, content=DetectionJob(**job_data).model_dump())
+    if not job_id.startswith("job-") and WebJobStatus is not None:
+        from app.api.routes import get_job
 
-    # Fall back to existing web jobs service (only exists with the host backend)
-    try:
-        from app.services import jobs as db_jobs
-    except ImportError:
-        return JSONResponse(status_code=404, content={"error": "Job not found."})
-
-    try:
-        db_job = db_jobs.get_job(job_id)
-        # If requested by extension, format as DetectionJob
-        if request.headers.get("x-client") == "extension":
-            st_map = {"queued": "pending", "running": "processing", "done": "completed", "failed": "failed"}
-            status: JobStatusType = st_map.get(db_job.status, "pending")  # type: ignore
-
-            overall = None
-            label = None
-            models = None
-            if db_job.result:
-                overall = round(db_job.result.fake_probability, 4)
-                if db_job.result.verdict == "likely_fake":
-                    label = "likely_fake"
-                elif db_job.result.verdict == "likely_real":
-                    label = "likely_real"
-                else:
-                    label = "inconclusive"
-
-            now_iso = datetime.now(UTC).isoformat()
-            return JSONResponse(
-                status_code=200,
-                content=DetectionJob(
-                    job_id=job_id,
-                    status=status,
-                    overall_score=overall,
-                    label=label,  # type: ignore
-                    models=models,
-                    error=db_job.error,
-                    created_at=now_iso,
-                    updated_at=now_iso,
-                ).model_dump(),
-            )
-        # Otherwise return original db_job model for web client compatibility
-        return db_job
-    except NotFound:
-        return JSONResponse(status_code=404, content={"error": "Job not found."})
-    except Exception:
-        return JSONResponse(status_code=404, content={"error": "Job not found."})
+        return get_job(job_id, request)
+    check_rate_limit(request, "poll")
+    job_data = _extension_job(job_id)
+    if job_data is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found.", "code": "JOB_NOT_FOUND"})
+    return DetectionJob(**job_data)
 
 
-@router.post("/detect-url")
-async def detect_url(req: DetectUrlRequest, background_tasks: BackgroundTasks) -> JSONResponse:
+@router.post("/detect-url", response_model=DetectResponse, status_code=202)
+async def detect_url(req: DetectUrlRequest, request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
     """
     POST /api/v1/detect-url – Tier-2 fallback: the server downloads a Reddit post's video with yt-dlp.
     Returns 501 unless FEATURE_DETECT_URL is enabled; only reddit.com permalinks are accepted.
@@ -699,31 +752,37 @@ async def detect_url(req: DetectUrlRequest, background_tasks: BackgroundTasks) -
             content={"error": "Only reddit.com post links are accepted.", "code": "VALIDATION_ERROR"},
         )
 
+    await run_in_threadpool(check_rate_limit, request, "video")
     try:
         brain = get_brain("video")
     except BrainUnavailable as exc:
         return _unavailable(exc)
 
-    workspace = video_prep.TempWorkspace()
-    handed_off = False
-    try:
-        downloaded = await run_in_threadpool(url_resolver.download_reddit_video, req.url, workspace)
-        cache_key = await run_in_threadpool(_input_key, str(downloaded), "video")
-        cached = _cached_fields(brain, cache_key)
-        if cached is not None:
-            job_id = _register_job(status="completed", cache_key=cache_key, **cached)
-            return JSONResponse(status_code=202, content={"job_id": job_id})
-        # Same duration/validity checks as an upload.
-        if video_prep.ffmpeg_available():
-            await run_in_threadpool(video_prep.enforce_duration_cap, downloaded)
-        response = _queue_video(background_tasks, brain, str(downloaded), None, cache_key, workspace.cleanup)
-        handed_off = response.status_code == 202
-        return response
-    except VideoPrepError as exc:
-        return _prep_error(exc)
-    finally:
-        if not handed_off:
+    if not url_resolver.ytdlp_available():
+        return _prep_error(VideoPrepError("RESOLVER_UNAVAILABLE", "yt-dlp is not installed on the server.", 503))
+    if not video_prep.ffmpeg_available():
+        return _prep_error(VideoPrepError("FFMPEG_UNAVAILABLE", "ffmpeg is not installed on the server.", 503))
+
+    def run(job_id: str) -> None:
+        _update_job(job_id, status="processing")
+        workspace = video_prep.TempWorkspace()
+        try:
+            downloaded = url_resolver.download_reddit_video(req.url, workspace)
+            media = video_prep.probe(downloaded)
+            if not media.has_video:
+                raise VideoPrepError("UNSUPPORTED_MEDIA_TYPE", "The downloaded media has no video stream.", 415)
+            key = _input_key(str(downloaded), "video")
+            cached = _cached_fields(brain, key)
+            if cached is not None:
+                _update_job(job_id, status="completed", cache_key=key, **cached)
+            else:
+                _run_analysis(job_id, brain, "video", str(downloaded), None, key, None)
+        except VideoPrepError as exc:
+            _update_job(job_id, status="failed", error=exc.message, error_code=exc.code)
+        finally:
             workspace.cleanup()
+
+    return _queue_job(background_tasks, _VIDEO_SLOTS, "video", run, lambda: None)
 
 
 @router.get("/jobs/{job_id}/explain", response_model=ExplainResponse)
@@ -739,7 +798,7 @@ async def explain_job(job_id: str) -> JSONResponse:
             status_code=501,
             content={"error": "The active detection brain does not provide explanations.", "code": "NOT_IMPLEMENTED"},
         )
-    if job_id not in EXTENSION_JOBS:
+    if _extension_job(job_id) is None:
         return JSONResponse(status_code=404, content={"error": "Job not found.", "code": "NOT_FOUND"})
     path = RETAINED_MEDIA.get(job_id)
     if path is None:
@@ -760,7 +819,7 @@ async def explain_job(job_id: str) -> JSONResponse:
 
 @router.get("/verdicts/lookup", response_model=DetectionJob)
 def lookup_verdict(sha256: Optional[str] = None, phash: Optional[str] = None) -> JSONResponse:
-    """GET /api/v1/verdicts/lookup?sha256= – Previous verdict for identical media; 404 on a miss (no brain needed)."""
+    """Look up a verdict in the selected brain namespace; no inference runs."""
     if not sha256 or not _SHA256_RE.match(sha256):
         return JSONResponse(status_code=400, content={"error": "sha256 must be 64 hex characters.", "code": "VALIDATION_ERROR"})
     if phash is not None and not _PHASH_RE.match(phash):
@@ -774,12 +833,16 @@ def lookup_verdict(sha256: Optional[str] = None, phash: Optional[str] = None) ->
     if found is None:
         return JSONResponse(status_code=404, content={"error": "No cached verdict.", "code": "NOT_FOUND"})
     now = _now()
-    job = DetectionJob(job_id=f"cached-{key[:16]}", status="completed", cache_key=key, created_at=now, updated_at=now, **found)
+    matched_key = found.pop("cache_key", key)
+    job = DetectionJob(
+        job_id=f"cached-{matched_key[:16]}", status="completed", cache_key=matched_key,
+        created_at=now, updated_at=now, **found,
+    )
     return JSONResponse(status_code=200, content=job.model_dump())
 
 
 @router.post("/feedback", status_code=201)
 def submit_feedback(body: FeedbackRequest) -> JSONResponse:
-    """POST /api/v1/feedback – Thumbs up/down on a verdict. Stores labels only: no media, no user identifiers."""
+    """Record verdict feedback without media or account IDs."""
     store.get_store().add_feedback(body.cache_key.lower(), body.verdict_label, body.user_label, body.note)
     return JSONResponse(status_code=201, content={"ok": True})

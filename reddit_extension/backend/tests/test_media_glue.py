@@ -89,7 +89,8 @@ def _install_fake_host(monkeypatch, state: dict):
         )
         types_ = {s["codec_type"] for s in json.loads(probe.stdout or '{"streams": []}')["streams"]}
         state["runner_calls"].append({"path": path, "streams": types_})
-        res = SimpleNamespace(verdict="likely_real", fake_probability=0.2, scores=[], model_versions={"detector": "fake"})
+        score = len(state["runner_calls"]) / 10
+        res = SimpleNamespace(verdict="likely_real", fake_probability=score, scores=[], model_versions={"detector": "fake"})
         return SimpleNamespace(result=res)
 
     mod("app")
@@ -186,6 +187,9 @@ def test_same_video_with_different_audio_never_reuses_the_wrong_verdict(env, cli
     second = key(other.read_bytes())
     assert len({silent, first, second}) == 3
     assert key(clips["audio"]) == first
+    for digest, score in zip((silent, first, second), (0.1, 0.2, 0.3), strict=True):
+        verdict = env.client.get("/api/v1/verdicts/lookup", params={"sha256": digest}).json()
+        assert (verdict["cache_key"], verdict["overall_score"], verdict["mock"]) == (digest, score, True)
     assert len(env.state["runner_calls"]) == 3
     assert leaked_workspaces(env) == set()
 
@@ -256,20 +260,27 @@ def test_detect_url_validates_before_downloading(env, monkeypatch):
 
 def test_detect_url_blocked_maps_to_reddit_blocked(env, monkeypatch):
     monkeypatch.setenv("FEATURE_DETECT_URL", "true")
+    monkeypatch.setattr(url_resolver, "ytdlp_available", lambda: True)
+    monkeypatch.setattr(video_prep, "ffmpeg_available", lambda: True)
 
     def blocked(_url, _ws):
         raise video_prep.VideoPrepError("REDDIT_BLOCKED", "Reddit blocked server download.", 502)
 
     monkeypatch.setattr(url_resolver, "download_reddit_video", blocked)
     res = env.client.post("/api/v1/detect-url", json={"url": URL})
-    assert res.status_code == 502
-    assert res.json() == {"error": "Reddit blocked server download.", "code": "REDDIT_BLOCKED"}
+    assert res.status_code == 202
+    job = env.client.get(f"/api/v1/jobs/{res.json()['job_id']}").json()
+    assert (job["status"], job["error"], job["error_code"]) == (
+        "failed", "Reddit blocked server download.", "REDDIT_BLOCKED",
+    )
+    assert env.state["runner_calls"] == []
     assert leaked_workspaces(env) == set()
 
 
 @needs_ffmpeg
 def test_detect_url_success_runs_the_pipeline_and_cleans_up(env, clips, monkeypatch):
     monkeypatch.setenv("FEATURE_DETECT_URL", "true")
+    monkeypatch.setattr(url_resolver, "ytdlp_available", lambda: True)
 
     def fake_download(_url, ws):
         out = ws.path / "resolved.mp4"

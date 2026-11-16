@@ -48,6 +48,7 @@ class ModelOutput:
     score: float  # probability the media is manipulated, 0..1
     label: str
     confidence: float  # 0..1
+    model_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,7 @@ class BrainInfo:
     version: str
     capabilities: Capabilities
     is_mock: bool
+    cacheable: bool = True
 
 
 @runtime_checkable

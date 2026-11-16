@@ -106,4 +106,6 @@ def download_reddit_video(url: str, workspace: TempWorkspace) -> Path:
     if not files:
         # --match-filter / --max-filesize skip silently with rc=0.
         raise VideoPrepError("VIDEO_TOO_LONG", "The video is too long or too large to download.", 413)
+    if files[0].stat().st_size > MAX_DOWNLOAD_MB * 1024 * 1024:
+        raise VideoPrepError("FILE_TOO_LARGE", "The downloaded video exceeds the size limit.", 413)
     return files[0]

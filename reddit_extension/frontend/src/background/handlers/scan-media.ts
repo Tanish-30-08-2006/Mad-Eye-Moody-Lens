@@ -73,7 +73,7 @@ async function fetchGallery(urls: string[]): Promise<{ blobs: Blob[]; indices: n
 /** Waits for the job unless the backend already knew this media (hash cache hit). */
 async function finishJob(jobId: string, payload: ScanPayload): Promise<DetectionJob> {
   log.info(`Job ${jobId} created for post ${payload.postId}; polling.`);
-  return pollJobUntilComplete(jobId, { postId: payload.postId, mediaType: payload.mediaType });
+  return pollJobUntilComplete(jobId, { postId: payload.postId, mediaType: payload.gallery ? 'gallery' : payload.mediaType });
 }
 
 /** Fetches the video's audio track (from the DOM hint or the DASH manifest); notes when it could not be scanned. */

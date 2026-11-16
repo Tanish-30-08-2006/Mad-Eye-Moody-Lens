@@ -1,0 +1,13 @@
+**
+!functional-ui-models-backend/
+!functional-ui-models-backend/backend/
+!functional-ui-models-backend/backend/requirements.txt
+!functional-ui-models-backend/backend/alembic.ini
+!functional-ui-models-backend/backend/app/
+!functional-ui-models-backend/backend/migrations/
+!functional-ui-models-backend/backend/scripts/
+!reddit_extension/
+!reddit_extension/backend/
+!reddit_extension/backend/moody_lens_ext/
+**/__pycache__/
+**/*.pyc

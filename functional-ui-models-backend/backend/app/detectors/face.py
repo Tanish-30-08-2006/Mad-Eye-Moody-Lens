@@ -51,7 +51,7 @@ class EfficientNetFaceDetector(Detector):
         self.name = model_id
         self.weights_url = weights_url
         self.sha256 = sha256
-        self.revision = f"sha256:{sha256[:12]}" if sha256 else "unpinned"
+        self.revision = f"sha256:{sha256}" if sha256 else "unpinned"
         self.device = device
         self.normalize = normalize
         self.margin = margin

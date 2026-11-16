@@ -1,838 +1,122 @@
-# Moody Lens — API Contract (v1)
-
-> **Version:** 1.0.0-draft · **Last updated:** 2026-11-02  
-> **Base URL:** `http://localhost:8000`  
-> **Protocol:** HTTP/1.1 (localhost only, no TLS for v1)  
-> **Branch:** `darshan-dev`
-
----
-
-## Table of Contents
-
-- [1. Overview](#1-overview)
-- [2. Versioning Strategy](#2-versioning-strategy)
-- [3. Authentication](#3-authentication)
-- [4. CORS Requirements](#4-cors-requirements)
-- [5. Common Error Format](#5-common-error-format)
-- [6. Rate Limiting](#6-rate-limiting)
-- [7. Size Limits](#7-size-limits)
-- [8. Endpoints](#8-endpoints)
-  - [8.1 POST /api/v1/detect](#81-post-apiv1detect)
-  - [8.2 GET /api/v1/jobs/{job_id}](#82-get-apiv1jobsjob_id)
-  - [8.3 GET /api/v1/health](#83-get-apiv1health)
-  - [8.4 POST /api/v1/detect-url](#84-post-apiv1detect-url)
-- [9. Legacy Endpoints](#9-legacy-endpoints)
-- [10. Zod Schemas](#10-zod-schemas)
-- [11. Polling Strategy](#11-polling-strategy)
-
----
-
-## 1. Overview
-
-The Moody Lens backend exposes a **job-based asynchronous API** for deepfake detection. The flow is:
-
-1. **Submit** media via `POST /api/v1/detect` → receive a `job_id` (HTTP 202)
-2. **Poll** job status via `GET /api/v1/jobs/{job_id}` until `status` is `completed` or `failed`
-3. **Read** the verdict from the completed job response
-
-This design allows the backend to run multiple ML models (image, face, audio) without blocking the HTTP connection, and allows the extension's service worker to checkpoint and resume jobs across restarts.
-
----
-
-## 2. Versioning Strategy
-
-| Aspect | Strategy |
-|--------|----------|
-| **URL prefix** | `/api/v1/` — major version in URL path |
-| **Breaking changes** | Increment major version → `/api/v2/` |
-| **Additive changes** | New optional fields, new endpoints — no version bump |
-| **Deprecation** | Old version serves for ≥ 6 months with `Deprecation` header |
-| **Content-Type** | `multipart/form-data` for uploads, `application/json` for everything else |
-
----
-
-## 3. Authentication
-
-| Version | Auth Method |
-|---------|------------|
-| **v1 (current)** | **None** — localhost-only access, no authentication required |
-| **v2 (future)** | API key via `Authorization: Bearer <key>` header |
-
-> [!NOTE]
-> The backend binds to `127.0.0.1` only. The extension's service worker makes requests from the `chrome-extension://` origin. No network exposure is expected in v1.
-
----
-
-## 4. CORS Requirements
-
-The backend **must** allow requests from the Chrome extension origin:
-
-```
-Access-Control-Allow-Origin: chrome-extension://<extension-id>
-Access-Control-Allow-Methods: GET, POST, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Authorization
-Access-Control-Max-Age: 86400
-```
-
-> [!IMPORTANT]
-> The extension ID changes between development (unpacked) and production (Chrome Web Store). The backend should either:
-> - Accept all `chrome-extension://` origins (recommended for v1/localhost), or
-> - Read allowed extension IDs from an environment variable.
-
-For the **mock server**, use `Access-Control-Allow-Origin: *` for simplicity.
-
----
-
-## 5. Common Error Format
-
-All error responses use a consistent JSON structure:
-
-```json
-{
-  "error": "Human-readable error message",
-  "detail": "Optional technical detail for debugging",
-  "code": "OPTIONAL_ERROR_CODE"
-}
-```
-
-### Error Codes
-
-| Code | Meaning |
-|------|---------|
-| `VALIDATION_ERROR` | Request body or parameters failed validation |
-| `FILE_TOO_LARGE` | Uploaded file exceeds size limit |
-| `UNSUPPORTED_MEDIA_TYPE` | File type not supported |
-| `JOB_NOT_FOUND` | Job ID does not exist |
-| `SERVICE_UNAVAILABLE` | Backend or model service is down |
-| `RATE_LIMITED` | Too many requests |
-| `INTERNAL_ERROR` | Unexpected server error |
-| `FFMPEG_UNAVAILABLE` | `ffmpeg`/`ffprobe` is not installed on the server (HTTP 503) |
-| `VIDEO_TOO_LONG` | Video exceeds the duration cap, default 180 s (HTTP 413) |
-| `PROCESSING_TIMEOUT` | ffmpeg or the downloader exceeded its time limit (HTTP 504) |
-| `NOT_IMPLEMENTED` | `detect-url` is disabled (HTTP 501) |
-| `REDDIT_BLOCKED` | Reddit refused the server-side download (HTTP 502) |
-| `DOWNLOAD_FAILED` | The server-side download failed for another reason (HTTP 502) |
-| `RESOLVER_UNAVAILABLE` | `yt-dlp` is not installed on the server (HTTP 503) |
-
----
-
-## 6. Rate Limiting
-
-> [!NOTE]
-> Rate limiting is **optional for v1** (localhost single-user). Documented here for future-proofing and mock server compliance.
-
-### Headers
-
-All responses include rate-limit headers:
-
-```
-X-RateLimit-Limit: 60
-X-RateLimit-Remaining: 58
-X-RateLimit-Reset: 1730500000
-```
-
-| Header | Description |
-|--------|-------------|
-| `X-RateLimit-Limit` | Max requests per window (60/minute for v1) |
-| `X-RateLimit-Remaining` | Requests remaining in current window |
-| `X-RateLimit-Reset` | Unix timestamp when the window resets |
-
-### Rate Limit Exceeded Response
-
-```
-HTTP/1.1 429 Too Many Requests
-Retry-After: 30
-
-{
-  "error": "Rate limit exceeded",
-  "detail": "Try again in 30 seconds",
-  "code": "RATE_LIMITED"
-}
-```
-
----
-
-## 7. Size Limits
-
-| Media Type | Max Size | Rationale |
-|------------|----------|-----------|
-| **Image** | 20 MB | Covers high-res photos, RAW unlikely from Reddit |
-| **Video** | 500 MB | Reddit's max video is 1 GB but most are < 100 MB |
-| **Audio** | 100 MB | Extracted audio tracks are typically small |
-
-When a file exceeds the limit, the backend returns `413 Payload Too Large`:
-
-```json
-{
-  "error": "File too large",
-  "detail": "Image files must be under 20MB. Received: 25.3MB",
-  "code": "FILE_TOO_LARGE"
-}
-```
-
-> [!TIP]
-> The extension should check file size **before** uploading to avoid unnecessary network usage. Size limits are defined in `core/constants.ts`.
-
----
-
-## 8. Endpoints
-
-### 8.1 POST /api/v1/detect
-
-Submit media for deepfake analysis. Returns a job ID for polling.
-
-#### Request
-
-```
-POST /api/v1/detect HTTP/1.1
-Host: localhost:8000
-Content-Type: multipart/form-data; boundary=----FormBoundary
-```
-
-#### Form Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `media` | `file` | ✅ Yes | The media file (image, video, or audio) |
-| `audio` | `file` | ❌ No | Separate audio track for videos with split audio/video streams. Only valid with `media_type=video` (otherwise `400`). Max 50 MB (`MOODY_LENS_MAX_AUDIO_MB`) |
-| `source_url` | `string` | ❌ No | Original URL where the media was found (for logging/dedup) |
-| `post_id` | `string` | ❌ No | Reddit post ID (e.g., `t3_abc123`) for dedup and caching |
-| `media_type` | `enum` | ✅ Yes | One of: `image`, `video`, `audio` |
-
-#### Accepted Media Formats
-
-| Type | Accepted MIME Types |
-|------|-------------------|
-| `image` | `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/avif` |
-| `video` | `video/mp4`, `video/webm`, `video/quicktime`, `video/x-matroska` |
-| `audio` | `audio/mpeg`, `audio/ogg`, `audio/wav`, `audio/webm`, `audio/mp4` |
-
-#### Success Response
-
-```
-HTTP/1.1 202 Accepted
-Content-Type: application/json
-```
-
-```json
-{
-  "job_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-#### Example: cURL
-
-```bash
-curl -X POST http://localhost:8000/api/v1/detect \
-  -F "media=@photo.jpg" \
-  -F "media_type=image" \
-  -F "source_url=https://i.redd.it/abc123.jpg" \
-  -F "post_id=t3_xyz789"
-```
-
-#### Example: Video with Separate Audio
-
-```bash
-curl -X POST http://localhost:8000/api/v1/detect \
-  -F "media=@video.mp4" \
-  -F "audio=@audio.mp4" \
-  -F "media_type=video" \
-  -F "source_url=https://v.redd.it/abc123/DASH_720.mp4" \
-  -F "post_id=t3_xyz789"
-```
-
-#### Video with a separate audio part
-
-When `audio` is present the server probes both files with `ffprobe` (the audio part must contain an audio stream, the video part a video stream), then stream-copies them into ONE MP4 (`ffmpeg -c copy`) and analyses that file, so the existing single-file video task works unchanged. Temp files are always deleted. Without `audio`, a video is analysed as uploaded (a silent video is not an error; the audio detector simply reports `null`). Videos longer than 180 s (`MOODY_LENS_MAX_VIDEO_SECONDS`) are rejected with `413 VIDEO_TOO_LONG`.
-
-#### Error Responses
-
-| Status | Condition | Example Body |
-|--------|-----------|-------------|
-| `400` | `audio` sent with a non-video `media_type` | `{ "error": "The 'audio' part is only valid with media_type=video.", "code": "VALIDATION_ERROR" }` |
-| `413` | Video longer than the duration cap | `{ "error": "Video is 240s long; the limit is 180s.", "code": "VIDEO_TOO_LONG" }` |
-| `415` | Audio part has no audio stream, or the pair cannot be combined | `{ "error": "The audio part has no audio stream.", "code": "UNSUPPORTED_MEDIA_TYPE" }` |
-| `503` | `audio` sent but ffmpeg is not installed | `{ "error": "ffmpeg is not installed on the server, so this video cannot be processed.", "code": "FFMPEG_UNAVAILABLE" }` |
-| `400` | Missing required field or invalid `media_type` | `{ "error": "Invalid media_type. Must be one of: image, video, audio", "code": "VALIDATION_ERROR" }` |
-| `413` | File exceeds size limit | `{ "error": "File too large", "detail": "Video files must be under 500MB. Received: 612.4MB", "code": "FILE_TOO_LARGE" }` |
-| `415` | Unsupported file format | `{ "error": "Unsupported media type", "detail": "Received application/pdf. Accepted: image/jpeg, image/png, image/gif, image/webp, image/avif", "code": "UNSUPPORTED_MEDIA_TYPE" }` |
-| `503` | Backend model service unavailable | `{ "error": "Service unavailable", "detail": "ML model service is not responding", "code": "SERVICE_UNAVAILABLE" }` |
-
----
-
-### 8.2 GET /api/v1/jobs/{job_id}
-
-Poll the status of a detection job.
-
-#### Request
-
-```
-GET /api/v1/jobs/550e8400-e29b-41d4-a716-446655440000 HTTP/1.1
-Host: localhost:8000
-```
-
-#### Path Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `job_id` | `string` (UUID) | The job ID returned by `POST /api/v1/detect` |
-
-#### Response Body
-
-```typescript
-{
-  /** Current job status */
+# Moody Lens Reddit API contract (v1)
+
+The shared host serves the Reddit router at `/api/v1`. For the Sprint 2 Compose stack, the base URL is `http://localhost:8080`; the standalone dev stub defaults to `http://localhost:8000`. See the [deployment and detector runbook](../../backend/docs/BRAIN-INTEGRATION.md). The [extension schemas](../src/core/schema.ts) accept additive fields.
+
+## Access, limits and errors
+
+- Use `X-Client: extension` for extension calls (it selects the detailed liveness response). It is a client hint, not a credential. For JSON posts send `Content-Type: application/json`; let curl or the browser set the multipart boundary for uploads.
+- Compose publishes nginx on loopback. The host's existing origin configuration (`MML_CORS_ORIGINS`, `MML_ALLOW_EXTENSION_CORS`, `MML_EXTENSION_ORIGIN_REGEX`) applies; CORS allows the extension's `X-Client` header. The existing host policy allows anonymous calls. An optional configured `X-API-Key` raises rate limits; it is not mandatory authentication.
+- Host Redis rate limits apply to submissions and job polls. Default anonymous / keyed: fast **30 / 120 per minute**; video and URL **5 / 30 per ten minutes**; polls **120 / 600 per minute**. `429` includes `Retry-After`. One gallery request counts as one fast submission. Liveness does not depend on Redis.
+- Host limits are **10 MiB image, 25 MiB standalone audio, 100 MiB video** by default via `MML_MAX_{IMAGE,AUDIO,VIDEO}_MB`. Separate audio is **50 MiB** via `MOODY_LENS_MAX_AUDIO_MB`; nginx caps the **whole multipart request** at 105 MiB, including all gallery items and both video parts. nginx can send a non-JSON `413`. Host validation sniffs actual bytes and checks decoder/container structure, image pixels (40 million), video height (2160) and audio/video duration (600 s host ceiling). The Reddit-specific video ceiling is **180 s** via `MOODY_LENS_MAX_VIDEO_SECONDS`. The host still applies its own limits.
+- Host formats: **image** JPEG, PNG, WebP; **audio** WAV, MP3, FLAC, Ogg, M4A/MP4 with an audio stream; **video** MP4, MOV, WebM, Matroska, AVI with a video stream. Split tracks must be stream-copy compatible with MP4. The standalone stub is for development and uses lighter validation.
+- API failures generally return `{"error":"…","code":"…","detail":"…"}` with the last two fields optional. Framework input validation can instead return a `422` with a `detail` array. Host rate limit and general error handlers return `{"error":"…"}`.
+
+## Endpoint inventory
+
+Paths below all start with `/api/v1`. Jobs are created by the Reddit router; the host owns inference, and no second inference worker runs in the API.
+
+| Method and path | Caller, request and success | Errors | Readiness / owner |
+|---|---|---|---|
+| **POST** `/detect` | In-feed scans, draft attachment scans, audio API clients. Multipart `media` or legacy `file` (if both, `media` wins), `media_type=image\|audio\|video` (default image), optional `source_url` and `post_id` (accepted for compatibility; neither is stored or part of the cache key). Optional `audio` file is video-only. **202** `{"job_id":"job-…"}`. | 400 invalid kind or audio usage; 413 size/duration; 415 unsupported format/track/mux; 422 missing or malformed media; 429 rate limit; 503 unavailable or `VIDEO_BUSY`; 504 split-track preparation timeout. Inference errors after validation are recorded on the job. | Ready fast worker for image/audio, video worker for video. Host validates upload. Fast dispatch waits for the result; video returns the ID **before inference**, after local validation/hashing and optional mux. Exact cache hits can already be completed. |
+| **POST** `/detect/batch` | Gallery scan. Multipart repeated `media`, **1–10 images**, in input order. **202** `{"job_id":"job-…"}`. All parts pass upload validation before acceptance. Inference failures are per item; a good item can still produce a verdict. | 400 more than 10 items; 413 size; 415 format; 422 missing or invalid upload; 429 rate limit; 503 fast worker unavailable or `GALLERY_BUSY`. | Reddit job orchestration; sequential calls to the host fast dispatcher, exact cache per image. |
+| **GET** `/jobs/{job_id}` | Extension polls a `job-…` ID. **200** `DetectionJob` below. Web app polls the ID from `/analyze/video` and sees its existing `JobStatus` (`queued/running/done/failed`, `progress`, `stage`, nested `result`, `error`). The ID determines the shape. | 404 unknown, expired or lost extension ID; 429 rate limit; 500 host infrastructure failure as applicable. | One GET route. Extension snapshot is process-local; native jobs use host PostgreSQL + Redis. The GET does not require a live inference worker. |
+| **GET** `/health` | Liveness and extension Options. **200** `{"status":"ok"}`; with `X-Client: extension` or `?details=1` also `version`, `models_available` (array of model keys) and `mock` (boolean). | A serving API returns 200 even with no workers. A proxy or unreachable API can fail separately. | API process; detailed compatibility fields are best effort. Use brain status for inference readiness. |
+| **GET** `/brain/status` | Extension Options and deploy checks. **200** `{name,version,capabilities,is_mock,healthy,readiness,models}`; schema below. | 503 `SERVICE_UNAVAILABLE` if the configured brain cannot be selected (e.g. auto with no usable brain or fallback). In host mode with no worker, returns 200 with false readiness. | Host reads recent worker heartbeats. Fast readiness covers image and audio (and the face check on images); video readiness is independent. |
+| **POST** `/detect-url` | Optional in-feed server fallback. JSON `{"url":"https://www.reddit.com/r/.../comments/…/","media_type":"video"}` (video default). **202** `{"job_id":"job-…"}` once admitted. Downloads and validates before **inference**, after the response. | 501 disabled; 400 unsupported kind or URL; 422 malformed JSON; 429 rate limit; 503 worker/tools unavailable or `VIDEO_BUSY`. After 202, poll for `failed` with `error_code` such as `REDDIT_BLOCKED`, `DOWNLOAD_FAILED`, `PROCESSING_TIMEOUT`, `VIDEO_TOO_LONG`, `FILE_TOO_LARGE` or `UNSUPPORTED_MEDIA_TYPE`. | Uses same video slots, host dispatcher and store as video uploads. Off by default. Requires ffmpeg, ffprobe and optional yt-dlp. |
+| **GET** `/verdicts/lookup` | Image repost shortcut or API caller's exact lookup. Query `sha256` (64 hex, the following cache key). **200** completed `DetectionJob` with synthetic `cached-…` ID, not a pollable job. | 400 malformed hash; 404 miss or no selectable/cacheable brain. | Extension SQLite. Selects the active brain namespace; lookup does not submit work. |
+| **POST** `/feedback` | Extension verdict controls. JSON `{cache_key,verdict_label,user_label,note?}`. Key is 64 hex, verdict uses v1 labels, user label is `looks_right\|looks_wrong`, note ≤500 chars. **201** `{"ok":true}`. | 422 invalid input; 500 store failure. No cache hit is required. | Extension SQLite, independent of worker readiness. Stores key, labels, optional note, timestamp and internal row ID. No uploaded media or account ID; avoid personal information in notes. No automatic expiry: operator owns purge and volume retention. |
+| **GET** `/jobs/{job_id}/explain` | Optional extension/API capability. **200** `{job_id,summary,regions:[{x,y,w,h,score,note}],mock}`; normalized coordinates. | 501 unsupported for current host/stub or no explanation; 404 unknown/expired job with a capable brain; 410 `EXPLAIN_EXPIRED` for a known job with no retained file (expired, evicted, or never kept); 422 explanation failed; 503 no usable brain. | Capability gate first. A custom capable brain can keep at most 20 local files for 10 minutes of eligibility, cleaned during access/retention operations. Host web Grad-CAM is its own existing analysis endpoint. |
+
+The URL fallback accepts HTTPS Reddit post permalinks only, on the explicit `reddit.com`, `www`, `old`, `sh`, or `np` host list and default HTTPS port without credentials. The downloader disables playlist and local config, prefers ≤480p where available, checks size and duration, and has a **90 s** process deadline, **20 s** socket timeout and one retry. Default download cap: **50 MiB** (`MOODY_LENS_MAX_DOWNLOAD_MB`). It is opt-in with `MML_FEATURE_DETECT_URL=true` (explicit `FEATURE_DETECT_URL` takes precedence). Moving the download after the response keeps the existing 202/poll shape usable through the 60 s proxy; pre-inference download errors now appear on the job.
+
+## Response shapes and job lifecycle
+
+```ts
+type ModelScore = { score: number; label: string; confidence: number; model_id?: string | null };
+type VerdictFields = {
+  overall_score?: number | null;                  // 0–1 detector aggregate
+  label?: "likely_real" | "likely_fake" | "inconclusive" | null;
+  models?: { image: ModelScore | null; face: ModelScore | null; audio: ModelScore | null } | null;
+  model_versions?: Record<string, string> | null; // actual model ID -> runtime revision or "unpinned"/"stub"
+  mock?: boolean | null;
+  timeline?: { start: number; end: number; score: number }[] | null; // detector ranges in seconds
+  signals?: { kind: string; text: string; severity: "info" | "low" | "medium" | "high" }[] | null;
+};
+type DetectionJob = VerdictFields & {
+  job_id: string;
   status: "pending" | "processing" | "completed" | "failed";
-
-  /** Overall deepfake probability score (0.0 = real, 1.0 = fake). Present when completed. */
-  overall_score?: number;
-
-  /** Human-readable label. Present when completed. */
-  label?: "likely_real" | "likely_fake" | "inconclusive";
-
-  /** Per-model results. Present when completed (may be partial). */
-  models?: {
-    image?: ModelResult;
-    face?: ModelResult;
-    audio?: ModelResult;
-  };
-
-  /** Video only: suspicion per time slice [{ start, end, score }] in seconds. Omitted when the brain has none. */
-  timeline?: { start: number; end: number; score: number }[];
-
-  /** "Why this score" notes [{ kind, text, severity: "info"|"low"|"medium"|"high" }]. */
-  signals?: { kind: string; text: string; severity: string }[];
-
-  /** sha256 of the scanned media; send it back with POST /feedback. */
-  cache_key?: string;
-
-  /** Batch jobs only: one entry per image (index, status, cache_key, scores, signals, error).
-   *  The top-level fields describe the most suspicious image. */
-  items?: BatchItem[];
-
-  /** True when the verdict is demo data. Always shown to the user (DEMO DATA badge). */
-  mock?: boolean;
-
-  /** Versions of models used. Present when completed. */
-  model_versions?: Record<string, string>;
-
-  /** Whether the verdict was produced via mock/fallback in-process mode (DEMO DATA). */
-  mock?: boolean;
-
-  /** Error message if status is "failed". */
-  error?: string;
-
-  /** ISO 8601 timestamp when the job was created. */
-  created_at: string;
-
-  /** ISO 8601 timestamp of the last status update. */
-  updated_at: string;
-}
+  cache_key?: string | null;
+  items?: (VerdictFields & {
+    index: number; status: "completed" | "failed"; cache_key?: string | null; error?: string | null;
+  })[] | null;
+  error?: string | null;
+  error_code?: string | null;
+  created_at: string; updated_at: string;         // ISO 8601 UTC
+};
+type BrainStatus = {
+  name: string; version: string; is_mock: boolean; healthy: boolean;
+  capabilities: { image: boolean; face: boolean; audio: boolean; video: boolean; explain: boolean };
+  readiness: { image: boolean; audio: boolean; video: boolean };
+  models: Record<string, {
+    configured_id: string; configured_revision: string | null;
+    state: "configured" | "loaded" | "unavailable";
+    loaded: { model_id: string; revision: string }[];
+  }>;
+};
 ```
 
-Where `ModelResult` is:
+Nullable result fields can be `null` while pending, on failure, or where the data is unavailable. A null per-model score explicitly means the check did not run (e.g. no face on an image or missing/silent/undecodable video audio). `confidence` is distance from 0.5 rescaled to 0–1; scores are not forensic proof or calibrated confidence. Timeline is absent or null when no measured localization is available. Any demo result carries `mock: true`; a gallery with any demo verdict is also marked as demo. Never use a demo result as verification evidence. Gallery indexes are zero-based within the submitted parts. Top-level verdict fields describe the highest scoring successful item (first in order on ties); if all fail, the job fails and still returns the items.
 
-```typescript
-{
-  /** Model's raw score (0.0–1.0) */
-  score: number;
+`pending` means accepted; `processing` means work has started or is waiting on a host queue. The extension snapshot does not measure progress, so it does not send a percent. The web app continues to get measured frame progress from the native video job. Poll with backoff (extension: 1 s initially up to 8 s; budgets image 60 s, audio 120 s, gallery 360 s, video 480 s). Extension terminal jobs expire after `MML_JOB_TTL_H` (24 h default), or immediately when the API process restarts. A cache verdict can outlive the job. There is no extension cancellation endpoint; host `DELETE /jobs/{id}` applies only to native IDs. At its deadline the adapter requests cancellation of its underlying host video job.
 
-  /** Model's classification label */
-  label: string;
+For brain status, `healthy` means **at least one** media route is ready; check `readiness` for a specific route. A loaded model may serve another queue even when the expected queue is unavailable. `configured` means a relevant live worker reports the key without a loaded model; `unavailable` means there is no relevant observation. `loaded` lists the reported identities, including divergent versions if workers are misconfigured. Stub and auto fallback may have an empty model map; auto status describes the currently selected brain and is unsuitable as a strict deployment readiness probe. Use `MML_BRAIN=host` and host `/ready` for deployment.
 
-  /** Model's confidence in its prediction (0.0–1.0) */
-  confidence: number;
-}
+### Exact keys
+
+- Image: lowercase SHA-256 of the original bytes.
+- Audio or video: SHA-256 of the ASCII string `<kind>:<media SHA-256>:<separate audio SHA-256 or ->`, all hashes lowercase. Compute on the original files **before** muxing. The same video with no track, track A and track B has three distinct keys.
+- Lookup without `phash` and all submit cache checks are exact. The legacy optional `phash` (16 hex) explicitly requests an image similarity fallback on an exact miss, when ImageHash is installed and values have been recorded. A fallback returns the matched image's key. It is neither exact evidence nor used by the extension. Do not pass it for audio or video.
+- Cache keys are separate from the internal version namespace. The worker mode, model identities/pins and result-affecting host settings scope reuse. Host real mode bypasses the verdict cache if artifacts lack immutable pins or a loaded worker reports a different identity. Keep API and worker revisions and settings identical, and bump the brain namespace when changing detector code or preprocessing. Cache rows are retained in the extension SQLite volume until operator purge.
+
+## Runnable examples
+
+Generate synthetic, consent-free transport fixtures with ffmpeg (run in Bash or Git Bash). These contain no people and say nothing about real detector accuracy. The **stub stack** should complete every submitted fixture; for real visual video checks use consented clips with visible faces.
+
+```bash
+mkdir -p fixtures
+ffmpeg -y -f lavfi -i color=blue:s=160x120 -frames:v 1 -threads 1 fixtures/image.png
+ffmpeg -y -f lavfi -i color=red:s=160x120 -frames:v 1 -threads 1 fixtures/other.png
+ffmpeg -y -f lavfi -i testsrc2=s=160x120:r=10:d=2 -c:v libx264 -an fixtures/silent.mp4
+ffmpeg -y -f lavfi -i sine=frequency=440:duration=2 -c:a aac fixtures/track-a.m4a
+ffmpeg -y -f lavfi -i sine=frequency=880:duration=2 -c:a aac fixtures/track-b.m4a
+API=http://localhost:8080/api/v1
+CLIENT='X-Client: extension'
+# If configured, also pass -H "X-API-Key: $MML_API_KEY".
+curl -fsS "$API/health"
+curl -fsS -H "$CLIENT" "$API/health"
+curl -fsS -H "$CLIENT" "$API/brain/status"
+
+image_id=$(curl -fsS -H "$CLIENT" -F 'media=@fixtures/image.png' -F media_type=image "$API/detect" | python -c 'import json,sys; print(json.load(sys.stdin)["job_id"])')
+curl -fsS -H "$CLIENT" "$API/jobs/$image_id"
+curl -fsS -H "$CLIENT" -F 'media=@fixtures/track-a.m4a' -F media_type=audio "$API/detect"
+# Run each video submission separately and poll its ID before starting the next one.
+curl -fsS -H "$CLIENT" -F 'media=@fixtures/silent.mp4' -F media_type=video "$API/detect"
+curl -fsS -H "$CLIENT" -F 'media=@fixtures/silent.mp4' -F 'audio=@fixtures/track-a.m4a' -F media_type=video "$API/detect"
+curl -fsS -H "$CLIENT" -F 'media=@fixtures/silent.mp4' -F 'audio=@fixtures/track-b.m4a' -F media_type=video "$API/detect"
+curl -fsS -H "$CLIENT" -F 'media=@fixtures/image.png' -F 'media=@fixtures/other.png' "$API/detect/batch"
+# Poll any returned job_id as above until completed or failed. Allow rate-limit windows between long smoke runs.
+
+key=$(python -c 'import hashlib,pathlib; print(hashlib.sha256(pathlib.Path("fixtures/image.png").read_bytes()).hexdigest())')
+curl -fsS -H "$CLIENT" "$API/verdicts/lookup?sha256=$key"
+label=$(curl -fsS -H "$CLIENT" "$API/jobs/$image_id" | python -c 'import json,sys; print(json.load(sys.stdin)["label"])')
+curl -fsS -H "$CLIENT" -H 'Content-Type: application/json' \
+  -d "{\"cache_key\":\"$key\",\"verdict_label\":\"$label\",\"user_label\":\"looks_right\"}" "$API/feedback"
+
+# Expect 501 from the host adapter:
+curl -sS -i -H "$CLIENT" "$API/jobs/$image_id/explain"
+# Expect 501 by default. Only replace this example permalink on a resolver-enabled deployment.
+curl -sS -i -H "$CLIENT" -H 'Content-Type: application/json' \
+  -d '{"url":"https://www.reddit.com/r/example/comments/abc123/example/","media_type":"video"}' "$API/detect-url"
+# Native job compatibility: native POST and poll, without the extension header.
+curl -fsS -F 'file=@fixtures/silent.mp4' "$API/analyze/video"
 ```
-
-#### Example: Pending Job
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json
-```
-
-```json
-{
-  "status": "pending",
-  "created_at": "2026-11-02T10:30:00Z",
-  "updated_at": "2026-11-02T10:30:00Z"
-}
-```
-
-#### Example: Processing Job
-
-```json
-{
-  "status": "processing",
-  "created_at": "2026-11-02T10:30:00Z",
-  "updated_at": "2026-11-02T10:30:02Z"
-}
-```
-
-#### Example: Completed Job (Likely Fake)
-
-```json
-{
-  "status": "completed",
-  "overall_score": 0.87,
-  "label": "likely_fake",
-  "models": {
-    "image": {
-      "score": 0.91,
-      "label": "fake",
-      "confidence": 0.93
-    },
-    "face": {
-      "score": 0.82,
-      "label": "fake",
-      "confidence": 0.85
-    }
-  },
-  "model_versions": {
-    "image": "efficientnet-v2.1.0",
-    "face": "xception-v1.3.0"
-  },
-  "created_at": "2026-11-02T10:30:00Z",
-  "updated_at": "2026-11-02T10:30:08Z"
-}
-```
-
-#### Example: Completed Job (Likely Real)
-
-```json
-{
-  "status": "completed",
-  "overall_score": 0.12,
-  "label": "likely_real",
-  "models": {
-    "image": {
-      "score": 0.09,
-      "label": "real",
-      "confidence": 0.95
-    },
-    "face": {
-      "score": 0.15,
-      "label": "real",
-      "confidence": 0.88
-    }
-  },
-  "model_versions": {
-    "image": "efficientnet-v2.1.0",
-    "face": "xception-v1.3.0"
-  },
-  "created_at": "2026-11-02T10:30:00Z",
-  "updated_at": "2026-11-02T10:30:06Z"
-}
-```
-
-#### Example: Completed Job (Inconclusive)
-
-```json
-{
-  "status": "completed",
-  "overall_score": 0.48,
-  "label": "inconclusive",
-  "models": {
-    "image": {
-      "score": 0.52,
-      "label": "uncertain",
-      "confidence": 0.55
-    }
-  },
-  "model_versions": {
-    "image": "efficientnet-v2.1.0"
-  },
-  "created_at": "2026-11-02T10:30:00Z",
-  "updated_at": "2026-11-02T10:30:05Z"
-}
-```
-
-#### Example: Failed Job
-
-```json
-{
-  "status": "failed",
-  "error": "Model inference timeout after 60s",
-  "created_at": "2026-11-02T10:30:00Z",
-  "updated_at": "2026-11-02T10:31:00Z"
-}
-```
-
-#### Error Responses
-
-| Status | Condition | Example Body |
-|--------|-----------|-------------|
-| `404` | Job ID not found | `{ "error": "Job not found", "detail": "No job with ID 550e8400-e29b-41d4-a716-446655440000", "code": "JOB_NOT_FOUND" }` |
-
----
-
-### 8.3 GET /api/v1/health
-
-Check backend health and available models.
-
-#### Request
-
-```
-GET /api/v1/health HTTP/1.1
-Host: localhost:8000
-```
-
-#### Response Body
-
-```typescript
-{
-  /** Overall backend status */
-  status: "ok" | "degraded" | "down";
-
-  /** Backend version string */
-  version: string;
-
-  /** List of currently loaded and available model names */
-  models_available: string[];
-
-  /** Optional. True when scans would be answered with demo/mock verdicts (no real workers). */
-  mock?: boolean;
-}
-```
-
-#### Example: Healthy
-
-```
-HTTP/1.1 200 OK
-Content-Type: application/json
-```
-
-```json
-{
-  "status": "ok",
-  "version": "0.1.0",
-  "models_available": ["efficientnet-image", "xception-face", "wav2vec-audio"]
-}
-```
-
-#### Example: Degraded (Some Models Unavailable)
-
-```json
-{
-  "status": "degraded",
-  "version": "0.1.0",
-  "models_available": ["efficientnet-image"]
-}
-```
-
-#### Example: Down
-
-```
-HTTP/1.1 503 Service Unavailable
-Content-Type: application/json
-```
-
-```json
-{
-  "status": "down",
-  "version": "0.1.0",
-  "models_available": []
-}
-```
-
-#### Error Responses
-
-| Status | Condition | Example Body |
-|--------|-----------|-------------|
-| `503` | Backend completely unreachable | Connection refused (no JSON body — handle at fetch level) |
-
----
-
-### 8.4 POST /api/v1/detect-url
-
-> [!WARNING]
-> **Tier-2 endpoint, off by default.** Enabled only when the backend sets `FEATURE_DETECT_URL=true`; otherwise it returns `501 NOT_IMPLEMENTED`. The extension calls it only when the user turned on "Server fallback" in Options. Reddit often blocks datacenter IPs, so expect `REDDIT_BLOCKED` in some deployments.
-
-The backend downloads the post's video with `yt-dlp` (<=480p, size cap 50 MB, duration cap 180 s, 90 s hard timeout), runs the same duration check as an upload, then analyses it exactly like `/detect`. Temp files are always deleted.
-
-#### Request
-
-```
-POST /api/v1/detect-url HTTP/1.1
-Host: localhost:8000
-Content-Type: application/json
-```
-
-```json
-{
-  "url": "https://www.reddit.com/r/example/comments/abc123/some_title/",
-  "media_type": "video"
-}
-```
-
-#### Request Body
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `url` | `string` (URL) | ✅ Yes | A reddit.com post permalink: `https://(www.|old.|sh.|np.)reddit.com/r/<sub>/comments/<id>[/slug]`. No other host, port, scheme or credentials (SSRF guard) |
-| `media_type` | `enum` | ✅ Yes | Only `video` is supported |
-
-#### Success Response
-
-`202 Accepted` with `{ "job_id": "job-..." }`. Poll `GET /api/v1/jobs/{job_id}` as usual.
-
-#### Error Responses
-
-| Status | Condition | Example Body |
-|--------|-----------|-------------|
-| `400` | URL is not a reddit.com permalink, or `media_type` is not `video` | `{ "error": "Only reddit.com post links are accepted.", "code": "VALIDATION_ERROR" }` |
-| `413` | Video too long or too large to download | `{ "error": "The video is too long or too large to download.", "code": "VIDEO_TOO_LONG" }` |
-| `501` | Feature flag off | `{ "error": "detect-url is not enabled. ...", "code": "NOT_IMPLEMENTED" }` |
-| `502` | Reddit blocked the download | `{ "error": "Reddit blocked server download.", "code": "REDDIT_BLOCKED" }` |
-| `502` | Any other download failure | `{ "error": "The video could not be downloaded.", "code": "DOWNLOAD_FAILED" }` |
-| `503` | `yt-dlp` or ffmpeg missing | `{ "error": "yt-dlp is not installed on the server.", "code": "RESOLVER_UNAVAILABLE" }` |
-| `504` | Download exceeded its time limit | `{ "error": "Downloading the video took too long.", "code": "PROCESSING_TIMEOUT" }` |
-
-### 8.5 POST /api/v1/detect/batch
-
-Up to 10 images as ONE job (used for Reddit galleries). Repeat the multipart part `media`.
-`202 { "job_id" }`; poll `GET /jobs/{id}`. The job has `items[]` (per image: `index`, `status`,
-`cache_key`, scores, `signals`, `error`); top-level `overall_score`/`label`/`models` are those of the
-most suspicious completed image and `mock` is true if ANY item is demo data. Identical images (or
-images already in the verdict cache) skip the brain.
-
-| Status | Condition | Code |
-|---|---|---|
-| `400` | more than 10 images | `VALIDATION_ERROR` |
-| `413` / `415` | an image is too large / not an allowed image type (the whole request is rejected) | `FILE_TOO_LARGE` / `UNSUPPORTED_MEDIA_TYPE` |
-| `422` | no `media` part | `VALIDATION_ERROR` |
-| `503` | no brain available | `SERVICE_UNAVAILABLE` |
-
-### 8.6 GET /api/v1/brain/status
-
-`200 { name, version, capabilities: { image, face, audio, video, explain }, is_mock, healthy }`.
-`is_mock: true` means demo detection; clients must label it MOCK. `503` when no brain is available. In explicitly selected host mode the route can describe the integration with healthy false while workers are still loading.
-
-### 8.7 GET /api/v1/jobs/{job_id}/explain
-
-`501 NOT_IMPLEMENTED` unless `capabilities.explain`. Otherwise `200 { job_id, summary, regions: [{x,y,w,h,score,note}], mock }`
-(coordinates normalised 0..1). `404` unknown job, `410 EXPLAIN_EXPIRED` once the short-lived media copy is gone.
-
-### 8.8 GET /api/v1/verdicts/lookup?sha256=…[&phash=…]
-
-Returns the cached verdict in the DetectionJob shape (status completed) or 404 on a miss. Exact image lookups use the file digest; video and audio keys include media kind and all separately supplied inputs, so a video-only digest is not a lookup key. Optional perceptual lookup is for candidate comparison. It is never used by the extension as exact evidence. The active brain namespace isolates model revisions and real/demo modes. Malformed hashes get 400; an unavailable active brain yields a cache miss.
-
-### 8.9 POST /api/v1/feedback
-
-Body `{ cache_key (sha256), verdict_label, user_label: "looks_right" | "looks_wrong", note? (<= 500 chars) }`,
-`201 { "ok": true }`. Stored in the backend's sqlite file with a timestamp only: no media and no user identifiers.
-
----
-
-## 9. Legacy Endpoints
-
-The backend also exposes legacy (pre-v1) endpoints. These are **not used by the extension** but documented for reference:
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/predict/image` | POST | Synchronous image prediction | ⚠️ Deprecated |
-| `/api/predict/video` | POST | Synchronous video prediction | ⚠️ Deprecated |
-| `/api/predict/audio` | POST | Synchronous audio prediction | ⚠️ Deprecated |
-| `/api/health` | GET | Basic health check | ⚠️ Deprecated |
-
-> [!CAUTION]
-> Legacy endpoints are synchronous (blocking) and do not support the job-based workflow. Do **not** use them in the extension. They may be removed in a future backend version.
-
----
-
-## 10. Zod Schemas
-
-These Zod schemas should be implemented in `src/core/schemas.ts` and used to validate all API responses in the service worker.
-
-```typescript
-import { z } from "zod";
-
-// --- Enums ---
-
-export const MediaTypeEnum = z.enum(["image", "video", "audio"]);
-
-export const JobStatusEnum = z.enum([
-  "pending",
-  "processing",
-  "completed",
-  "failed",
-]);
-
-export const VerdictLabelEnum = z.enum([
-  "likely_real",
-  "likely_fake",
-  "inconclusive",
-]);
-
-// --- Shared ---
-
-export const ModelResultSchema = z.object({
-  score: z.number().min(0).max(1),
-  label: z.string(),
-  confidence: z.number().min(0).max(1),
-});
-
-export const ErrorResponseSchema = z.object({
-  error: z.string(),
-  detail: z.string().optional(),
-  code: z.string().optional(),
-});
-
-// --- POST /api/v1/detect ---
-
-export const DetectResponseSchema = z.object({
-  job_id: z.string().uuid(),
-});
-
-// --- GET /api/v1/jobs/{job_id} ---
-
-export const JobResponseSchema = z.object({
-  status: JobStatusEnum,
-  overall_score: z.number().min(0).max(1).optional(),
-  label: VerdictLabelEnum.optional(),
-  models: z
-    .object({
-      image: ModelResultSchema.optional(),
-      face: ModelResultSchema.optional(),
-      audio: ModelResultSchema.optional(),
-    })
-    .optional(),
-  model_versions: z.record(z.string(), z.string()).optional(),
-  error: z.string().optional(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-});
-
-// --- GET /api/v1/health ---
-
-export const HealthResponseSchema = z.object({
-  status: z.enum(["ok", "degraded", "down"]),
-  version: z.string(),
-  models_available: z.array(z.string()),
-  mock: z.boolean().optional(),
-});
-
-// --- POST /api/v1/detect-url ---
-
-export const DetectUrlRequestSchema = z.object({
-  url: z.string().url(),
-  media_type: MediaTypeEnum,
-});
-
-export const DetectUrlResponseSchema = DetectResponseSchema;
-// Same shape: { job_id: string }
-```
-
----
-
-## 11. Polling Strategy
-
-The extension's service worker polls `GET /api/v1/jobs/{job_id}` with exponential backoff:
-
-```
-Attempt  Delay     Cumulative
-1        1s        1s
-2        2s        3s
-3        4s        7s
-4        8s        15s
-5        16s       31s
-6+       30s       61s, 91s, 121s, ...
-```
-
-### Algorithm
-
-```typescript
-const INITIAL_DELAY_MS = 1000;
-const MAX_DELAY_MS = 30_000;
-const BACKOFF_FACTOR = 2;
-const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-
-async function pollJob(jobId: string): Promise<JobResponse> {
-  let delay = INITIAL_DELAY_MS;
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < MAX_POLL_DURATION_MS) {
-    const response = await fetch(`${API_BASE}/api/v1/jobs/${jobId}`);
-    const job = JobResponseSchema.parse(await response.json());
-
-    if (job.status === "completed" || job.status === "failed") {
-      return job;
-    }
-
-    await sleep(delay);
-    delay = Math.min(delay * BACKOFF_FACTOR, MAX_DELAY_MS);
-  }
-
-  throw new Error(`Job ${jobId} timed out after 5 minutes`);
-}
-```
-
-### Checkpointing
-
-On every poll cycle, the service worker writes the current job state to `chrome.storage.session`:
-
-```typescript
-await chrome.storage.session.set({
-  [`job:${jobId}`]: {
-    jobId,
-    postId,
-    status: job.status,
-    lastPollAt: Date.now(),
-    delay, // current backoff delay
-  },
-});
-```
-
-On SW restart, pending jobs are read from session storage and polling resumes with the saved delay value.
-
-
----
-
-## 12. Contract Testing & Schema Parity (Pydantic ↔ Zod)
-
-To prevent drift between the backend Python API and the extension TypeScript client, the contracts are mirrored 1:1 between Pydantic models in `moody_lens_ext.media` and Zod schemas in `reddit_extension/frontend/src/core/schema.ts`.
-
-### Parity Mapping
-
-| Concept | Pydantic Model (`reddit_extension/backend/moody_lens_ext/media.py`) | Zod Schema (`src/core/schema.ts`) |
-|---------|----------------------------------------|-----------------------------------|
-| Single Model Result | `ModelResult` | `ModelResultSchema` |
-| Job Models Map | `JobModels` | `z.object({ image, face, audio })` |
-| Job Status String | `JobStatusType` (`pending`, `processing`, `completed`, `failed`) | `JobStatusEnum` |
-| Verdict Label String | `VerdictLabelType` (`likely_real`, `likely_fake`, `inconclusive`) | `z.enum(['likely_real', 'likely_fake', 'inconclusive'])` |
-| Full Job Payload | `DetectionJob` | `DetectionJobSchema` |
-| Detection Submission | `DetectResponse` (`job_id`) | `DetectResponseSchema` |
-| Health Status | `HealthResponse` (`status`, `version`, `models_available`, optional `mock`) | `HealthResponseSchema` |
-| Timeline point | `TimelineEntry` | `TimelineEntrySchema` |
-| Signal | `SignalEntry` | `SignalEntrySchema` |
-| Batch item | `BatchItem` | `BatchItemSchema` |
-| Brain status | `BrainStatusResponse` / `BrainCapabilities` | `BrainStatusSchema` / `BrainCapabilitiesSchema` |
-| Error Body | `ApiError` (`error`, `detail`, `code`) | `ApiErrorSchema` |
-
-Field-name parity for all of the above is checked by `backend/tests/test_brain_api.py::test_pydantic_fields_match_zod_fields_STATIC`.
-
-### Verification Harness
-
-1. **Python Unit & Contract Tests** (`reddit_extension/backend/tests/test_media_api.py`):
-   - Validates that real responses produced by `/api/v1/detect`, `/api/v1/jobs/{id}`, and `/api/v1/health` conform to Pydantic models.
-   - Ensures detectors that did not run (such as `audio` on an image upload) evaluate to `null` / omitted rather than fallback or synthetic scores.
-   - Tests JSON Schema serialization via `.model_json_schema()`.
-
-2. **TypeScript Unit Tests** (`reddit_extension/frontend/tests/unit/schema.test.ts`):
-   - Validates that fixture payloads matching the Pydantic schemas parse cleanly via `DetectionJobSchema.parse(...)` and `HealthResponseSchema.parse(...)`.
-   - Verifies invalid states and status codes are rejected.
-
-3. **Mock Backend** (`reddit_extension/frontend/tests/mock-server/index.mjs`):
-   - Satisfies the same JSON contract, allowing end-to-end integration testing even in environments without PyTorch or Celery workers.
-## Cache identity and evidence scope
-
-Detection selects the exact server cache using the media inputs and the current brain's name, revision and real/demo namespace. The exact image key remains SHA-256 of the bytes. Video and audio are domain-separated; a video key includes the separately supplied track digest (or a marker for no separate upload). The browser does not short-circuit video analysis using a video-only hash or persist reusable verdicts keyed by URL. The optional perceptual lookup remains distinct from exact detection and cannot establish attachment evidence. Older unsafe cache entries are excluded by the input-key namespace revision.
-
-For a draft the extension sends only the file and media type to the same detection route; it omits the Reddit post ID, URL and title. The browser caps this flow at 12 MiB and pins polling to the backend confirmed for the upload.
-
-For uncached videos, uploads are validated and any necessary ffprobe, mux or Tier-2 download runs before acceptance. Inference then starts after the 202 response is sent. The job starts pending, moves to processing, then completes or fails; phases do not imply a measured percent complete. There are two concurrent video inference slots per API process; if busy, submit returns 503 VIDEO_BUSY with Retry-After. The response background task owns the files and deletes them on success or failure. Extension job IDs live in memory: restart or another API process cannot recover or poll them, even when the host uses a durable underlying worker job. Use a single process or sticky routing; hard termination can leave temp files for the host's normal temp cleanup.
-
-An absent model field means that check did not run. A video's audio score is separate from the face/frame or image check. Localizations are detector time bounds in seconds with start less than end and a score between 0 and 1. The host adapter forwards video frame ranges and standalone audio windows; the shared video pipeline currently supplies an aggregate audio score only. An aggregate-only job has no timeline. Gallery response indices refer to submitted parts; the browser maps successful downloads back to the observed gallery order before displaying evidence. Navigation to an exact Reddit slide or time is not guaranteed and is not asserted in the note.
-
-Health reports API liveness; detailed health only lists checks reported available. Brain status is the inference integration/health probe. An unconnected brain is a 503, never a successful demo unless the deployment explicitly opted into one.

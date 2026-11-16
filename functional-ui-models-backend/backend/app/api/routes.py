@@ -26,6 +26,8 @@ from app.schemas import AnalysisResult, ErrorBody, Explanation, JobStatus, Model
 from app.services import dispatch, heartbeat, jobs, results
 
 router = APIRouter(prefix="/api/v1")
+# Mounted only when running the host source without the Reddit API package.
+web_only_router = APIRouter(prefix="/api/v1")
 
 ERRORS = {
     404: {"model": ErrorBody},
@@ -39,7 +41,7 @@ ERRORS = {
 
 
 # ------------------------------------------------------------------- health
-@router.get("/health", tags=["ops"])
+@web_only_router.get("/health", tags=["ops"])
 def health() -> dict:
     """Liveness: the API process answers (container restart probe)."""
     return {"status": "ok"}
@@ -108,7 +110,7 @@ async def analyze_video(request: Request, file: UploadFile = File(...)) -> JobSt
 
 
 # --------------------------------------------------------------------- jobs
-@router.get("/jobs/{job_id}", response_model=JobStatus, tags=["jobs"], responses={404: {"model": ErrorBody}})
+@web_only_router.get("/jobs/{job_id}", response_model=JobStatus, tags=["jobs"], responses={404: {"model": ErrorBody}})
 def get_job(job_id: str, request: Request) -> JobStatus:
     check_rate_limit(request, "poll")
     return jobs.get_job(job_id)

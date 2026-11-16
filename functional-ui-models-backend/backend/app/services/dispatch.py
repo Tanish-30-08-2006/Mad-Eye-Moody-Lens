@@ -52,13 +52,20 @@ def run_fast(saved: SavedUpload) -> AnalysisResult:
     from app.worker.tasks import analyze_fast  # noqa: PLC0415 – avoid importing Celery at module load
 
     key, analysis_id = new_upload_key(), uuid.uuid4().hex
-    get_storage().put_file(key, saved.path)
-    async_result = analyze_fast.apply_async(args=[saved.kind, key, analysis_id, request_id_var.get()], queue=FAST)
+    storage = get_storage()
+    try:
+        storage.put_file(key, saved.path)
+        async_result = analyze_fast.apply_async(args=[saved.kind, key, analysis_id, request_id_var.get()], queue=FAST)
+    except Exception:
+        storage.delete(key)
+        raise
     try:
         payload = async_result.get(timeout=settings.sync_timeout_s, propagate=True, disable_sync_subtasks=False)
     except CeleryTimeout as exc:
-        async_result.revoke()
-        get_storage().delete(key)  # the task may never run; do not wait for the sweep
+        try:
+            async_result.revoke()
+        finally:
+            storage.delete(key)  # the task may never run; do not wait for the sweep
         raise AnalysisTimeout() from exc
     async_result.forget()  # the result is now in PostgreSQL; free the Redis result key
 
@@ -72,11 +79,19 @@ def start_video(saved: SavedUpload) -> JobStatus:
     from app.worker.tasks import analyze_video  # noqa: PLC0415
 
     key = new_upload_key()
-    get_storage().put_file(key, saved.path)
-    job_id, analysis_id = jobs.create_job()
-    task_id = f"video-{job_id}"
-    jobs.attach_task(job_id, task_id)
-    analyze_video.apply_async(args=[job_id, key, analysis_id, request_id_var.get()], queue=VIDEO, task_id=task_id)
+    storage = get_storage()
+    job_id = None
+    try:
+        storage.put_file(key, saved.path)
+        job_id, analysis_id = jobs.create_job()
+        task_id = f"video-{job_id}"
+        jobs.attach_task(job_id, task_id)
+        analyze_video.apply_async(args=[job_id, key, analysis_id, request_id_var.get()], queue=VIDEO, task_id=task_id)
+    except Exception:
+        storage.delete(key)
+        if job_id:
+            jobs.mark_failed(job_id, "Could not submit the video job.")
+        raise
     return jobs.get_job(job_id)
 
 

@@ -15,6 +15,7 @@ export const ModelResultSchema = z.object({
   score: z.number().min(0).max(1),
   label: z.string(),
   confidence: z.number().min(0).max(1),
+  model_id: z.string().nullable().optional(),
 });
 
 export type ModelResult = z.infer<typeof ModelResultSchema>;
@@ -96,6 +97,7 @@ export const DetectionJobSchema = z.object({
   /** Batch jobs: one entry per image; top-level fields describe the most suspicious one. */
   items: z.array(BatchItemSchema).nullable().optional(),
   error: z.string().nullable().optional(),
+  error_code: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -139,6 +141,13 @@ export const BrainStatusSchema = z.object({
   /** True for demo detectors; the UI must show a MOCK badge. */
   is_mock: z.boolean(),
   healthy: z.boolean(),
+  readiness: z.object({ image: z.boolean(), audio: z.boolean(), video: z.boolean() }).optional(),
+  models: z.record(z.string(), z.object({
+    configured_id: z.string(),
+    configured_revision: z.string().nullable(),
+    state: z.enum(['configured', 'loaded', 'unavailable']),
+    loaded: z.array(z.object({ model_id: z.string(), revision: z.string() })),
+  })).optional(),
 });
 
 export type BrainStatus = z.infer<typeof BrainStatusSchema>;

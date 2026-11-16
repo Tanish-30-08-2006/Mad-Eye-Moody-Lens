@@ -300,7 +300,7 @@ SCHEMA_TS = Path(__file__).resolve().parents[2] / "frontend" / "src" / "core" / 
 
 
 def zod_keys(name: str) -> set[str]:
-    source = SCHEMA_TS.read_text()
+    source = SCHEMA_TS.read_text(encoding="utf-8")
     match = re.search(rf"export const {name} = z\.object\(\{{\n(.*?)\n\}}\)", source, re.S)
     assert match, f"{name} not found in schema.ts"
     return set(re.findall(r"^  (\w+):", match.group(1), re.M))

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import wave
 from dataclasses import dataclass
 
 FFPROBE_TIMEOUT_S = 15
@@ -79,4 +80,8 @@ def extract_audio(video_path: str, out_wav: str) -> bool:
         result = subprocess.run(cmd, capture_output=True, timeout=FFMPEG_TIMEOUT_S, check=False)
     except subprocess.TimeoutExpired:
         return False
-    return result.returncode == 0 and os.path.exists(out_wav) and os.path.getsize(out_wav) > 1000
+    if result.returncode != 0 or not os.path.exists(out_wav) or os.path.getsize(out_wav) <= 1000:
+        return False
+    # ffmpeg writes mono signed 16-bit PCM; an all-zero track contains no speech to score.
+    with wave.open(out_wav, "rb") as audio:
+        return any(any(chunk) for chunk in iter(lambda: audio.readframes(16000), b""))

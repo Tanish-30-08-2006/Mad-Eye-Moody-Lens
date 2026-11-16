@@ -9,7 +9,9 @@
 # Memory limits follow the budget in the design doc (≈ 5.2 GB total).
 
 x-backend: &backend
-  build: ./backend
+  build:
+    context: ..
+    dockerfile: functional-ui-models-backend/backend/Dockerfile
   image: mml-backend:latest
   env_file: .env
   restart: unless-stopped
@@ -43,6 +45,9 @@ services:
 
   api:
     <<: *backend
+    volumes:
+      - uploads:/data/uploads
+      - extension-data:/data/reddit-extension
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -120,3 +125,4 @@ volumes:
   models:
   pgdata:
   redisdata:
+  extension-data:

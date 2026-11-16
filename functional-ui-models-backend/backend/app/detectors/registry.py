@@ -18,7 +18,7 @@ from app.core.config import settings
 
 QUEUE_MODELS: dict[str, tuple[str, ...]] = {
     "inference.fast": ("image", "face", "audio"),
-    "inference.video": ("face", "audio", "video"),
+    "inference.video": ("face", "audio", "video") if settings.video_check_audio else ("face", "video"),
 }
 
 

@@ -62,6 +62,10 @@ export function toFriendlyError(err: unknown): FriendlyError {
     return friendly('SCAN_FAILED');
   }
   if (err instanceof PollerError) {
+    if (err.job?.error_code === 'REDDIT_BLOCKED') return friendly('REDDIT_BLOCKED');
+    if (err.job?.error_code === 'PROCESSING_TIMEOUT') return friendly('TIMEOUT');
+    if (err.job?.error_code === 'VIDEO_TOO_LONG' || err.job?.error_code === 'FILE_TOO_LARGE') return friendly('FILE_TOO_LARGE');
+    if (err.job?.error_code === 'UNSUPPORTED_MEDIA_TYPE') return friendly('UNSUPPORTED_MEDIA_TYPE');
     return err.code === 'TIMEOUT' ? friendly('TIMEOUT') : friendly('JOB_FAILED');
   }
   if (err instanceof MediaFetchError) {

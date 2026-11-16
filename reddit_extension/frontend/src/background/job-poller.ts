@@ -28,7 +28,8 @@ export interface PollerOptions {
 export const DEFAULT_TIMEOUTS_BY_MEDIA_TYPE: Record<string, number> = {
   image: 60_000, // 60s for images
   audio: 120_000, // 2m for audio
-  video: 300_000, // 5+ min (300s) for video
+  gallery: 360_000, // Ten sequential fast-worker waits of up to 30s each, plus overhead
+  video: 480_000, // URL fallback download, validation and the video worker deadline
 };
 
 export function getDefaultTimeoutForMediaType(mediaType?: string): number {

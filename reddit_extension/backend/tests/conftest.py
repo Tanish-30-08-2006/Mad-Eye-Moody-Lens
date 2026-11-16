@@ -17,7 +17,8 @@ from pathlib import Path
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 _HOST_DIR = _BACKEND_DIR.parent.parent / "functional-ui-models-backend" / "backend"
 
-for p in (str(_BACKEND_DIR), str(_HOST_DIR)):
+paths = [_BACKEND_DIR] if os.getenv("MML_TEST_FAKE_HOST") == "1" else [_BACKEND_DIR, _HOST_DIR]
+for p in map(str, paths):
     if p not in sys.path:
         sys.path.insert(0, p)
 
@@ -78,6 +79,7 @@ if HOST_AVAILABLE:
         store = tmp_path / "store"
         storage_mod.set_storage(storage_mod.LocalStorage(str(store)))
         monkeypatch.setattr(settings, "tmp_dir", str(tmp_path / "tmp"))
+        monkeypatch.setenv("MML_EXT_DATA_DIR", str(tmp_path / "ext-data"))
 
         get_registry.cache_clear()
         yield r

@@ -149,7 +149,8 @@ describe('Job Poller', () => {
 
   it('provides media-type specific default poller timeouts', () => {
     expect(getDefaultTimeoutForMediaType('image')).toBe(60_000);
-    expect(getDefaultTimeoutForMediaType('video')).toBe(300_000);
+    expect(getDefaultTimeoutForMediaType('video')).toBeGreaterThan(440_000);
+    expect(getDefaultTimeoutForMediaType('gallery')).toBeGreaterThan(300_000);
     expect(getDefaultTimeoutForMediaType('audio')).toBe(120_000);
     expect(getDefaultTimeoutForMediaType(undefined)).toBe(60_000);
     expect(DEFAULT_TIMEOUTS_BY_MEDIA_TYPE.video).toBeGreaterThanOrEqual(300_000);

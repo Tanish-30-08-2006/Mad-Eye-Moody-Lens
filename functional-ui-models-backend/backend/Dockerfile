@@ -19,13 +19,14 @@ WORKDIR /app
 
 # CPU-only PyTorch first, so pip never pulls the multi-GB CUDA build (no GPU on the laptop).
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-COPY requirements.txt .
+COPY functional-ui-models-backend/backend/requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY app ./app
-COPY migrations ./migrations
-COPY alembic.ini .
-COPY scripts ./scripts
+COPY functional-ui-models-backend/backend/app ./app
+COPY functional-ui-models-backend/backend/migrations ./migrations
+COPY functional-ui-models-backend/backend/alembic.ini .
+COPY functional-ui-models-backend/backend/scripts ./scripts
+COPY reddit_extension/backend/moody_lens_ext ./moody_lens_ext
 
 # Model caches live on a volume; workers never download at runtime.
 ENV HF_HOME=/models/hf \
@@ -34,6 +35,8 @@ ENV HF_HOME=/models/hf \
     TRANSFORMERS_OFFLINE=1 \
     MML_TMP_DIR=/tmp/mml \
     MML_STORAGE_ROOT=/data/uploads \
+    MML_EXT_DATA_DIR=/data/reddit-extension \
+    MML_BRAIN=host \
     NUMBA_CACHE_DIR=/tmp/numba \
     XDG_CACHE_HOME=/tmp/.cache \
     MPLCONFIGDIR=/tmp/mpl
@@ -42,10 +45,10 @@ ENV HF_HOME=/models/hf \
 
 # Non-root user; the upload and model volumes are created owned by it.
 RUN useradd --create-home --uid 10001 mml \
- && mkdir -p /models /data/uploads /tmp/mml \
+ && mkdir -p /models /data/uploads /data/reddit-extension /tmp/mml \
  && chown -R mml:mml /models /data /tmp/mml
 USER mml
 
 EXPOSE 8000
-CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "2", "-b", "0.0.0.0:8000", \
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "1", "-b", "0.0.0.0:8000", \
      "--timeout", "90", "--graceful-timeout", "30", "--access-logfile", "-"]

@@ -196,9 +196,9 @@ def run_video(
         t1 = time.perf_counter()
         wav = path + ".wav"
         try:
-            has_audio = settings.detector_backend == "stub" or extract_audio(path, wav)
+            has_audio = extract_audio(path, wav)
             if has_audio:
-                a = reg["audio"].predict(wav if os.path.exists(wav) else path)
+                a = reg["audio"].predict(wav)
                 scores.append(
                     ModelScore(model=a.model_name, task="synthetic_speech", fake_probability=a.fake_probability)
                 )

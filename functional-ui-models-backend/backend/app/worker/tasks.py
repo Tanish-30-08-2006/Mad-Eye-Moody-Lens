@@ -42,7 +42,12 @@ RETRY_COUNTDOWNS = (5, 20)
 def _local_copy(upload_key: str) -> str:
     os.makedirs(settings.tmp_dir, exist_ok=True)
     path = os.path.join(settings.tmp_dir, f"work-{uuid.uuid4().hex}")
-    get_storage().get_to_file(upload_key, path)
+    try:
+        get_storage().get_to_file(upload_key, path)
+    except Exception:
+        if os.path.exists(path):
+            os.remove(path)
+        raise
     return path
 
 

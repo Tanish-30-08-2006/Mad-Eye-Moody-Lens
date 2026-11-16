@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import time
 import uuid
 from typing import Optional
@@ -75,20 +76,75 @@ def _queue_ready(media_type: Optional[str]) -> bool:
 class HostBrain:
     def describe(self) -> BrainInfo:
         settings = host_compat.settings
+        is_mock = self._is_mock()
         fields = (
             "version", "detector_backend", "image_model_id", "image_model_revision", "face_model_id",
             "face_model_url", "face_model_sha256", "face_model_normalize", "audio_model_id", "audio_model_revision",
-            "video_frames", "video_check_audio", "audio_window_s", "face_max", "face_margin",
+            "video_frames", "video_flag_threshold", "video_check_audio", "audio_window_s", "face_max", "face_margin",
+            "device", "torch_threads", "max_image_pixels", "max_audio_s", "max_video_s", "max_video_height",
             "aggregation", "aggregation_weights", "band_low", "band_high",
         )
         config = {key: getattr(settings, key, None) for key in fields}
+        if is_mock:
+            config.update({key: os.getenv(key) for key in ("MML_STUB_IMAGE_P", "MML_STUB_FACE_P", "MML_STUB_AUDIO_P")})
         version = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()[:16]
+        pinned = all(
+            re.fullmatch(pattern, config[key] or "")
+            for key, pattern in (
+                ("image_model_revision", r"[0-9a-fA-F]{40}"),
+                ("face_model_sha256", r"[0-9a-fA-F]{64}"),
+                ("audio_model_revision", r"[0-9a-fA-F]{40}"),
+            )
+        )
+        if pinned and not is_mock:
+            # During a rollout, a worker on a different artifact must not fill or hit this namespace.
+            pinned = all(
+                model["model_id"] == info["configured_id"] and model["revision"] == info["configured_revision"]
+                for info in self.model_status().values()
+                for model in info["loaded"]
+            )
         return BrainInfo(
             name="Host detection pipeline",
             version=version,
             capabilities=Capabilities(image=True, face=True, audio=True, video=True, explain=False),
-            is_mock=self._is_mock(),
+            is_mock=is_mock,
+            cacheable=is_mock or pinned or config["detector_backend"] is None,
         )
+
+    def model_status(self) -> dict:
+        """Configured identities and worker observations; a missing heartbeat is not a loaded model."""
+        from app.services import heartbeat
+
+        settings = host_compat.settings
+        if not hasattr(heartbeat, "live_workers"):
+            return {}
+        from app.detectors.registry import QUEUE_MODELS
+
+        try:
+            workers = heartbeat.live_workers()
+        except Exception:
+            workers = []
+        face_pin = f"sha256:{settings.face_model_sha256}" if settings.face_model_sha256 else None
+        configured = {
+            "image": (settings.image_model_id, settings.image_model_revision),
+            "face": (settings.face_model_id, face_pin),
+            "audio": (settings.audio_model_id, settings.audio_model_revision),
+            "video": (settings.face_model_id, face_pin),
+        }
+        models = {}
+        for kind, (model_id, revision) in configured.items():
+            observed = [
+                w["models"][kind] for w in workers
+                if kind in w.get("models", {}) and any(kind in QUEUE_MODELS.get(q, ()) for q in w["queues"])
+            ]
+            loaded = sorted({(model["name"], model["revision"]) for model in observed if model["loaded"]})
+            models[kind] = {
+                "configured_id": model_id,
+                "configured_revision": revision,
+                "state": "loaded" if loaded else "configured" if observed else "unavailable",
+                "loaded": [{"model_id": name, "revision": rev} for name, rev in loaded],
+            }
+        return models
 
     def healthy(self, media_type: Optional[str] = None) -> bool:
         return _queue_ready(media_type)
@@ -142,7 +198,8 @@ class HostBrain:
             return dispatch.run_fast(saved)
 
         job = dispatch.start_video(saved)
-        deadline = time.monotonic() + getattr(host_compat.settings, "video_time_limit_s", 300)
+        # Give the demo queue 30 s of headroom beyond the worker's hard limit.
+        deadline = time.monotonic() + host_compat.settings.video_time_limit_s + 30
         while True:
             if job.status == "done" and job.result is not None:
                 return job.result
@@ -177,6 +234,7 @@ class HostBrain:
                     score=score,
                     label="fake" if s.fake_probability >= 0.5 else "real",
                     confidence=round(abs(s.fake_probability - 0.5) * 2, 2),
+                    model_id=getattr(s, "model", None),
                 )
         result.latency_ms = int((time.perf_counter() - started) * 1000)
         return result
