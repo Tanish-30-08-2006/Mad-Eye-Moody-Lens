@@ -229,7 +229,7 @@ def test_detect_url_stub_returns_501(client):
         json={"url": "https://v.redd.it/abc123/HLSPlaylist.m3u8", "media_type": "video"},
     )
     assert res.status_code == 501
-    assert "not implemented" in res.json().get("error", "").lower()
+    assert res.json().get("code") == "NOT_IMPLEMENTED"
 
 
 # ── Contract Parity Test ─────────────────────────────────────────────────────

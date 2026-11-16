@@ -13,6 +13,8 @@ import type { ProvenanceHint, ScanMeta } from './scan-meta';
 import type { ExtensionSettings } from './settings';
 import { isAllowedMediaUrl } from './media-url';
 import { redditPost, type PostSource } from './reddit-context';
+import { communityName, type CommunityPolicy } from './community-policy';
+import { draftMime, MAX_DRAFT_BASE64 } from './draft-media';
 
 // ── Zod Schemas for Message Payloads ─────────────────────────────────────────
 
@@ -107,6 +109,18 @@ export const ExtensionMessageSchema = z.discriminatedUnion('type', [
   GetBrainStatusRequestSchema,
   SendFeedbackRequestSchema,
   z.object({
+    type: z.literal('GET_COMMUNITY_POLICY'),
+    payload: z.object({ subreddit: z.string().regex(communityName) }),
+  }),
+  z.object({
+    type: z.literal('SCAN_DRAFT'),
+    payload: z.object({
+      base64: z.string().min(4).max(MAX_DRAFT_BASE64).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+      mime: z.string().refine((mime) => !!draftMime(mime)),
+      apiUrl: z.string().max(1024).url(),
+    }),
+  }),
+  z.object({
     type: z.literal('GET_POST_SOURCE'),
     payload: z.object({
       permalink: z.string().max(1000).refine((url) => !!redditPost(url)),
@@ -184,6 +198,7 @@ export interface ErrorResponse {
 }
 
 export type ExtensionResponse =
+  | { type: 'COMMUNITY_POLICY'; policy: CommunityPolicy }
   | { type: 'POST_SOURCE'; source: PostSource | null }
   | PingResponse
   | ScanMediaResponse

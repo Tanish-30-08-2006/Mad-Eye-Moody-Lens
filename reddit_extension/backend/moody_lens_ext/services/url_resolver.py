@@ -36,7 +36,9 @@ _BLOCKED_HINTS = ("403", "blocked", "forbidden", "http error 429", "too many req
 
 
 def feature_enabled() -> bool:
-    """FEATURE_DETECT_URL env flag (default off); the host settings object wins if it defines it."""
+    """An explicit extension flag overrides the host default; both default to off."""
+    if (flag := os.getenv("FEATURE_DETECT_URL")) is not None:
+        return flag.strip().lower() in ("1", "true", "yes", "on")
     try:
         from app.core.config import settings  # type: ignore  # host import, guarded
 
@@ -45,7 +47,7 @@ def feature_enabled() -> bool:
             return bool(flag)
     except Exception:  # noqa: BLE001 - host not importable (tests, standalone): fall back to env
         pass
-    return os.getenv("FEATURE_DETECT_URL", "false").strip().lower() in ("1", "true", "yes", "on")
+    return False
 
 
 def is_reddit_permalink(url: str) -> bool:

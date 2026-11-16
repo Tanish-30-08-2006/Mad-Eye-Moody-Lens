@@ -830,3 +830,9 @@ Field-name parity for all of the above is checked by `backend/tests/test_brain_a
 # Cache identity and evidence scope
 
 Detection selects the exact server cache using the media inputs and the current brain's name, revision and real/demo namespace. The exact image key remains SHA-256 of the bytes. Video and audio are domain-separated; a video key includes the separately supplied track digest (or a marker for no separate upload). The browser does not short-circuit video analysis using a video-only hash or persist reusable verdicts keyed by URL. The optional perceptual lookup remains distinct from exact detection and cannot establish attachment evidence. Older unsafe cache entries are excluded by the input-key namespace revision.
+
+For a draft the extension sends only the file and media type to the same detection route; it omits the Reddit post ID, URL and title. The browser caps this flow at 12 MiB and pins polling to the backend confirmed for the upload.
+
+For uncached videos, uploads are validated and any necessary ffprobe, mux or Tier-2 download runs before acceptance. Inference then starts after the 202 response is sent. The job starts pending, moves to processing, then completes or fails; phases do not imply a measured percent complete. There are two concurrent video inference slots per API process; if busy, submit returns 503 VIDEO_BUSY with Retry-After. The response background task owns the files and deletes them on success or failure. Jobs live in memory: restart or another API process cannot recover or poll them. Deploy as one process or with sticky routing until jobs are moved into the host's durable worker system; hard termination can leave temp files for the host's normal temp cleanup.
+
+Health reports API liveness; detailed health only lists checks reported available. Brain status is the inference integration/health probe. An unconnected brain is a 503, never a successful demo unless the deployment explicitly opted into one.

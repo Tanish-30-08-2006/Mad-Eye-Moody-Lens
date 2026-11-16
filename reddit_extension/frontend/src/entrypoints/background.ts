@@ -28,6 +28,8 @@ import { loadSettings } from '../core/settings';
 import { restoreInFlightJobs } from '../background/keepalive';
 import { pollJobUntilComplete } from '../background/job-poller';
 import { getPostSource, IMAGE_OBSERVATIONS_KEY } from '../background/post-source';
+import { getCommunityPolicy } from '../background/community-policy';
+import { scanDraft } from '../background/handlers/scan-draft';
 
 const log = createLogger('background');
 
@@ -135,6 +137,16 @@ export default defineBackground(() => {
             .catch(() => sendResponse({ type: 'POST_SOURCE', source: null }));
           return true;
         }
+
+        case 'GET_COMMUNITY_POLICY':
+          getCommunityPolicy(message.payload.subreddit)
+            .then((policy) => sendResponse({ type: 'COMMUNITY_POLICY', policy }))
+            .catch(() => sendResponse({ type: 'ERROR', error: 'Community rules are unavailable.' }));
+          return true;
+
+        case 'SCAN_DRAFT':
+          scanDraft(message.payload).then(sendResponse);
+          return true;
 
         case 'CANCEL_JOB': {
           // In v1, cancel acknowledges job cancellation state

@@ -152,15 +152,33 @@ export function postJsonUrl(permalink: string): string | null {
 export async function fetchPostListing(permalink: string): Promise<Json | null> {
   const url = postJsonUrl(permalink);
   if (!url) return null;
+  return listingPost(await fetchRedditJson(url));
+}
+
+/** Fixed Reddit read endpoints only; caller supplies the validated path. */
+export async function fetchRedditJson(url: string): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, { credentials: 'include', signal: controller.signal, redirect: 'error' });
     if (!res.ok) return null;
     if (Number(res.headers.get('content-length')) > MAX_JSON_BYTES) return null;
-    const text = await res.text();
-    if (text.length > MAX_JSON_BYTES) return null;
-    return listingPost(JSON.parse(text));
+    if (!res.body) return null;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    let bytes = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_JSON_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
   } catch (err) {
     log.debug('Post JSON fallback failed:', err instanceof Error ? err.name : '');
     return null;

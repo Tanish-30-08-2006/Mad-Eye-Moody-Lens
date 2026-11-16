@@ -136,6 +136,44 @@ def test_video_identity_distinguishes_audio_inputs(tmp_path):
     assert _input_key(str(video), "image") not in keys
 
 
+def test_video_response_is_sent_before_inference_and_failed_inference_cleans_upload(api, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from moody_lens_ext import media
+
+    input_path = tmp_path / "upload.mp4"
+    input_path.write_bytes(b"fixture")
+    response_sent = False
+    started = []
+
+    async def save(*_):
+        return SimpleNamespace(path=str(input_path))
+
+    class BrokenBrain(StubBrain):
+        def analyze_video(self, path, audio_path=None):
+            started.append((response_sent, Path(path).is_file()))
+            raise RuntimeError("worker failed")
+
+    async def capture_response(scope, receive, send):
+        async def capture(message):
+            nonlocal response_sent
+            await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                response_sent = True
+
+        await api.app(scope, receive, capture)
+
+    monkeypatch.setattr(media, "save_upload", save)
+    monkeypatch.setattr(video_prep, "ffmpeg_available", lambda: False)
+    registry.set_brain(BrokenBrain())
+    result = TestClient(capture_response).post(
+        f"{API}/detect", files={"media": ("v.mp4", b"fixture", "video/mp4")}, data={"media_type": "video"},
+    )
+    assert result.status_code == 202
+    assert started == [(True, True)]
+    assert not input_path.exists()
+    assert api.get(f"{API}/jobs/{result.json()['job_id']}").json()["status"] == "failed"
+
+
 def test_lookup_hit_miss_and_validation(api):
     job = scan(api, png(7))
     hit = api.get(f"{API}/verdicts/lookup", params={"sha256": job["cache_key"]})

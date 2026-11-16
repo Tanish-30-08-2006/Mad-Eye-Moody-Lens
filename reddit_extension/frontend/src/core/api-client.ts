@@ -80,9 +80,10 @@ async function readErrorBody(res: Response): Promise<{ message: string; code?: s
 export async function submitDetection(
   media: Blob,
   audio?: Blob,
-  metadata?: { postId: string; permalink: string; mediaType: string },
+  metadata?: { postId?: string; permalink?: string; mediaType: string },
+  destination?: string,
 ): Promise<DetectResponse> {
-  const baseUrl = await getApiBaseUrl();
+  const baseUrl = destination ?? await getApiBaseUrl();
   const url = `${baseUrl}/api/v1/detect`;
   log.info(`submitDetection calling ${url}`);
 
@@ -93,8 +94,8 @@ export async function submitDetection(
   }
   if (metadata) {
     formData.append('media_type', metadata.mediaType);
-    formData.append('post_id', metadata.postId);
-    formData.append('source_url', metadata.permalink);
+    if (metadata.postId) formData.append('post_id', metadata.postId);
+    if (metadata.permalink) formData.append('source_url', metadata.permalink);
   }
 
   let res: Response;
@@ -105,6 +106,7 @@ export async function submitDetection(
         'X-Client': 'extension',
       },
       body: formData,
+      signal: destination ? AbortSignal.timeout(60_000) : undefined,
     });
   } catch (err) {
     throw new ApiClientError(
@@ -184,8 +186,8 @@ export async function submitDetectUrl(url: string, mediaType: 'video' | 'image' 
 /**
  * Query the status of a detection job via GET /api/v1/jobs/{jobId}.
  */
-export async function getJobStatus(jobId: string): Promise<DetectionJob> {
-  const baseUrl = await getApiBaseUrl();
+export async function getJobStatus(jobId: string, destination?: string): Promise<DetectionJob> {
+  const baseUrl = destination ?? await getApiBaseUrl();
   const url = `${baseUrl}/api/v1/jobs/${encodeURIComponent(jobId)}`;
   log.debug(`getJobStatus calling ${url}`);
 
@@ -193,6 +195,7 @@ export async function getJobStatus(jobId: string): Promise<DetectionJob> {
   try {
     res = await fetch(url, {
       method: 'GET',
+      signal: destination ? AbortSignal.timeout(15_000) : undefined,
       headers: {
         'X-Client': 'extension',
       },

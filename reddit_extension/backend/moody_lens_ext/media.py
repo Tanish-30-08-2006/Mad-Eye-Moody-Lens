@@ -10,11 +10,13 @@ import hashlib
 import os
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any, Dict, List, Literal, Optional
+from threading import BoundedSemaphore
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -330,7 +332,7 @@ def _run_analysis(job_id: str, brain: DetectionBrain, kind: str, path: str, audi
         _update_job(job_id, status="failed", error=exc.message)
     except Exception as exc:
         logger.exception("Inference error for job %s: %s", job_id, exc)
-        _update_job(job_id, status="failed", error=str(exc))
+        _update_job(job_id, status="failed", error="The backend could not analyse this media.")
 
 
 def _run_batch(job_id: str, brain: DetectionBrain, paths: List[str]) -> None:
@@ -384,16 +386,24 @@ def health_v1(request: Request) -> JSONResponse:
     # When queried by extension or contract test, include models_available, version and the mock flag
     # When queried by existing tests or liveness probe, return status: ok
     if request.headers.get("x-client") == "extension" or "details" in request.query_params or "models_available" in request.headers.get("x-request-for", ""):
+        models = []
+        mock = False
         try:
-            mock = get_brain().describe().is_mock
+            brain = get_brain()
+            info = brain.describe()
+            mock = info.is_mock
+            models = [
+                kind for kind in ("image", "face", "audio", "video")
+                if getattr(info.capabilities, kind) and brain.healthy("image" if kind == "face" else kind)
+            ]
         except BrainUnavailable:
-            mock = True
+            pass
         return JSONResponse(
             status_code=200,
             content={
                 "status": "ok",
                 "version": "1.0.0",
-                "models_available": ["image", "face", "audio", "video"],
+                "models_available": models,
                 "mock": mock,
             },
         )
@@ -423,6 +433,7 @@ def brain_status() -> JSONResponse:
 
 @router.post("/detect", response_model=DetectResponse, status_code=202)
 async def submit_detection(
+    background_tasks: BackgroundTasks,
     media: Optional[UploadFile] = File(None),
     file: Optional[UploadFile] = File(None),
     audio: Optional[UploadFile] = File(None),
@@ -467,6 +478,13 @@ async def submit_detection(
 
     # Everything below owns temp files; the finally block always removes them.
     workspace: Optional[video_prep.TempWorkspace] = None
+    handed_off = False
+
+    def cleanup() -> None:
+        _remove_quietly(saved.path)
+        if workspace is not None:
+            workspace.cleanup()
+
     try:
         try:
             brain = get_brain(kind)
@@ -501,12 +519,15 @@ async def submit_detection(
             except VideoPrepError as exc:
                 return _prep_error(exc)
 
+        if kind == "video":
+            response = _queue_video(background_tasks, brain, job_path, audio_path, cache_key, cleanup)
+            handed_off = response.status_code == 202
+            return response
         phash = store.phash_of(saved.path) if kind == "image" else None
         return await _start_job(brain, kind, job_path, audio_path, cache_key, phash)
     finally:
-        _remove_quietly(saved.path)
-        if workspace is not None:
-            workspace.cleanup()
+        if not handed_off:
+            cleanup()
 
 
 async def _start_job(brain: DetectionBrain, kind: str, path: str, audio_path: Optional[str], cache_key: str, phash: Optional[str]) -> JSONResponse:
@@ -514,6 +535,39 @@ async def _start_job(brain: DetectionBrain, kind: str, path: str, audio_path: Op
     job_id = _register_job(mock=None)
     await run_in_threadpool(_run_analysis, job_id, brain, kind, path, audio_path, cache_key, phash)
     return JSONResponse(status_code=202, content={"job_id": job_id})
+
+
+_VIDEO_SLOTS = BoundedSemaphore(2)
+
+
+def _queue_video(
+    tasks: BackgroundTasks,
+    brain: DetectionBrain,
+    path: str,
+    audio_path: Optional[str],
+    cache_key: str,
+    cleanup: Callable[[], None],
+) -> JSONResponse:
+    """Queue server-owned video files for inference after the 202 body is sent."""
+    if not _VIDEO_SLOTS.acquire(blocking=False):
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Video analysis is busy. Try again shortly.", "code": "VIDEO_BUSY"},
+            headers={"Retry-After": "10"},
+        )
+    job_id = _register_job()
+
+    def finish_video() -> None:
+        try:
+            _run_analysis(job_id, brain, "video", path, audio_path, cache_key, None)
+        finally:
+            try:
+                cleanup()
+            finally:
+                _VIDEO_SLOTS.release()
+
+    tasks.add_task(finish_video)
+    return JSONResponse(status_code=202, content={"job_id": job_id}, background=tasks)
 
 
 @router.post("/detect/batch", response_model=DetectResponse, status_code=202)
@@ -612,7 +666,7 @@ def get_job_status(job_id: str, request: Request) -> Any:
 
 
 @router.post("/detect-url")
-async def detect_url(req: DetectUrlRequest) -> JSONResponse:
+async def detect_url(req: DetectUrlRequest, background_tasks: BackgroundTasks) -> JSONResponse:
     """
     POST /api/v1/detect-url – Tier-2 fallback: the server downloads a Reddit post's video with yt-dlp.
     Returns 501 unless FEATURE_DETECT_URL is enabled; only reddit.com permalinks are accepted.
@@ -643,6 +697,7 @@ async def detect_url(req: DetectUrlRequest) -> JSONResponse:
         return _unavailable(exc)
 
     workspace = video_prep.TempWorkspace()
+    handed_off = False
     try:
         downloaded = await run_in_threadpool(url_resolver.download_reddit_video, req.url, workspace)
         cache_key = await run_in_threadpool(_input_key, str(downloaded), "video")
@@ -653,11 +708,14 @@ async def detect_url(req: DetectUrlRequest) -> JSONResponse:
         # Same duration/validity checks as an upload.
         if video_prep.ffmpeg_available():
             await run_in_threadpool(video_prep.enforce_duration_cap, downloaded)
-        return await _start_job(brain, "video", str(downloaded), None, cache_key, None)
+        response = _queue_video(background_tasks, brain, str(downloaded), None, cache_key, workspace.cleanup)
+        handed_off = response.status_code == 202
+        return response
     except VideoPrepError as exc:
         return _prep_error(exc)
     finally:
-        workspace.cleanup()
+        if not handed_off:
+            workspace.cleanup()
 
 
 @router.get("/jobs/{job_id}/explain", response_model=ExplainResponse)

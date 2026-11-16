@@ -118,6 +118,14 @@ export const CROSSPOST_TYPE = 'crosspost';
 /** Only a dedicated native share component is safe to augment. */
 export const SHARE_CONTROL_SELECTOR = 'shreddit-post-share-button';
 
+// Keep composer markup assumptions here; fall back to guidance when a control cannot be identified.
+export const COMPOSER_SELECTOR = 'shreddit-composer, shreddit-post-composer, form[action="/api/submit"]';
+export const COMPOSER_PATH = /^\/(?:r\/[a-z0-9_]+\/)?submit\/?$/i;
+export const COMPOSER_COMMUNITY = 'select[name="sr"], [role="combobox"][name="subreddit"], [slot="community-picker"][subreddit-name]';
+export const COMPOSER_POST_TYPE = '[role="tab"][aria-selected="true"], input[name="kind"]:checked';
+export const COMPOSER_ATTACHMENT = 'input[type="file"]';
+export const COMPOSER_FLAIR = 'button[type="button"][aria-haspopup="dialog"][name="flair"], shreddit-post-flair-picker button[type="button"]';
+
 /** Everything the observer watches: posts and comments. */
 export const OBSERVED_SELECTOR = `${POST_SELECTOR}, ${COMMENT_SELECTOR}`;
 

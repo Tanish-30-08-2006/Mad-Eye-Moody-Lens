@@ -21,6 +21,8 @@ export interface PollerOptions {
   postId?: string;
   mediaType?: string;
   abortSignal?: AbortSignal;
+  /** Draft scans keep polling tied to the destination confirmed for this one upload. */
+  destination?: string;
 }
 
 export const DEFAULT_TIMEOUTS_BY_MEDIA_TYPE: Record<string, number> = {
@@ -34,7 +36,7 @@ export function getDefaultTimeoutForMediaType(mediaType?: string): number {
   return DEFAULT_TIMEOUTS_BY_MEDIA_TYPE[mediaType.toLowerCase()] ?? DEFAULT_POLLER_OPTIONS.timeoutMs;
 }
 
-export const DEFAULT_POLLER_OPTIONS: Required<Omit<PollerOptions, 'postId' | 'mediaType' | 'abortSignal'>> = {
+export const DEFAULT_POLLER_OPTIONS: Required<Omit<PollerOptions, 'postId' | 'mediaType' | 'abortSignal' | 'destination'>> = {
   initialDelayMs: 1000,
   maxDelayMs: 8000,
   backoffFactor: 1.5,
@@ -96,7 +98,7 @@ export async function pollJobUntilComplete(
     }
 
     // 1. Checkpoint state into session storage
-    await saveInFlightJob({
+    if (!options.destination) await saveInFlightJob({
       jobId,
       postId,
       mediaType,
@@ -106,7 +108,7 @@ export async function pollJobUntilComplete(
     });
 
     // 2. Fetch current status
-    const job = await getJobStatus(jobId);
+    const job = options.destination ? await getJobStatus(jobId, options.destination) : await getJobStatus(jobId);
 
     if (job.status === 'completed') {
       log.info(`Job ${jobId} completed successfully (verdict: ${job.label})`);

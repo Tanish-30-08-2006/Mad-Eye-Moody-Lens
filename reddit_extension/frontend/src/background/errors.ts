@@ -30,6 +30,7 @@ export const MESSAGES = {
   FILE_TOO_LARGE: 'This media is too large to scan.',
   UNSUPPORTED_MEDIA_TYPE: "This media type isn't supported.",
   SERVICE_UNAVAILABLE: 'The backend is not ready (no workers or ffmpeg missing). Try again later.',
+  VIDEO_BUSY: 'Video analysis is busy. Try again shortly.',
   TIMEOUT: 'The scan took too long. Please try again.',
   RATE_LIMITED: 'Too many automatic scans. Slow down or click the lens.',
   AUTO_SCAN_DISABLED: 'Automatic scanning is off.',
@@ -54,6 +55,7 @@ export function toFriendlyError(err: unknown): FriendlyError {
     if (err.code === 'NETWORK_ERROR') return friendly('NETWORK_ERROR');
     if (err.status === 413) return friendly('FILE_TOO_LARGE');
     if (err.status === 415) return friendly('UNSUPPORTED_MEDIA_TYPE');
+    if (err.backendCode === 'VIDEO_BUSY') return friendly('VIDEO_BUSY');
     if (err.status === 503) return friendly('SERVICE_UNAVAILABLE');
     if (err.backendCode === 'REDDIT_BLOCKED') return friendly('REDDIT_BLOCKED');
     if (err.status === 429) return friendly('RATE_LIMITED');

@@ -16,6 +16,10 @@ import { redditAdapter } from '../../adapters/reddit';
 import { createLensButton } from '../../ui/lens-button';
 import { createPopoverHost, type PopoverApi } from '../../ui/popover-host';
 import { createController } from '../../content/controller';
+import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { readComposer, sameDraft, watchComposer, type ComposerSnapshot } from '../../adapters/reddit/composer';
+import { ComposerPanel } from '../../ui/ComposerPanel';
 import '../../ui/styles.css';
 
 const log = createLogger('content');
@@ -42,9 +46,42 @@ export default defineContentScript({
 
     // Keep a live copy of the settings the controller reads synchronously.
     let settings: ExtensionSettings = { ...DEFAULT_SETTINGS };
-    void loadSettings().then((s) => (settings = s));
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'sync' && changes[SETTINGS_KEY]) void loadSettings().then((s) => (settings = s));
+    let composer: ComposerSnapshot | null = null;
+    let composerRoot: Root | null = null;
+    let composerRevision = 0;
+    let composerCurrent = () => false;
+    const renderComposer = () => {
+      if (!composer || !composerRoot) return;
+      composerRoot.render(<ComposerPanel key={composerRevision + ':' + settings.apiUrl + ':' + settings.localOnly}
+        snapshot={composer} isCurrent={composerCurrent} settings={settings} send={sendMessage} />);
+    };
+    const refreshSettings = () => void loadSettings().then((s) => { settings = s; renderComposer(); });
+    const onSettingsChanged: Parameters<typeof chrome.storage.onChanged.addListener>[0] = (changes, area) => {
+      if (area === 'sync' && changes[SETTINGS_KEY]) refreshSettings();
+    };
+    refreshSettings();
+    chrome.storage.onChanged.addListener(onSettingsChanged);
+
+    const composerUi = await createShadowRootUi(ctx, {
+      name: 'moody-lens-composer-host',
+      position: 'inline',
+      anchor: () => composer?.root,
+      append: 'before',
+      inheritStyles: true,
+      onMount: (container) => { composerRoot = createRoot(container); renderComposer(); },
+      onRemove: () => { composerRoot?.unmount(); composerRoot = null; },
+    });
+    const stopComposer = watchComposer((next) => {
+      const changedRoot = next?.root !== composer?.root;
+      if (changedRoot) composerUi.remove();
+      if (!sameDraft(composer, next)) {
+        composerRevision++;
+        const revision = composerRevision;
+        composerCurrent = () => revision === composerRevision && sameDraft(next, readComposer());
+      }
+      composer = next;
+      if (changedRoot && next) composerUi.mount();
+      else renderComposer();
     });
 
     // The single shared popover lives in one shadow host on <body>.
@@ -138,6 +175,10 @@ export default defineContentScript({
 
     // Extension update/disable: remove every piece of UI we added.
     ctx.onInvalidated(() => {
+      composerRevision++;
+      stopComposer();
+      composerUi.remove();
+      chrome.storage.onChanged.removeListener(onSettingsChanged);
       chrome.runtime.onMessage.removeListener(onRuntimeMessage);
       controller.stop();
       popoverUi.remove();

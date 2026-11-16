@@ -208,7 +208,8 @@ def test_health_reports_mock_flag(env):
     env.state["queues"] = {"inference.fast": 1}
     assert env.client.get("/api/v1/health", headers={"X-Client": "extension"}).json()["mock"] is False
     env.state["queues"] = {}
-    assert env.client.get("/api/v1/health", headers={"X-Client": "extension"}).json()["mock"] is True
+    unavailable = env.client.get("/api/v1/health", headers={"X-Client": "extension"}).json()
+    assert unavailable["status"] == "ok" and unavailable["models_available"] == [] and unavailable["mock"] is False
     # Plain liveness probe stays minimal.
     assert env.client.get("/api/v1/health").json() == {"status": "ok"}
 
