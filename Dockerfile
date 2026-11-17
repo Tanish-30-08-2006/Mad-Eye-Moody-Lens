@@ -33,7 +33,8 @@ COPY functional-ui-models-backend/backend/scripts ./scripts
 COPY reddit_extension/backend/moody_lens_ext ./moody_lens_ext
 COPY start_render.sh ./start_render.sh
 
-RUN chmod +x ./start_render.sh \
+RUN sed -i 's/\r$//' ./start_render.sh \
+ && chmod +x ./start_render.sh \
  && useradd --create-home --uid 10001 mml \
  && mkdir -p /tmp/uploads /tmp/reddit /tmp/mml \
  && chown -R mml:mml /app /tmp
