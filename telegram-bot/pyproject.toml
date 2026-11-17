@@ -1,0 +1,25 @@
+[project]
+name = "mad-eye-moody-lens-telegram-bot"
+version = "2.0.0"
+requires-python = ">=3.11"
+
+# Same lint rules as the host backend (functional-ui-models-backend/backend).
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["mml_bot"]
+known-third-party = ["app"]   # the host backend package, used only by the contract test
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

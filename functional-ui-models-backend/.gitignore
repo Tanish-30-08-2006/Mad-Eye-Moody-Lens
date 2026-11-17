@@ -1,0 +1,56 @@
+# Mad-Eye Moody Lens: keep source, examples and lockfiles; never commit secrets,
+# user media, local databases or model weights (CLAUDE.md privacy rules).
+
+# --- secrets and local config (the *.example files ARE committed)
+.env
+.env.*
+!.env.example
+!.env.dev.example
+# No secrets in it; Vite needs it for the /api proxy.
+!frontend/.env.development
+*.local
+
+# --- local runtime data: SQLite DB, uploads, tmp media, heatmaps
+data/
+*.db
+*.sqlite
+*.sqlite3
+# Redis snapshot, written when redis-server is started from the repo.
+dump.rdb
+*.log
+
+# --- model weights (download_models caches them in ~/.cache, never in git)
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.safetensors
+
+# --- benchmark output (scripts/benchmark.py --out)
+backend/*.csv
+
+# --- Python
+**/.venv/
+**/venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Frontend
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# --- OS and editors
+.DS_Store
+.localized
+.idea/
+.vscode/
+*.swp

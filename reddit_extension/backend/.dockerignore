@@ -1,0 +1,6 @@
+# Only moody_lens_ext/ is copied into the host image (named build context "reddit").
+**/__pycache__
+*.pyc
+.pytest_cache
+data
+tests

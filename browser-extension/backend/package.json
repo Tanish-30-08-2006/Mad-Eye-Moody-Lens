@@ -1,0 +1,6 @@
+{
+  "name": "mad-eye-moody-lens-extension-backend",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/" }
+}
