@@ -1,0 +1,35 @@
+/* Fixed overlays are clipped to each image's visible box and never alter layout. */
+.ds-image-badge {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 124px;
+  min-height: 25px;
+  box-sizing: border-box;
+  padding: 4px 7px;
+  border: 1px solid rgba(255,255,255,.20);
+  border-radius: 7px;
+  color: #fff;
+  font: 750 9px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: .015em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.28);
+  pointer-events: none !important;
+  user-select: none !important;
+  contain: layout style paint;
+  backdrop-filter: blur(5px);
+}
+.ds-queued { background: rgba(65,76,99,.94); }
+.ds-loading { background: rgba(43,53,75,.95); }
+.ds-real { background: rgba(13,105,68,.96); }
+.ds-ai { background: rgba(158,40,56,.97); }
+.ds-uncertain { background: rgba(148,91,17,.97); }
+.ds-error { background: rgba(76,83,99,.97); }
+.ds-spinner {
+  width: 9px; height: 9px; border: 2px solid rgba(255,255,255,.32);
+  border-top-color: #fff; border-radius: 50%; display: inline-block;
+  animation: ds-spin .8s linear infinite; flex: 0 0 auto;
+}
+@keyframes ds-spin { to { transform: rotate(360deg); } }

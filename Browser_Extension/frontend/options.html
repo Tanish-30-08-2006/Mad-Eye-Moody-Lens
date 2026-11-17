@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Provider settings · Mad Eye Moody Lens</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="mark">M</div>
+      <div>
+        <h1>Detection provider settings</h1>
+        <p>Connect BitMind or a compatible image-detection REST API.</p>
+      </div>
+    </header>
+
+    <section class="card intro">
+      <h2>Custom REST API connector</h2>
+      <p>This connector supports common single-request HTTP POST APIs. It does not implement OAuth refresh, signed requests, or asynchronous job polling. Check your provider's API documentation before entering these values.</p>
+    </section>
+
+    <form id="providerForm" class="card" novalidate>
+      <h2>1. Endpoint and authentication</h2>
+      <div class="grid two">
+        <div>
+          <label for="providerName">Provider display name</label>
+          <input id="providerName" maxlength="60" value="Custom REST API" required>
+        </div>
+        <div>
+          <label for="endpoint">POST endpoint URL</label>
+          <input id="endpoint" type="url" placeholder="https://api.example.com/detect" required>
+        </div>
+      </div>
+
+      <label for="authType">Authentication</label>
+      <select id="authType">
+        <option value="bearer">Bearer token</option>
+        <option value="header">API key in custom header</option>
+        <option value="none">No authentication</option>
+      </select>
+      <div id="authFields" class="grid two">
+        <div>
+          <label for="apiKey">API token / key</label>
+          <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your token">
+        </div>
+        <div id="authHeaderWrap" hidden>
+          <label for="authHeaderName">Authentication header name</label>
+          <input id="authHeaderName" value="x-api-key" placeholder="x-api-key">
+        </div>
+      </div>
+
+      <label for="additionalHeaders">Additional HTTP headers (JSON object)</label>
+      <textarea id="additionalHeaders" rows="3" spellcheck="false">{}</textarea>
+      <p class="help">Example: {"X-Client-ID":"demo"}. Do not put Authorization or Content-Type here; configure authentication above.</p>
+
+      <hr>
+      <h2>2. Image request format</h2>
+      <div class="grid two">
+        <div>
+          <label for="imageTransport">How the image is sent</label>
+          <select id="imageTransport">
+            <option value="url_json">JSON image URL</option>
+            <option value="base64_json">JSON Base64 data URI</option>
+            <option value="multipart">Multipart file upload</option>
+            <option value="binary">Raw image bytes</option>
+          </select>
+        </div>
+        <div>
+          <label for="imageField">Image field name</label>
+          <input id="imageField" value="image" required>
+        </div>
+        <div>
+          <label for="modelId">Optional model ID</label>
+          <input id="modelId" placeholder="e.g. detector-v2">
+        </div>
+        <div>
+          <label for="modelField">Model field name</label>
+          <input id="modelField" value="model">
+        </div>
+        <div>
+          <label for="modelHeaderName">Model header (raw bytes only)</label>
+          <input id="modelHeaderName" value="X-Model-ID">
+        </div>
+      </div>
+      <p class="help">For Base64, multipart and raw-byte modes, the extension fetches URL images from the active webpage before uploading the bytes. This requires permission to access that image host. Manual uploads are supported in all four modes.</p>
+
+      <hr>
+      <h2>3. Map the provider response</h2>
+      <p class="help">Use dot paths for nested JSON and numeric indexes for arrays, for example <code>result.label</code> or <code>predictions.0.score</code>.</p>
+      <div class="grid two">
+        <div>
+          <label for="isAIPath">Boolean AI field path</label>
+          <input id="isAIPath" value="isAI" placeholder="e.g. result.is_ai">
+        </div>
+        <div>
+          <label for="labelPath">Text label field path</label>
+          <input id="labelPath" value="label" placeholder="e.g. predictions.0.label">
+        </div>
+        <div>
+          <label for="confidencePath">Confidence field path</label>
+          <input id="confidencePath" value="confidence" placeholder="e.g. predictions.0.score">
+        </div>
+        <div>
+          <label for="similarityPath">Similarity field path (optional)</label>
+          <input id="similarityPath" value="similarity" placeholder="e.g. result.similarity">
+        </div>
+        <div>
+          <label for="explanationPath">Explanation field path (optional)</label>
+          <input id="explanationPath" value="explanation" placeholder="e.g. result.reason">
+        </div>
+        <div>
+          <label for="modelPath">Model name field path (optional)</label>
+          <input id="modelPath" value="model" placeholder="e.g. metadata.model">
+        </div>
+      </div>
+      <div class="grid two">
+        <div>
+          <label for="aiLabels">Labels meaning AI-generated</label>
+          <input id="aiLabels" value="fake, ai, ai-generated, synthetic">
+        </div>
+        <div>
+          <label for="realLabels">Labels meaning not AI-generated</label>
+          <input id="realLabels" value="real, human, authentic, not-ai, not ai">
+        </div>
+      </div>
+      <p class="help">Comma-separated, case-insensitive labels. Unknown labels are reported as inconclusive; they are never silently treated as real.</p>
+
+      <div class="actions">
+        <button id="saveConfig" class="primary" type="submit">Save custom provider</button>
+        <button id="testConfig" class="secondary" type="button">Test saved provider</button>
+      </div>
+      <p id="message" class="message" role="status">Configuration and API credentials are stored in this Chrome profile.</p>
+    </form>
+
+    <section class="card note">
+      <h2>Privacy and compatibility</h2>
+      <p>Custom API credentials are stored in Chrome extension local storage. They are not exposed to webpage scripts, but this storage is not a hardware-backed secret vault. Images are transmitted to the selected provider. Use HTTPS endpoints; plain HTTP is permitted only for localhost development servers.</p>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
