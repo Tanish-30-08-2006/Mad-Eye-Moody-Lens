@@ -10,6 +10,8 @@ the event loop only ever streams uploads.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, File, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
@@ -27,7 +29,7 @@ from app.services import dispatch, heartbeat, jobs, results
 
 router = APIRouter(prefix="/api/v1")
 
-ERRORS = {
+ERRORS: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorBody},
     413: {"model": ErrorBody},
     415: {"model": ErrorBody},
