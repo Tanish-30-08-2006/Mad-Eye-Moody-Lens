@@ -1,0 +1,42 @@
+name: Security Audit
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run every Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+jobs:
+  audit-python:
+    name: Audit Python Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run pip-audit on Backend
+        run: |
+          pip install pip-audit
+          pip-audit -r functional-ui-models-backend/backend/requirements.txt || true
+
+  audit-node:
+    name: Audit Node Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run npm audit on Frontend
+        working-directory: functional-ui-models-backend/frontend
+        run: npm audit --audit-level=high || true
