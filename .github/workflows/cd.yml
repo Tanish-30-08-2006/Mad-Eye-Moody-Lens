@@ -41,3 +41,4 @@ jobs:
 
           echo "Container passed healthcheck!"
           docker stop mml-test
+
