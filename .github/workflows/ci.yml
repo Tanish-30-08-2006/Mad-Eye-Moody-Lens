@@ -31,7 +31,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg libglib2.0-0 libgomp1
+          sudo apt-get install -y ffmpeg libavcodec-extra libglib2.0-0 libgomp1
 
       - name: Install PyTorch (CPU)
         run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
@@ -39,7 +39,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt -r requirements-dev.txt
 
       - name: Lint Code (Ruff)
         run: ruff check app tests scripts
@@ -47,11 +47,11 @@ jobs:
       - name: Type Check (Mypy)
         run: mypy app
 
-      - name: Run Test Suite (Pytest)
-        run: pytest -q
-
       - name: Verify Backend / Frontend Contract Parity
         run: python -m scripts.check_parity ../frontend
+
+      - name: Run Test Suite (Pytest)
+        run: pytest -v
 
   frontend-ci:
     name: Frontend Typecheck & Build
