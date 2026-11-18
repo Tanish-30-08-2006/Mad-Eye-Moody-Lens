@@ -1,0 +1,43 @@
+name: CD - Deployment & Container Verification
+
+on:
+  push:
+    branches: [main, tanish-dev]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build-and-smoke-test:
+    name: Build & Smoke Test Render Container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Production Image
+        run: docker build -t madeye-moody-backend:ci .
+
+      - name: Smoke Test Container Health
+        run: |
+          docker run -d --name mml-test -p 8000:8000 \
+            -e PORT=8000 \
+            -e MML_ENV=test \
+            -e MML_DETECTOR_BACKEND=stub \
+            -e MML_STORAGE_BACKEND=local \
+            -e MML_DATABASE_URL=sqlite:////tmp/test.db \
+            -e MML_REDIS_URL=redis://127.0.0.1:6379/0 \
+            madeye-moody-backend:ci
+
+          sleep 6
+
+          curl --fail --retry 3 --retry-delay 2 http://localhost:8000/api/v1/health || {
+            echo "Container health check failed. Outputting logs:"
+            docker logs mml-test
+            exit 1
+          }
+
+          echo "Container passed healthcheck!"
+          docker stop mml-test
