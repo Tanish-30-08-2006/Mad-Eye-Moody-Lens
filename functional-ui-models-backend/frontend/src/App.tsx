@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { analyzeAudio, analyzeImage, AnalysisResult, MediaType, startVideoJob } from "./api/client";
 import { Analyser, Phase } from "./components/Analyser";
 import { Footer, GridBackground, Nav } from "./components/Chrome";
+import { ExternalProviderModal } from "./components/ExternalProviderModal";
+import { ExternalResultCard } from "./components/ExternalResultCard";
 import { Hero } from "./components/Hero";
 import { History } from "./components/History";
 import { Limitations } from "./components/Limitations";
@@ -9,17 +11,25 @@ import { ModelStats } from "./components/ModelStats";
 import { ResultCard } from "./components/ResultCard";
 import { TextReveal } from "./components/TextReveal";
 import { Workflow } from "./components/Workflow";
+import { useExternalProviderConfig } from "./hooks/useExternalProviderConfig";
 import { useHistory } from "./hooks/useHistory";
 import { useJobPolling } from "./hooks/useJobPolling";
 import { useModels } from "./hooks/useModels";
+import { callExternalProvider, ExternalAnalysisResult } from "./services/externalProvider";
 
 export default function App() {
   const { models, state, byKey } = useModels();
   const history = useHistory();
+  const externalProvider = useExternalProviderConfig();
 
   const [phase, setPhase] = useState<Phase>({ stage: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [externalResult, setExternalResult] = useState<ExternalAnalysisResult | null>(null);
+  const [externalBusy, setExternalBusy] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [invitationMessage, setInvitationMessage] = useState<string | null>(null);
+
   const [fileName, setFileName] = useState("");
   // The user's original file stays in this tab only, so heatmaps can be drawn over the real face.
   const [resultFile, setResultFile] = useState<File | null>(null);
@@ -29,6 +39,7 @@ export default function App() {
   const job = useJobPolling(jobId);
 
   const finish = (r: AnalysisResult, name: string) => {
+    setExternalResult(null);
     setResult(r);
     history.add(r, name);
     setPhase({ stage: "idle" });
@@ -54,6 +65,7 @@ export default function App() {
   const submit = async (type: MediaType, file: File) => {
     setError(null);
     setResult(null);
+    setExternalResult(null);
     setFileName(file.name);
     setResultFile(file);
     setPhase({ stage: "uploading", fraction: 0 });
@@ -79,6 +91,30 @@ export default function App() {
     }
   };
 
+  const submitExternal = async (file: File) => {
+    setError(null);
+    setResult(null);
+    setExternalResult(null);
+    setFileName(file.name);
+    setResultFile(file);
+    setExternalBusy(true);
+
+    try {
+      const res = await callExternalProvider(file, externalProvider.config);
+      setExternalResult(res);
+      requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExternalBusy(false);
+    }
+  };
+
+  const openSettings = (invitation?: string) => {
+    setInvitationMessage(invitation || null);
+    setModalOpen(true);
+  };
+
   return (
     <>
       <GridBackground />
@@ -87,9 +123,26 @@ export default function App() {
         <main>
           <Hero state={state} models={models} />
           <ModelStats byKey={byKey} />
-          <Analyser phase={phase} error={error} byKey={byKey} onSubmit={submit}>
+          <Analyser
+            phase={phase}
+            error={error}
+            byKey={byKey}
+            onSubmit={submit}
+            externalConfig={externalProvider.config}
+            isExternalConfigured={externalProvider.isConfigured}
+            onExternalSubmit={submitExternal}
+            onOpenExternalSettings={openSettings}
+            isExternalBusy={externalBusy}
+          >
             <div ref={resultRef} style={{ scrollMarginTop: 96 }}>
               {result && <ResultCard result={result} fileName={fileName} file={resultFile} />}
+              {externalResult && (
+                <ExternalResultCard
+                  result={externalResult}
+                  fileName={fileName}
+                  onAnalyseNative={() => resultFile && submit("image", resultFile)}
+                />
+              )}
             </div>
           </Analyser>
           <TextReveal />
@@ -101,6 +154,7 @@ export default function App() {
               setError(null);
               setFileName(e.fileName);
               setResultFile(null); // History keeps results only, never media
+              setExternalResult(null);
               setResult(e.result);
               requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
             }}
@@ -109,6 +163,15 @@ export default function App() {
         </main>
         <Footer />
       </div>
+
+      <ExternalProviderModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        config={externalProvider.config}
+        onSave={externalProvider.save}
+        onClear={externalProvider.clear}
+        invitationMessage={invitationMessage}
+      />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { DragEvent, KeyboardEvent, ReactNode, useEffect, useRef, useState } from "react";
 import type { JobStatus, MediaType, ModelInfo } from "../api/client";
 import { MEDIA, MODELS, VIDEO_FRAMES } from "../config/models";
+import type { ExternalProviderConfig } from "../services/externalProvider";
 import { MEDIA_ICON } from "./Icons";
 import { ScanLine } from "./ScanLine";
 
@@ -15,6 +16,11 @@ interface Props {
   error: string | null;
   byKey: (key: string) => ModelInfo | undefined;
   onSubmit: (type: MediaType, file: File) => void;
+  externalConfig?: ExternalProviderConfig;
+  isExternalConfigured?: boolean;
+  onExternalSubmit?: (file: File) => void;
+  onOpenExternalSettings?: (invitation?: string) => void;
+  isExternalBusy?: boolean;
   /** Result card, rendered under the analyser. */
   children?: ReactNode;
 }
@@ -61,7 +67,18 @@ function statusText(phase: Phase, type: MediaType): string {
   }
 }
 
-export function Analyser({ phase, error, byKey, onSubmit, children }: Props) {
+export function Analyser({
+  phase,
+  error,
+  byKey,
+  onSubmit,
+  externalConfig,
+  isExternalConfigured = false,
+  onExternalSubmit,
+  onOpenExternalSettings,
+  isExternalBusy = false,
+  children,
+}: Props) {
   const [type, setType] = useState<MediaType>("image");
   const [file, setFile] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -218,13 +235,48 @@ export function Analyser({ phase, error, byKey, onSubmit, children }: Props) {
                 </div>
               )}
 
-              <button
-                className="btn btn--block"
-                disabled={!file || busy}
-                onClick={() => file && onSubmit(type, file)}
-              >
-                <span>{busy ? "Analysing" : `Analyse ${type}`}</span>
-              </button>
+              {type === "image" && (
+                <div className="provider-pill">
+                  <span>
+                    External AI: <strong>{isExternalConfigured ? (externalConfig?.name || "Configured") : "Not configured"}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className="provider-pill__btn"
+                    onClick={() => onOpenExternalSettings?.()}
+                  >
+                    {isExternalConfigured ? "Settings ⚙" : "Configure Provider ⚙"}
+                  </button>
+                </div>
+              )}
+
+              <div className={type === "image" ? "analyser__actions" : ""}>
+                <button
+                  className="btn btn--block"
+                  disabled={!file || busy || isExternalBusy}
+                  onClick={() => file && onSubmit(type, file)}
+                >
+                  <span>{busy ? "Analysing" : `Analyse ${type}`}</span>
+                </button>
+
+                {type === "image" && (
+                  <button
+                    type="button"
+                    className="btn btn--block btn--external"
+                    disabled={!file || busy || isExternalBusy}
+                    onClick={() => {
+                      if (!file) return;
+                      if (!isExternalConfigured) {
+                        onOpenExternalSettings?.("Please configure your external API endpoint and credentials before analyzing.");
+                      } else {
+                        onExternalSubmit?.(file);
+                      }
+                    }}
+                  >
+                    <span>{isExternalBusy ? "Analysing Externally..." : "Analyse with External API"}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="analyser__side">
