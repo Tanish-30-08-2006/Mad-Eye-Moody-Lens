@@ -6,6 +6,11 @@ on:
   schedule:
     # Run every Monday at 00:00 UTC
     - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   audit-python:
@@ -22,8 +27,21 @@ jobs:
 
       - name: Run pip-audit on Backend
         run: |
+          python -m pip install --upgrade pip
           pip install pip-audit
-          pip-audit -r functional-ui-models-backend/backend/requirements.txt || true
+          echo "### Python Dependency Audit Report" >> $GITHUB_STEP_SUMMARY
+          set +e
+          AUDIT_OUTPUT=$(pip-audit -r functional-ui-models-backend/backend/requirements.txt 2>&1)
+          AUDIT_EXIT=$?
+          set -e
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$AUDIT_OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          if [ $AUDIT_EXIT -ne 0 ]; then
+            echo "::warning::pip-audit found potential vulnerabilities in Python dependencies. Check Step Summary."
+          else
+            echo "Python dependencies audit passed with 0 vulnerabilities."
+          fi
 
   audit-node:
     name: Audit Node Dependencies
@@ -39,4 +57,17 @@ jobs:
 
       - name: Run npm audit on Frontend
         working-directory: functional-ui-models-backend/frontend
-        run: npm audit --audit-level=high || true
+        run: |
+          echo "### Node Dependency Audit Report" >> $GITHUB_STEP_SUMMARY
+          set +e
+          AUDIT_OUTPUT=$(npm audit --audit-level=high 2>&1)
+          AUDIT_EXIT=$?
+          set -e
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$AUDIT_OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          if [ $AUDIT_EXIT -ne 0 ]; then
+            echo "::warning::npm audit found high severity vulnerabilities in Frontend dependencies. Check Step Summary."
+          else
+            echo "Frontend Node dependencies audit passed with 0 high/critical vulnerabilities."
+          fi

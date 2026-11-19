@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: cd-${{ github.ref }}
-  cancel-in-progress: true
+  group: cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   docker-build-and-smoke-test:
@@ -22,6 +22,7 @@ jobs:
 
       - name: Smoke Test Container Health
         run: |
+          echo "Starting isolated test container..."
           docker run -d --name mml-test -p 8000:8000 \
             -e PORT=8000 \
             -e MML_ENV=test \
@@ -31,14 +32,27 @@ jobs:
             -e MML_REDIS_URL=redis://127.0.0.1:6379/0 \
             madeye-moody-backend:ci
 
-          sleep 6
+          echo "Polling health endpoint at http://localhost:8000/api/v1/health (up to 30s)..."
+          SUCCESS=0
+          for i in $(seq 1 15); do
+            if curl -s -f http://localhost:8000/api/v1/health | grep -q '"status":\s*"ok"'; then
+              echo "Health check succeeded on attempt $i!"
+              SUCCESS=1
+              break
+            fi
+            echo "Waiting for container startup... (attempt $i/15)"
+            sleep 2
+          done
 
-          curl --fail --retry 3 --retry-delay 2 http://localhost:8000/api/v1/health || {
-            echo "Container health check failed. Outputting logs:"
+          if [ $SUCCESS -ne 1 ]; then
+            echo "Container health check failed after 30s. Container logs:"
             docker logs mml-test
             exit 1
-          }
+          fi
 
-          echo "Container passed healthcheck!"
-          docker stop mml-test
+          echo "Container passed health verification!"
 
+      - name: Cleanup Container
+        if: always()
+        run: |
+          docker rm -f mml-test 2>/dev/null || true
