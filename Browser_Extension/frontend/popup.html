@@ -7,128 +7,167 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <main class="wrap">
-    <header>
-      <div class="mark">M</div>
-      <div><h1>Mad Eye Moody Lens</h1><p>Image &amp; Audio deepfake detection</p></div>
-    </header>
-
-    <section class="card">
-      <div class="row between">
-        <h2>Detection provider</h2>
-        <span id="providerState" class="pill muted">Not configured</span>
+  <header class="app-header">
+    <div class="brand-row">
+      <div class="brand-mark">M</div>
+      <div>
+        <h1 class="brand-title">Mad-Eye Moody Lens</h1>
+        <p class="brand-subtitle">Media Authenticity &amp; Deepfake Analysis</p>
       </div>
-      <label for="providerSelect">Active provider</label>
-      <select id="providerSelect">
-        <option value="bitmind">BitMind Oracle</option>
-        <option value="custom">Custom REST API</option>
-      </select>
-      <p class="help">BitMind is the original provider. Configure a compatible REST detector in provider settings before selecting Custom REST API.</p>
-      <button id="manageProviders" class="secondary full">Manage provider settings ↗</button>
-    </section>
+    </div>
+    <button id="openReview" class="header-action-btn" title="Open Forensic Inspection Side Panel">
+      Side Panel ↗
+    </button>
+  </header>
 
-    <section class="card" id="bitmindCard">
-      <div class="row between">
-        <h2>BitMind API credentials</h2>
-        <span id="keyState" class="pill muted">Not configured</span>
-      </div>
-      <label for="apiKey">API key</label>
-      <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
-      <div class="actions">
-        <button id="saveKey" class="primary">Save key</button>
-        <button id="testKey" class="secondary">Test key</button>
-      </div>
-      <p id="keyMessage" class="message">The key is stored in this Chrome profile and is not exposed to webpage scripts.</p>
-    </section>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-target="tabScan">Image Scanner</button>
+    <button class="tab-btn" data-target="tabAudio">Tab Audio</button>
+    <button class="tab-btn" data-target="tabConfig">Providers</button>
+  </nav>
 
-    <section class="card">
-      <div class="row between">
-        <h2>Automatic scanning</h2>
-        <span id="scanState" class="pill muted">Off</span>
-      </div>
-      <p class="help">Scans only prominent images that are substantially visible. Small avatars, logos, icons, navigation and sidebars are skipped.</p>
-
-      <label for="thresholdSelect">Minimum image size</label>
-      <select id="thresholdSelect">
-        <option value="standard">Standard · 220 × 140 px</option>
-        <option value="large">Large only · 320 × 200 px</option>
-        <option value="xlarge">Extra large · 480 × 300 px</option>
-      </select>
-      <p class="micro">Images smaller than this threshold are not submitted to the selected provider.</p>
-
-      <button id="toggleScan" class="primary full">Enable scanning on websites</button>
-      <button id="scanNow" class="secondary full">Scan this tab now</button>
-      <div class="diagnostics" id="diagnostics">No scan report from this tab yet.</div>
-      <p class="notice">Scanning is opt-in. Images or image URLs are sent to the selected provider. Duplicate public image URLs use a provider-specific 24-hour local cache.</p>
-    </section>
-
-    <!-- ================================================================ -->
-    <!-- TAB AUDIO DEEPFAKE DETECTION                                     -->
-    <!-- ================================================================ -->
-
-    <section class="card audio-card">
-      <div class="row between">
-        <h2>🎙️ Tab Audio Deepfake Detection</h2>
-        <span id="audioMonitoringState" class="pill muted">Idle</span>
-      </div>
-      <p class="help" style="margin: 4px 0 10px; font-size: 11px; color: #8fa0bb;">
-        Play audio in any Chrome tab or drop an audio file. As soon as playback concludes or reaches the 30-second cap, a complete forensic analysis report is generated.
-      </p>
-
-      <div class="audio-status-grid">
-        <div class="audio-stat-row">
-          <span class="audio-stat-label">Model</span>
-          <span id="audioModelName" class="audio-stat-value">SSL Anti-Spoofing</span>
+  <main class="tab-viewport">
+    <!-- TAB 1: IMAGE SCANNER -->
+    <div id="tabScan" class="tab-pane active">
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Quick Actions</h2>
+          <span id="providerState" class="pill muted">Not configured</span>
         </div>
-        <div class="audio-stat-row">
-          <span class="audio-stat-label">Model Status</span>
-          <span id="audioModelStatus" class="audio-stat-value muted">Checking…</span>
+        <p class="help">Inspect media on the active tab or launch deep inspection in the side panel.</p>
+        <div class="actions" style="margin-top: 10px;">
+          <button id="scanNow" class="primary">Scan Active Tab Now</button>
         </div>
-        <div class="audio-stat-row">
-          <span class="audio-stat-label">Inference Engine</span>
-          <span id="audioDeviceStatus" class="audio-stat-value good">LOCAL (CUDA)</span>
-        </div>
-        <div class="audio-stat-row">
-          <span class="audio-stat-label">Detection Mode</span>
-          <span id="audioEngineModeBadge" class="audio-stat-value good">Auto (Local/Cloud)</span>
-        </div>
-      </div>
+      </section>
 
-      <!-- Engine Selector & ZeroTrue Cloud API Option -->
-      <div style="margin: 10px 0 6px;">
-        <label for="audioEngineSelect" style="font-size: 11px; font-weight: 600; color: #cbd5e1;">Audio Model Engine</label>
-        <select id="audioEngineSelect" style="width: 100%; padding: 6px 8px; font-size: 11px; background: #0c1526; border: 1px solid #2a3a54; border-radius: 6px; color: #e2ecf8; margin-top: 3px; cursor: pointer;">
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Automated Webpage Scanning</h2>
+          <span id="scanState" class="pill muted">Off</span>
+        </div>
+        <p class="help">Scans substantially visible images on browse. Small icons, avatars, and UI navigation items are filtered out.</p>
+
+        <label for="thresholdSelect">Minimum image size</label>
+        <select id="thresholdSelect">
+          <option value="standard">Standard · 220 × 140 px</option>
+          <option value="large">Large only · 320 × 200 px</option>
+          <option value="xlarge">Extra large · 480 × 300 px</option>
+        </select>
+        <p class="micro">Images smaller than this threshold are not submitted for remote verification.</p>
+
+        <button id="toggleScan" class="secondary full" style="margin-top: 10px;">Enable scanning on websites</button>
+        <p class="notice">Automated scanning sends image URLs to the active detection provider. Duplicate public URLs utilize a 24-hour local cache.</p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Tab Scanner Diagnostics</h2>
+        </div>
+        <div class="diagnostics" id="diagnostics">No scan report from this tab yet.</div>
+      </section>
+    </div>
+
+    <!-- TAB 2: TAB AUDIO DEEPFAKE DETECTION -->
+    <div id="tabAudio" class="tab-pane">
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Tab Audio Analysis</h2>
+          <span id="audioMonitoringState" class="pill muted">Idle</span>
+        </div>
+        <p class="help">
+          Captures tab audio in real-time or up to 30 seconds to run acoustic feature verification for synthesized voice.
+        </p>
+
+        <div class="audio-status-grid">
+          <div class="audio-stat-box">
+            <span class="audio-stat-label">Model</span>
+            <span id="audioModelName" class="audio-stat-value">SSL Anti-Spoofing</span>
+          </div>
+          <div class="audio-stat-box">
+            <span class="audio-stat-label">Status</span>
+            <span id="audioModelStatus" class="audio-stat-value muted">Checking…</span>
+          </div>
+          <div class="audio-stat-box">
+            <span class="audio-stat-label">Engine</span>
+            <span id="audioDeviceStatus" class="audio-stat-value good">LOCAL (CUDA)</span>
+          </div>
+          <div class="audio-stat-box">
+            <span class="audio-stat-label">Mode</span>
+            <span id="audioEngineModeBadge" class="audio-stat-value good">Auto (Local/Cloud)</span>
+          </div>
+        </div>
+
+        <button id="btnPlaybackCapture" class="primary full" style="margin-top: 6px;">
+          Capture &amp; Analyze Tab Audio (30s)
+        </button>
+
+        <div id="audioCurrentStatus" class="audio-current-status"></div>
+        <div class="audio-service-hint" id="audioServiceHint"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Audio Model Configuration</h2>
+        </div>
+        <label for="audioEngineSelect">Engine Mode</label>
+        <select id="audioEngineSelect">
           <option value="auto">Auto (Local GPU Model + ZeroTrue Cloud Fallback)</option>
           <option value="zerotrue">ZeroTrue Online API (https://zerotrue.app)</option>
           <option value="local">Local Model Only (127.0.0.1:8765)</option>
         </select>
-      </div>
 
-      <!-- ZeroTrue Cloud Settings (for users without local GPU) -->
-      <div id="zeroTrueConfigBox" style="margin-bottom: 10px; padding: 10px; background: #0e172a; border: 1px solid #1e293b; border-radius: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-          <strong style="font-size: 11px; color: #a5b4fc;">ZeroTrue Cloud API</strong>
-          <a href="https://zerotrue.app" target="_blank" style="font-size: 10px; color: #818cf8; text-decoration: underline;">Get API key at zerotrue.app ↗</a>
+        <div id="zeroTrueConfigBox" style="margin-top: 10px; padding: 10px; background: var(--bg-subtle); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong style="font-size: 11px; color: #a5b4fc;">ZeroTrue Cloud API</strong>
+            <a href="https://zerotrue.app" target="_blank" style="font-size: 10px; color: #60a5fa; text-decoration: none;">Get key at zerotrue.app ↗</a>
+          </div>
+          <p class="micro">For systems without local CUDA/GPU models. Runs anti-spoofing analysis via cloud.</p>
+          <input id="zeroTrueKeyInput" type="password" placeholder="Paste ZeroTrue API key (zt_...)" autocomplete="off" style="margin-top: 6px;">
+          <div class="actions">
+            <button id="btnSaveZeroTrueKey" class="primary">Save Key</button>
+            <button id="btnTestZeroTrueKey" class="secondary">Test Key</button>
+          </div>
+          <div id="zeroTrueKeyMsg" style="font-size: 10px; margin-top: 6px; line-height: 1.4; display: none;"></div>
         </div>
-        <p style="font-size: 10px; color: #7e94b8; margin: 2px 0 6px;">For users without local GPU/CUDA model. Runs audio deepfake analysis in the cloud.</p>
-        <input id="zeroTrueKeyInput" type="password" placeholder="Paste ZeroTrue API key (zt_...)" autocomplete="off" style="width: 100%; padding: 6px 8px; font-size: 11px; background: #060b14; border: 1px solid #2a3a54; border-radius: 6px; color: #e2ecf8; box-sizing: border-box; margin-bottom: 6px;">
-        <div style="display: flex; gap: 6px;">
-          <button id="btnSaveZeroTrueKey" class="primary" style="flex: 1; padding: 5px; font-size: 10px; font-weight: 600;">Save Key</button>
-          <button id="btnTestZeroTrueKey" class="secondary" style="flex: 1; padding: 5px; font-size: 10px;">Test Key</button>
+      </section>
+    </div>
+
+    <!-- TAB 3: PROVIDERS & CREDENTIALS -->
+    <div id="tabConfig" class="tab-pane">
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Detection Provider</h2>
         </div>
-        <div id="zeroTrueKeyMsg" style="font-size: 10px; margin-top: 5px; color: #94a3b8; display: none; line-height: 1.4;"></div>
-      </div>
+        <label for="providerSelect">Active Image Provider</label>
+        <select id="providerSelect">
+          <option value="bitmind">BitMind Oracle</option>
+          <option value="custom">Custom REST API</option>
+          <option value="moodylens">Mad-Eye Moody Lens Server</option>
+        </select>
+        <p class="help">BitMind is the standard cloud provider. Custom REST API and Moody Lens server can be configured in provider settings.</p>
+        <button id="manageProviders" class="secondary full" style="margin-top: 10px;">Configure Provider Settings ↗</button>
+      </section>
 
-      <div id="audioCurrentStatus" class="audio-current-status" style="display: none;"></div>
-
-      <button id="btnPlaybackCapture" class="primary full" style="font-size: 12px; font-weight: 800; padding: 11px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border: none;">🎵 PLAY &amp; ANALYZE TAB AUDIO (AUTO / 30s)</button>
-
-      <div class="audio-service-hint" id="audioServiceHint"></div>
-    </section>
-
-    <button id="openReview" class="review-button">Open detailed review slide <span>↗</span></button>
-    <footer>Right-click an image → Analyze image with Mad Eye Moody Lens.</footer>
+      <section class="card" id="bitmindCard">
+        <div class="card-header">
+          <h2 class="card-title">BitMind API Credentials</h2>
+          <span id="keyState" class="pill muted">Not configured</span>
+        </div>
+        <label for="apiKey">API Key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
+        <div class="actions">
+          <button id="saveKey" class="primary">Save Key</button>
+          <button id="testKey" class="secondary">Test Connection</button>
+        </div>
+        <p id="keyMessage" class="message">API credentials are stored securely in this Chrome profile.</p>
+      </section>
+    </div>
   </main>
+
+  <footer class="app-footer">
+    Right-click any image on the web &rarr; Analyze with Mad-Eye Moody Lens
+  </footer>
+
   <script src="popup.js"></script>
 </body>
 </html>

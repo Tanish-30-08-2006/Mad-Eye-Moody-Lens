@@ -6,6 +6,21 @@ async function activeTab() {
   return tab;
 }
 
+function setupTabs() {
+  const tabs = document.querySelectorAll(".tab-btn");
+  const panes = document.querySelectorAll(".tab-pane");
+  tabs.forEach(btn => {
+    btn.addEventListener("click", () => {
+      tabs.forEach(t => t.classList.remove("active"));
+      panes.forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      const target = document.getElementById(btn.dataset.target);
+      if (target) target.classList.add("active");
+    });
+  });
+}
+setupTabs();
+
 function renderDiagnostics(stats) {
   if (!stats) {
     $("diagnostics").textContent = "Scanner is not active in this tab. Use ‘Scan this tab now’ or refresh the page.";
@@ -27,8 +42,11 @@ async function refresh() {
   const status = await send({ type: "GET_PUBLIC_STATUS" });
   if (status?.error) throw new Error(status.error);
   $("providerSelect").value = status.activeProvider || "bitmind";
+  const providerLabel = status.activeProvider === "custom"
+    ? (status.customProviderName || "Custom REST ready")
+    : (status.activeProvider === "moodylens" ? "Moody Lens Server ready" : "BitMind ready");
   $("providerState").textContent = status.activeProviderConfigured
-    ? (status.activeProvider === "custom" ? status.customProviderName : "BitMind ready")
+    ? providerLabel
     : "Needs setup";
   $("providerState").className = `pill ${status.activeProviderConfigured ? "good" : "muted"}`;
   $("bitmindCard").hidden = status.activeProvider !== "bitmind";

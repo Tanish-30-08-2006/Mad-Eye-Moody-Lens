@@ -3,142 +3,174 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Provider settings · Mad Eye Moody Lens</title>
+  <title>Provider Settings · Mad-Eye Moody Lens</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <main class="page">
-    <header>
+    <header class="opt-header">
       <div class="mark">M</div>
       <div>
-        <h1>Detection provider settings</h1>
-        <p>Connect BitMind or a compatible image-detection REST API.</p>
+        <h1>Detection Provider Configuration</h1>
+        <p>Configure the native Mad-Eye Moody Lens backend, BitMind, or a compatible custom REST API detector.</p>
       </div>
     </header>
 
+    <!-- SECTION 1: NATIVE MOODY LENS SERVER -->
+    <section class="card">
+      <h2>1. Mad-Eye Moody Lens Official Server</h2>
+      <p>Connect directly to the team's backend API (FastAPI + PyTorch pipelines) for native image, audio, and video deepfake forensics with Grad-CAM support.</p>
+
+      <div class="grid two">
+        <div>
+          <label for="moodyServerUrl">Server Base URL</label>
+          <input id="moodyServerUrl" type="url" placeholder="http://127.0.0.1:8080" value="http://127.0.0.1:8080">
+          <p class="help">Default local development: <code>http://127.0.0.1:8080</code>. Production requires an HTTPS URL.</p>
+        </div>
+        <div>
+          <label for="moodyApiKey">API Key (Optional)</label>
+          <input id="moodyApiKey" type="password" autocomplete="off" placeholder="Optional server authorization token">
+          <p class="help">Sent as <code>X-API-Key</code> header if configured on the server.</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="saveMoodyConfig" class="primary" type="button">Save Server Configuration</button>
+        <button id="testMoodyConfig" class="secondary" type="button">Test Server Connection</button>
+      </div>
+      <div id="moodyMessage" class="message" style="display: none;"></div>
+    </section>
+
+    <!-- SECTION 2: CUSTOM REST API CONNECTOR -->
     <section class="card intro">
-      <h2>Custom REST API connector</h2>
-      <p>This connector supports common single-request HTTP POST APIs. It does not implement OAuth refresh, signed requests, or asynchronous job polling. Check your provider's API documentation before entering these values.</p>
+      <h2>2. Custom REST API Connector</h2>
+      <p>Integrate any standard HTTP POST image detection endpoint. The extension formats the image as JSON, multipart, or raw binary, and normalizes the JSON response according to your field mappings.</p>
     </section>
 
     <form id="providerForm" class="card" novalidate>
-      <h2>1. Endpoint and authentication</h2>
+      <h2>Endpoint &amp; Authentication</h2>
       <div class="grid two">
         <div>
-          <label for="providerName">Provider display name</label>
+          <label for="providerName">Provider Display Name</label>
           <input id="providerName" maxlength="60" value="Custom REST API" required>
         </div>
         <div>
-          <label for="endpoint">POST endpoint URL</label>
+          <label for="endpoint">POST Endpoint URL</label>
           <input id="endpoint" type="url" placeholder="https://api.example.com/detect" required>
         </div>
       </div>
 
-      <label for="authType">Authentication</label>
+      <label for="authType">Authentication Method</label>
       <select id="authType">
-        <option value="bearer">Bearer token</option>
-        <option value="header">API key in custom header</option>
-        <option value="none">No authentication</option>
+        <option value="bearer">Bearer Token</option>
+        <option value="header">API Key in Custom Header</option>
+        <option value="none">No Authentication</option>
       </select>
+
       <div id="authFields" class="grid two">
         <div>
-          <label for="apiKey">API token / key</label>
-          <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your token">
+          <label for="apiKey">API Key / Token</label>
+          <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your authentication token">
         </div>
         <div id="authHeaderWrap" hidden>
-          <label for="authHeaderName">Authentication header name</label>
+          <label for="authHeaderName">Custom Header Name</label>
           <input id="authHeaderName" value="x-api-key" placeholder="x-api-key">
         </div>
       </div>
 
-      <label for="additionalHeaders">Additional HTTP headers (JSON object)</label>
+      <label for="additionalHeaders">Additional HTTP Headers (JSON Object)</label>
       <textarea id="additionalHeaders" rows="3" spellcheck="false">{}</textarea>
-      <p class="help">Example: {"X-Client-ID":"demo"}. Do not put Authorization or Content-Type here; configure authentication above.</p>
+      <p class="help">Example: <code>{"X-Client-ID":"demo"}</code>. Do not configure Authorization or Content-Type here; set those above.</p>
 
       <hr>
-      <h2>2. Image request format</h2>
+
+      <h2>Image Request Formatting</h2>
       <div class="grid two">
         <div>
-          <label for="imageTransport">How the image is sent</label>
+          <label for="imageTransport">Image Payload Format</label>
           <select id="imageTransport">
-            <option value="url_json">JSON image URL</option>
-            <option value="base64_json">JSON Base64 data URI</option>
-            <option value="multipart">Multipart file upload</option>
-            <option value="binary">Raw image bytes</option>
+            <option value="url_json">JSON Image URL</option>
+            <option value="base64_json">JSON Base64 Data URI</option>
+            <option value="multipart">Multipart File Upload</option>
+            <option value="binary">Raw Image Bytes</option>
           </select>
         </div>
         <div>
-          <label for="imageField">Image field name</label>
+          <label for="imageField">Image Field Name</label>
           <input id="imageField" value="image" required>
         </div>
         <div>
-          <label for="modelId">Optional model ID</label>
+          <label for="modelId">Optional Model ID</label>
           <input id="modelId" placeholder="e.g. detector-v2">
         </div>
         <div>
-          <label for="modelField">Model field name</label>
+          <label for="modelField">Model Field Name</label>
           <input id="modelField" value="model">
         </div>
         <div>
-          <label for="modelHeaderName">Model header (raw bytes only)</label>
+          <label for="modelHeaderName">Model Header (Raw Binary Mode Only)</label>
           <input id="modelHeaderName" value="X-Model-ID">
         </div>
       </div>
-      <p class="help">For Base64, multipart and raw-byte modes, the extension fetches URL images from the active webpage before uploading the bytes. This requires permission to access that image host. Manual uploads are supported in all four modes.</p>
 
       <hr>
-      <h2>3. Map the provider response</h2>
-      <p class="help">Use dot paths for nested JSON and numeric indexes for arrays, for example <code>result.label</code> or <code>predictions.0.score</code>.</p>
+
+      <h2>Response Mapping</h2>
+      <p class="help">Specify dot paths for nested JSON properties (e.g., <code>result.is_ai</code> or <code>predictions.0.label</code>).</p>
+
       <div class="grid two">
         <div>
-          <label for="isAIPath">Boolean AI field path</label>
+          <label for="isAIPath">Boolean AI Flag Path</label>
           <input id="isAIPath" value="isAI" placeholder="e.g. result.is_ai">
         </div>
         <div>
-          <label for="labelPath">Text label field path</label>
+          <label for="labelPath">Text Label Path</label>
           <input id="labelPath" value="label" placeholder="e.g. predictions.0.label">
         </div>
         <div>
-          <label for="confidencePath">Confidence field path</label>
+          <label for="confidencePath">Confidence Score Path</label>
           <input id="confidencePath" value="confidence" placeholder="e.g. predictions.0.score">
         </div>
         <div>
-          <label for="similarityPath">Similarity field path (optional)</label>
+          <label for="similarityPath">Similarity Score Path (Optional)</label>
           <input id="similarityPath" value="similarity" placeholder="e.g. result.similarity">
         </div>
         <div>
-          <label for="explanationPath">Explanation field path (optional)</label>
+          <label for="explanationPath">Explanation Text Path (Optional)</label>
           <input id="explanationPath" value="explanation" placeholder="e.g. result.reason">
         </div>
         <div>
-          <label for="modelPath">Model name field path (optional)</label>
+          <label for="modelPath">Model Name Path (Optional)</label>
           <input id="modelPath" value="model" placeholder="e.g. metadata.model">
         </div>
       </div>
+
       <div class="grid two">
         <div>
-          <label for="aiLabels">Labels meaning AI-generated</label>
+          <label for="aiLabels">Labels Signifying AI-Generated</label>
           <input id="aiLabels" value="fake, ai, ai-generated, synthetic">
         </div>
         <div>
-          <label for="realLabels">Labels meaning not AI-generated</label>
+          <label for="realLabels">Labels Signifying Authentic / Human</label>
           <input id="realLabels" value="real, human, authentic, not-ai, not ai">
         </div>
       </div>
-      <p class="help">Comma-separated, case-insensitive labels. Unknown labels are reported as inconclusive; they are never silently treated as real.</p>
+      <p class="help">Comma-separated, case-insensitive values. Unrecognized labels will be categorized as inconclusive.</p>
 
       <div class="actions">
-        <button id="saveConfig" class="primary" type="submit">Save custom provider</button>
-        <button id="testConfig" class="secondary" type="button">Test saved provider</button>
+        <button id="saveConfig" class="primary" type="submit">Save Custom Provider</button>
+        <button id="testConfig" class="secondary" type="button">Test Saved Provider</button>
       </div>
-      <p id="message" class="message" role="status">Configuration and API credentials are stored in this Chrome profile.</p>
+      <p id="message" class="message" role="status">Configuration and credentials are stored securely in this Chrome profile.</p>
     </form>
 
+    <!-- SECTION 3: PRIVACY & SECURITY NOTE -->
     <section class="card note">
-      <h2>Privacy and compatibility</h2>
-      <p>Custom API credentials are stored in Chrome extension local storage. They are not exposed to webpage scripts, but this storage is not a hardware-backed secret vault. Images are transmitted to the selected provider. Use HTTPS endpoints; plain HTTP is permitted only for localhost development servers.</p>
+      <h2>Security &amp; Host Isolation</h2>
+      <p>Credentials and endpoints configured here reside strictly within Chrome extension storage and are never exposed to visited webpage contexts. Only user-approved API host origins receive image payloads during analysis.</p>
     </section>
   </main>
+
   <script src="options.js"></script>
 </body>
 </html>
