@@ -59,6 +59,7 @@ async function loadConfig() {
 }
 
 $("authType").addEventListener("change", renderAuthFields);
+
 $("providerForm").addEventListener("submit", async event => {
   event.preventDefault();
   const button = $("saveConfig");
@@ -102,4 +103,67 @@ $("testConfig").addEventListener("click", async () => {
   finally { button.disabled = false; }
 });
 
+// ---------------------------------------------------------------------------
+// Mad-Eye Moody Lens Server Controls
+// ---------------------------------------------------------------------------
+function showMoodyMessage(msg, kind = "") {
+  const el = $("moodyMessage");
+  if (!el) return;
+  el.style.display = "block";
+  el.textContent = msg;
+  el.className = `message ${kind}`;
+}
+
+async function loadMoodyConfig() {
+  try {
+    const res = await send({ type: "GET_MOODYLENS_SERVER_CONFIG" });
+    if (res?.ok) {
+      if ($("moodyServerUrl") && res.url) $("moodyServerUrl").value = res.url;
+      if (res.usable) {
+        showMoodyMessage(`Connected to Moody Lens server at ${res.url}. Ready for analysis.`, "good");
+      }
+    }
+  } catch (_) {}
+}
+
+$("saveMoodyConfig")?.addEventListener("click", async () => {
+  const btn = $("saveMoodyConfig");
+  btn.disabled = true;
+  showMoodyMessage("Validating server address and requesting host permission…");
+  try {
+    const rawUrl = $("moodyServerUrl").value.trim();
+    const apiKey = $("moodyApiKey")?.value?.trim() || "";
+    let url;
+    try { url = new URL(rawUrl); } catch { throw new Error("Enter a valid absolute server URL, e.g. http://127.0.0.1:8080"); }
+    const originPattern = `${url.origin}/*`;
+    const granted = await chrome.permissions.request({ origins: [originPattern] });
+    if (!granted) throw new Error("Server host access was not granted. Configuration not saved.");
+    const res = await send({ type: "SAVE_MOODYLENS_SERVER_CONFIG", url: rawUrl, apiKey });
+    if (!res?.ok) throw new Error(res?.error || "Could not save server settings.");
+    showMoodyMessage(`Moody Lens server saved (${res.url}). You can now select it in the extension popup.`, "good");
+  } catch (err) {
+    showMoodyMessage(err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("testMoodyConfig")?.addEventListener("click", async () => {
+  const btn = $("testMoodyConfig");
+  btn.disabled = true;
+  showMoodyMessage("Testing connection to Moody Lens server…");
+  try {
+    const res = await send({ type: "TEST_MOODYLENS_SERVER" });
+    if (!res?.ok) throw new Error(res?.error || "Server connection failed.");
+    const modelNames = (res.models || []).map(m => m.name || m.id || m.model).filter(Boolean);
+    const count = modelNames.length;
+    showMoodyMessage(`Server is ready! Discovered ${count} model(s): ${modelNames.join(", ") || "Active detector pipelines"}.`, "good");
+  } catch (err) {
+    showMoodyMessage(`Connection test failed: ${err.message}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 loadConfig();
+loadMoodyConfig();

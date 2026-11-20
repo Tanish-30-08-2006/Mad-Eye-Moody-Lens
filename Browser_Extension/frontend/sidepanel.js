@@ -1,6 +1,21 @@
 const $ = id => document.getElementById(id);
 let selectedImage = "";
 
+function switchTab(tabId) {
+  const tabs = document.querySelectorAll(".sp-tab-btn");
+  const panes = document.querySelectorAll(".sp-pane");
+  tabs.forEach(t => t.classList.toggle("active", t.dataset.target === tabId));
+  panes.forEach(p => p.classList.toggle("active", p.id === tabId));
+}
+
+function setupSidepanelTabs() {
+  const tabs = document.querySelectorAll(".sp-tab-btn");
+  tabs.forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.target));
+  });
+}
+setupSidepanelTabs();
+
 function send(message) { return chrome.runtime.sendMessage(message); }
 
 function setImage(value, label = "") {
@@ -15,6 +30,7 @@ function setImage(value, label = "") {
   if (selectedImage.startsWith("http")) $("imageUrl").value = selectedImage;
   else if (selectedImage.startsWith("data:image/")) $("imageUrl").value = "";
   if (label) $("status").textContent = label;
+  switchTab("paneImage");
 }
 
 const SUPPORTED_IMAGE_MIME_BY_EXTENSION = {
@@ -447,6 +463,7 @@ function showPlaybackCaptureUI(visible) {
   if (!box) return;
   box.style.display = visible ? "block" : "none";
   if (visible) {
+    switchTab("paneAudio");
     clearAudioReport();
     const pill = $("audioForensicPill");
     if (pill) {
@@ -483,6 +500,7 @@ function updateForensicUIState(status) {
 function renderCompleteAudioReport(rep) {
   if (!rep) return;
 
+  switchTab("paneAudio");
   showPlaybackCaptureUI(false);
   const banner = $("audioForensicStatusBanner");
   if (banner) banner.style.display = "none";
