@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const ProviderEngine = require("../backend/providers/provider-engine.js");
+require("../backend/providers/provider-engine.js");
+const ProviderEngine = globalThis.ProviderEngine;
 
 const baseConfig = {
   ...ProviderEngine.DEFAULT_CUSTOM_CONFIG,

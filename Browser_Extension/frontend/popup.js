@@ -6,55 +6,130 @@ async function activeTab() {
   return tab;
 }
 
-function setupTabs() {
-  const tabs = document.querySelectorAll(".tab-btn");
-  const panes = document.querySelectorAll(".tab-pane");
-  tabs.forEach(btn => {
+// ─────────────────────────────────────────────────────────────────────────────
+// NAVIGATION SETUP (Top-Level Tabs & Analyse Sub-Tabs)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function setupNavigation() {
+  // Main Top-Level Tabs (Analyse, History, Settings)
+  const mainTabs = document.querySelectorAll(".tab-nav.main-tabs .tab-btn");
+  const mainPanes = document.querySelectorAll(".tab-viewport > .tab-pane");
+  mainTabs.forEach(btn => {
     btn.addEventListener("click", () => {
-      tabs.forEach(t => t.classList.remove("active"));
-      panes.forEach(p => p.classList.remove("active"));
-      btn.classList.add("active");
-      const target = document.getElementById(btn.dataset.target);
-      if (target) target.classList.add("active");
+      mainTabs.forEach(t => {
+        const active = t === btn;
+        t.classList.toggle("active", active);
+        t.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      mainPanes.forEach(p => p.classList.toggle("active", p.id === btn.dataset.target));
+      if (btn.dataset.target === "tabHistory") {
+        loadHistory();
+      }
+    });
+  });
+
+  // Sub-Navigation under Analyse (Image, Audio, Video)
+  const subTabs = document.querySelectorAll(".sub-nav .sub-tab-btn");
+  const subPanes = document.querySelectorAll("#tabAnalyse .sub-pane");
+  subTabs.forEach(btn => {
+    btn.addEventListener("click", () => {
+      subTabs.forEach(t => {
+        const active = t === btn;
+        t.classList.toggle("active", active);
+        t.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      subPanes.forEach(p => p.classList.toggle("active", p.id === btn.dataset.sub));
     });
   });
 }
-setupTabs();
+setupNavigation();
+
+function switchToMainTab(tabId) {
+  const mainTabs = document.querySelectorAll(".tab-nav.main-tabs .tab-btn");
+  const mainPanes = document.querySelectorAll(".tab-viewport > .tab-pane");
+  mainTabs.forEach(t => {
+    const active = t.dataset.target === tabId;
+    t.classList.toggle("active", active);
+    t.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  mainPanes.forEach(p => p.classList.toggle("active", p.id === tabId));
+}
+
+// Shortcut from Audio pane to Settings > Providers
+$("goToAudioSettings")?.addEventListener("click", () => {
+  switchToMainTab("tabSettings");
+  $("zeroTrueSettingsCard")?.scrollIntoView({ behavior: "smooth" });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIAGNOSTICS & STATUS
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderDiagnostics(stats) {
   if (!stats) {
-    $("diagnostics").textContent = "Scanner is not active in this tab. Use ‘Scan this tab now’ or refresh the page.";
+    $("diagnostics").textContent = "Scanner is not active in this tab. Use 'Scan Active Tab' or refresh.";
     return;
   }
   const rejects = stats.rejectReasons || {};
   $("diagnostics").textContent =
     `Scanner: active · ${stats.platform || "page"} · ${stats.threshold || "Standard"}\n` +
     `Candidates: ${stats.found ?? 0} · Post media: ${stats.postMediaCandidates ?? 0}\n` +
-    `Size passed: ${stats.sizePassed ?? 0} · Eligible: ${stats.eligible ?? 0} · Visibility skipped: ${stats.visibilityRejected ?? 0}\n` +
+    `Size passed: ${stats.sizePassed ?? 0} · Eligible: ${stats.eligible ?? 0}\n` +
     `Requests: ${stats.submitted ?? 0} · Completed: ${stats.completed ?? 0} · Errors: ${stats.errors ?? 0}\n` +
-    `Skipped: small box ${rejects.renderedTooSmall ?? 0} · small source ${rejects.sourceTooSmall ?? 0} · hidden ${rejects.hidden ?? 0} · aspect ${rejects.aspectRatio ?? 0}\n` +
-    `UI skipped: ${stats.skippedByContext ?? 0} · No URL: ${stats.missingSource ?? 0}` +
-    (stats.lastError ? `\nLast provider error: ${stats.lastError}` : "") +
-    (stats.sample ? `\nLast rejected sample: ${stats.sample}` : "");
+    `Filtered: small box ${rejects.renderedTooSmall ?? 0} · small source ${rejects.sourceTooSmall ?? 0} · not ready ${rejects.imageNotReady ?? 0} · hidden ${rejects.hidden ?? 0}\n` +
+    `UI skipped: ${stats.skippedByContext ?? 0} · Missing URL: ${stats.missingSource ?? 0}` +
+    (stats.lastError ? `\nLast error: ${stats.lastError}` : "") +
+    (stats.sample ? `\nFilter sample: ${stats.sample}` : "");
+}
+
+function updateModelBadge(provider) {
+  const badge = $("imageModelBadge");
+  const notice = $("providerNotice");
+  if (!badge) return;
+
+  if (provider === "bitmind") {
+    badge.textContent = "BitMind Oracle (Automatic)";
+    if (notice) notice.style.display = "none";
+  } else if (provider === "moodylens") {
+    badge.textContent = "Moody Lens Server Ensemble";
+    if (notice) notice.style.display = "none";
+  } else if (provider === "custom") {
+    badge.textContent = "Custom REST (Configured in settings)";
+    if (notice) notice.style.display = "none";
+  } else if (provider === "zerotrue") {
+    badge.textContent = "ZeroTrue Multi-Modal AI";
+    if (notice) notice.style.display = "none";
+  } else {
+    badge.textContent = "Managed by provider";
+    if (notice) notice.style.display = "none";
+  }
 }
 
 async function refresh() {
   const status = await send({ type: "GET_PUBLIC_STATUS" });
   if (status?.error) throw new Error(status.error);
-  $("providerSelect").value = status.activeProvider || "bitmind";
-  const providerLabel = status.activeProvider === "custom"
+
+  const active = status.activeProvider || "bitmind";
+  if ($("providerSelect")) {
+    $("providerSelect").value = active;
+    updateModelBadge(active);
+  }
+
+  const providerLabel = active === "custom"
     ? (status.customProviderName || "Custom REST ready")
-    : (status.activeProvider === "moodylens" ? "Moody Lens Server ready" : "BitMind ready");
+    : (active === "moodylens" ? "Moody Lens Server ready" : (active === "zerotrue" ? "ZeroTrue Cloud AI ready" : "BitMind ready"));
+
   $("providerState").textContent = status.activeProviderConfigured
     ? providerLabel
-    : "Needs setup";
+    : "Needs configuration";
   $("providerState").className = `pill ${status.activeProviderConfigured ? "good" : "muted"}`;
-  $("bitmindCard").hidden = status.activeProvider !== "bitmind";
-  $("keyState").textContent = status.bitmindConfigured ? "Key configured" : "Not configured";
+
+  $("keyState").textContent = status.bitmindConfigured ? "Configured" : "Not configured";
   $("keyState").className = `pill ${status.bitmindConfigured ? "good" : "muted"}`;
+
   $("scanState").textContent = status.scanEnabled ? "On" : "Off";
   $("scanState").className = `pill ${status.scanEnabled ? "good" : "muted"}`;
-  $("toggleScan").textContent = status.scanEnabled ? "Disable automatic scanning" : "Enable scanning on websites";
+  $("toggleScan").textContent = status.scanEnabled ? "Disable auto-scan" : "Enable auto-scan";
   $("toggleScan").className = status.scanEnabled ? "secondary full" : "primary full";
   $("thresholdSelect").value = status.scanThreshold || "standard";
 
@@ -65,15 +140,34 @@ async function refresh() {
       renderDiagnostics(pong?.stats);
     } catch { renderDiagnostics(null); }
   }
+
+  // Check Video status
+  try {
+    const videoStatus = await send({ type: "VIDEO_CHECK_PROVIDER_CONFIG" });
+    if (videoStatus?.ok && videoStatus.data) {
+      const vData = videoStatus.data;
+      if ($("videoProviderSelect")) $("videoProviderSelect").value = vData.activeProvider || "bitmind";
+      if ($("videoProviderState")) {
+        $("videoProviderState").textContent = vData.isConfigured ? "Ready" : "Needs setup";
+        $("videoProviderState").className = `pill ${vData.isConfigured ? "good" : "muted"}`;
+      }
+    }
+  } catch {}
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMAGE DETECTION PROVIDER SELECTION
+// ─────────────────────────────────────────────────────────────────────────────
 
 $("providerSelect").addEventListener("change", async () => {
   const provider = $("providerSelect").value;
+  updateModelBadge(provider);
+
   $("providerSelect").disabled = true;
   try {
     const result = await send({ type: "SET_ACTIVE_PROVIDER", provider });
     if (!result?.ok) throw new Error(result?.error || "Could not select provider.");
-    $("keyMessage").textContent = `Active provider changed to ${provider === "custom" ? "Custom REST API" : "BitMind Oracle"}.`;
+    $("keyMessage").textContent = `Active provider set to ${provider}.`;
     await refresh();
   } catch (error) {
     $("keyMessage").textContent = error.message;
@@ -85,34 +179,85 @@ $("providerSelect").addEventListener("change", async () => {
 
 $("manageProviders").addEventListener("click", () => chrome.runtime.openOptionsPage());
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BITMIND API KEY MANAGEMENT (Show/Hide, Save, Remove, Test)
+// ─────────────────────────────────────────────────────────────────────────────
+
+$("toggleBitmindKeyVisibility")?.addEventListener("click", () => {
+  const input = $("apiKey");
+  const btn = $("toggleBitmindKeyVisibility");
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = "Hide";
+  } else {
+    input.type = "password";
+    btn.textContent = "Show";
+  }
+});
+
 $("saveKey").addEventListener("click", async () => {
   const key = $("apiKey").value.trim();
-  if (!key) { $("keyMessage").textContent = "Paste your API key first."; return; }
+  if (!key) {
+    $("keyMessage").textContent = "Please paste your BitMind API key.";
+    $("keyMessage").className = "message error";
+    return;
+  }
   $("saveKey").disabled = true;
   try {
     const result = await send({ type: "SAVE_API_KEY", apiKey: key });
-    if (!result?.ok) throw new Error(result?.error || "Could not save API key.");
+    if (!result?.ok) throw new Error(result?.error || "Could not save BitMind API key.");
     $("apiKey").value = "";
-    $("keyMessage").textContent = "BitMind API key saved in this browser profile.";
+    $("keyMessage").textContent = "BitMind API key saved successfully.";
+    $("keyMessage").className = "message good";
     await refresh();
-  } catch (error) { $("keyMessage").textContent = error.message; }
-  finally { $("saveKey").disabled = false; }
+  } catch (error) {
+    $("keyMessage").textContent = error.message;
+    $("keyMessage").className = "message error";
+  } finally {
+    $("saveKey").disabled = false;
+  }
+});
+
+$("removeBitmindKey")?.addEventListener("click", async () => {
+  $("removeBitmindKey").disabled = true;
+  try {
+    await chrome.storage.local.set({ apiKey: "", apiKeyUpdatedAt: Date.now() });
+    $("apiKey").value = "";
+    $("keyMessage").textContent = "BitMind API key removed.";
+    $("keyMessage").className = "message";
+    await refresh();
+  } catch (error) {
+    $("keyMessage").textContent = "Could not remove key: " + error.message;
+    $("keyMessage").className = "message error";
+  } finally {
+    $("removeBitmindKey").disabled = false;
+  }
 });
 
 $("testKey").addEventListener("click", async () => {
   $("testKey").disabled = true;
-  $("keyMessage").textContent = "Sending one test request to BitMind…";
+  $("keyMessage").textContent = "Testing BitMind connection…";
+  $("keyMessage").className = "message";
   try {
     const result = await send({ type: "TEST_API_KEY" });
-    if (!result?.ok) throw new Error(result?.error || "BitMind test failed.");
-    $("keyMessage").textContent = `BitMind connection succeeded. isAI=${result.response.isAI}, confidence=${result.response.confidence ?? "not provided"}.`;
-  } catch (error) { $("keyMessage").textContent = `Test failed: ${error.message}`; }
-  finally { $("testKey").disabled = false; }
+    if (!result?.ok) throw new Error(result?.error || "BitMind connection test failed.");
+    $("keyMessage").textContent = `BitMind verified! isAI=${result.response.isAI}, confidence=${result.response.confidence ?? "N/A"}.`;
+    $("keyMessage").className = "message good";
+  } catch (error) {
+    $("keyMessage").textContent = `Test failed: ${error.message}`;
+    $("keyMessage").className = "message error";
+  } finally {
+    $("testKey").disabled = false;
+  }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCANNER ACTIONS & THRESHOLD
+// ─────────────────────────────────────────────────────────────────────────────
 
 $("thresholdSelect").addEventListener("change", async () => {
   const result = await send({ type: "SET_SCAN_THRESHOLD", value: $("thresholdSelect").value });
-  $("keyMessage").textContent = result.ok ? "Minimum image size updated." : `Could not update image size: ${result.error}`;
+  $("keyMessage").textContent = result.ok ? "Scan threshold updated." : `Could not update size: ${result.error}`;
   await refresh();
 });
 
@@ -126,31 +271,39 @@ $("toggleScan").addEventListener("click", async () => {
       $("keyMessage").textContent = "Automatic scanning disabled.";
     } else {
       if (!status.activeProviderConfigured) {
-        throw new Error("Configure the selected provider before enabling automatic scanning.");
+        throw new Error("Configure the active provider in Settings > Providers first.");
       }
       const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
-      if (!granted) throw new Error("Website permission was not granted. Automatic scanning remains off.");
+      if (!granted) throw new Error("Website permission was not granted.");
       const result = await send({ type: "ENABLE_SCANNING" });
       if (!result?.ok) throw new Error(result?.error || "Could not enable scanning.");
-      $("keyMessage").textContent = "Automatic scanning enabled. Refresh the active page if needed.";
+      $("keyMessage").textContent = "Automatic scanning enabled.";
     }
-  } catch (error) { $("keyMessage").textContent = error.message; }
-  finally { $("toggleScan").disabled = false; await refresh(); }
+  } catch (error) {
+    $("keyMessage").textContent = error.message;
+    $("keyMessage").className = "message error";
+  } finally {
+    $("toggleScan").disabled = false;
+    await refresh();
+  }
 });
 
 $("scanNow").addEventListener("click", async () => {
   $("scanNow").disabled = true;
-  $("diagnostics").textContent = "Starting scanner and re-evaluating current media containers…";
+  $("diagnostics").textContent = "Scanning active tab for media candidates…";
   try {
     const tab = await activeTab();
-    if (!tab?.id) throw new Error("Could not identify the active tab.");
+    if (!tab?.id) throw new Error("Could not find the active tab.");
     const result = await send({ type: "SCAN_CURRENT_TAB", tabId: tab.id });
     if (!result?.ok) throw new Error(result.error);
     renderDiagnostics(result.ping?.stats || result.stats);
-    $("keyMessage").textContent = `Scanner active. ${result.ping?.stats?.found ?? result.stats?.found ?? 0} image/media candidates discovered.`;
-    await new Promise(resolve => setTimeout(resolve, 1200));
-  } catch (error) { $("diagnostics").textContent = `Scan could not start: ${error.message}`; }
-  finally { $("scanNow").disabled = false; await refresh(); }
+    await new Promise(resolve => setTimeout(resolve, 800));
+  } catch (error) {
+    $("diagnostics").textContent = `Scan error: ${error.message}`;
+  } finally {
+    $("scanNow").disabled = false;
+    await refresh();
+  }
 });
 
 $("openReview").addEventListener("click", async () => {
@@ -159,18 +312,34 @@ $("openReview").addEventListener("click", async () => {
   window.close();
 });
 
-refresh().catch(error => { $("keyMessage").textContent = error.message; });
-setInterval(() => { refresh().catch(() => {}); }, 1800);
+// ─────────────────────────────────────────────────────────────────────────────
+// VIDEO DETECTION (Active Provider & Sidepanel Launcher)
+// ─────────────────────────────────────────────────────────────────────────────
 
+$("videoProviderSelect")?.addEventListener("change", async () => {
+  const provider = $("videoProviderSelect").value;
+  try {
+    await send({ type: "VIDEO_SET_ACTIVE_PROVIDER", provider });
+    await refresh();
+  } catch (err) {
+    console.warn("Could not set video provider:", err);
+  }
+});
 
-// ===========================================================================
-// AUDIO DETECTION (TAB PLAYBACK & ZERO TRUE CLOUD API)
-// ===========================================================================
+$("btnOpenVideoSidepanel")?.addEventListener("click", async () => {
+  const tab = await activeTab();
+  if (tab?.id) {
+    await chrome.sidePanel.open({ tabId: tab.id });
+    window.close();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDIO DETECTION (Tab Playback & Status)
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderAudioStatus(status) {
   if (!status) return;
-
-  const { wsAuthenticated, wsConnected, wsConnecting, modelReady, device } = status;
   const isPlaybackActive = Boolean(status.playbackCaptureActive);
   const mode = status.audioEngineMode || "auto";
   const ztReady = Boolean(status.zeroTrueConfigured);
@@ -180,10 +349,10 @@ function renderAudioStatus(status) {
   if (pill) {
     if (isPlaybackActive) {
       pill.textContent = "● RECORDING";
-      pill.className   = "pill good";
+      pill.className = "pill good";
     } else {
       pill.textContent = "Idle";
-      pill.className   = "pill muted";
+      pill.className = "pill muted";
     }
   }
 
@@ -191,13 +360,13 @@ function renderAudioStatus(status) {
   const modeBadge = $("audioEngineModeBadge");
   if (modeBadge) {
     if (mode === "zerotrue") {
-      modeBadge.textContent = "ZeroTrue Cloud API";
+      modeBadge.textContent = "ZeroTrue Cloud";
       modeBadge.className = "audio-stat-value good";
     } else if (mode === "local") {
       modeBadge.textContent = "Local Model Only";
       modeBadge.className = "audio-stat-value";
     } else {
-      modeBadge.textContent = "Auto (Local/Cloud)";
+      modeBadge.textContent = "Auto";
       modeBadge.className = "audio-stat-value good";
     }
   }
@@ -205,36 +374,36 @@ function renderAudioStatus(status) {
   // Model status & Device
   if (mode === "zerotrue") {
     if ($("audioModelName")) $("audioModelName").textContent = "ZeroTrue Voice AI";
-    if ($("audioDeviceStatus")) $("audioDeviceStatus").textContent = "CLOUD (https://zerotrue.app)";
-    if (ztReady) {
-      $("audioModelStatus").textContent = "READY (ZeroTrue API)";
-      $("audioModelStatus").className   = "audio-stat-value good";
-    } else {
-      $("audioModelStatus").textContent = "Add ZeroTrue API Key";
-      $("audioModelStatus").className   = "audio-stat-value bad";
-    }
-  } else if (mode === "auto" && !modelReady && !wsAuthenticated && ztReady) {
-    if ($("audioModelName")) $("audioModelName").textContent = "ZeroTrue (Cloud Fallback)";
     if ($("audioDeviceStatus")) $("audioDeviceStatus").textContent = "CLOUD (ZeroTrue)";
-    $("audioModelStatus").textContent = "READY (Cloud Fallback)";
-    $("audioModelStatus").className   = "audio-stat-value good";
+    if (ztReady) {
+      $("audioModelStatus").textContent = "READY";
+      $("audioModelStatus").className = "audio-stat-value good";
+    } else {
+      $("audioModelStatus").textContent = "Key Required";
+      $("audioModelStatus").className = "audio-stat-value bad";
+    }
+  } else if (mode === "auto" && !status.modelReady && !status.wsAuthenticated && ztReady) {
+    if ($("audioModelName")) $("audioModelName").textContent = "ZeroTrue (Fallback)";
+    if ($("audioDeviceStatus")) $("audioDeviceStatus").textContent = "CLOUD (ZeroTrue)";
+    $("audioModelStatus").textContent = "READY (Cloud)";
+    $("audioModelStatus").className = "audio-stat-value good";
   } else {
     if ($("audioModelName")) $("audioModelName").textContent = status.modelName || "SSL Anti-Spoofing";
     if ($("audioDeviceStatus")) {
       $("audioDeviceStatus").textContent = status.device ? `LOCAL (${status.device.toUpperCase()})` : "LOCAL (CUDA)";
     }
-    if (status.modelReady || wsAuthenticated) {
+    if (status.modelReady || status.wsAuthenticated) {
       $("audioModelStatus").textContent = "READY";
-      $("audioModelStatus").className   = "audio-stat-value good";
-    } else if (status.wsConnecting || wsConnected) {
+      $("audioModelStatus").className = "audio-stat-value good";
+    } else if (status.wsConnecting || status.wsConnected) {
       $("audioModelStatus").textContent = "Connecting…";
-      $("audioModelStatus").className   = "audio-stat-value";
+      $("audioModelStatus").className = "audio-stat-value";
     } else if (ztReady) {
-      $("audioModelStatus").textContent = "READY (ZeroTrue Fallback)";
-      $("audioModelStatus").className   = "audio-stat-value good";
+      $("audioModelStatus").textContent = "READY (ZeroTrue)";
+      $("audioModelStatus").className = "audio-stat-value good";
     } else {
-      $("audioModelStatus").textContent = "UNAVAILABLE – local offline";
-      $("audioModelStatus").className   = "audio-stat-value bad";
+      $("audioModelStatus").textContent = "OFFLINE";
+      $("audioModelStatus").className = "audio-stat-value bad";
     }
   }
 
@@ -242,46 +411,65 @@ function renderAudioStatus(status) {
   const statusEl = $("audioCurrentStatus");
   if (statusEl) {
     if (isPlaybackActive) {
-      statusEl.textContent = "🎙️ Recording tab audio playback...";
-      statusEl.className   = "audio-current-status audio-status-ok";
+      statusEl.textContent = "Recording tab audio playback...";
+      statusEl.className = "audio-current-status audio-status-ok";
       statusEl.style.display = "block";
     } else {
       statusEl.textContent = "";
-      statusEl.className   = "audio-current-status";
       statusEl.style.display = "none";
     }
   }
-
-  // Persistent service & ZeroTrue tip banner (fixed format, zero layout shift)
-  const hint = $("audioServiceHint");
-  if (hint) {
-    if (mode === "local" && !wsAuthenticated && !wsConnected && !status.wsConnecting) {
-      hint.innerHTML = `<span style="color:#fca5a5; font-weight:700; margin-right:4px;">⚙ Local Model:</span> Start Python engine (<code style="background:#1e293b; padding:1px 4px; border-radius:3px;">inference_server.py</code>) or switch to ZeroTrue above.`;
-    } else if (mode === "zerotrue" && !ztReady) {
-      hint.innerHTML = `<span style="color:#a5b4fc; font-weight:700; margin-right:4px;">💡 ZeroTrue Tip:</span> Enter and save your API key above from <a href="https://zerotrue.app" target="_blank" style="color:#818cf8; text-decoration:underline;">zerotrue.app</a> to run cloud analysis.`;
-    } else if (mode === "auto" && !wsAuthenticated && !ztReady) {
-      hint.innerHTML = `<span style="color:#a5b4fc; font-weight:700; margin-right:4px;">💡 ZeroTrue Tip:</span> Don't have local GPU? Enter your free ZeroTrue API key above to analyze audio online.`;
-    } else if (mode === "zerotrue" || (mode === "auto" && !wsAuthenticated && ztReady)) {
-      hint.innerHTML = `<span style="color:#86efac; font-weight:700; margin-right:4px;">✅ Cloud Ready:</span> ZeroTrue Online API is configured. Play tab audio to detect deepfakes.`;
-    } else {
-      hint.innerHTML = `<span style="color:#86efac; font-weight:700; margin-right:4px;">✅ Engine Ready:</span> Local AI inference engine is active on CUDA/GPU.`;
-    }
-    hint.style.display = "flex";
-  }
 }
 
-// ---------------------------------------------------------------------------
-// ZeroTrue API Key & Detection Engine Controls
-// ---------------------------------------------------------------------------
-async function initAudioEngineConfig() {
+$("btnPlaybackCapture")?.addEventListener("click", async () => {
+  const btn = $("btnPlaybackCapture");
+  btn.disabled = true;
+
+  try {
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error("Could not find the active tab.");
+
+    await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
+    const res = await send({ type: "AUDIO_START_PLAYBACK_CAPTURE", tabId: tab.id, maxDurationSec: 30 });
+    if (!res || !res.ok) throw new Error(res?.error || "Could not start playback capture.");
+    window.close();
+  } catch (err) {
+    const statusEl = $("audioCurrentStatus");
+    if (statusEl) {
+      statusEl.textContent = "Playback Error: " + err.message;
+      statusEl.className = "audio-current-status audio-status-err";
+      statusEl.style.display = "block";
+    }
+    btn.disabled = false;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ZEROTRUE API KEY MANAGEMENT (Show/Hide, Save, Remove, Test, Mode)
+// ─────────────────────────────────────────────────────────────────────────────
+
+$("toggleZeroTrueKeyVisibility")?.addEventListener("click", () => {
+  const input = $("zeroTrueKeyInput");
+  const btn = $("toggleZeroTrueKeyVisibility");
+  if (input.type === "password") {
+    input.type = "text";
+    btn.textContent = "Hide";
+  } else {
+    input.type = "password";
+    btn.textContent = "Show";
+  }
+});
+
+async function initZeroTrueConfig() {
   try {
     const res = await send({ type: "GET_AUDIO_CONFIG" });
     if (res?.ok) {
       if ($("audioEngineSelect") && res.audioEngineMode) {
         $("audioEngineSelect").value = res.audioEngineMode;
       }
-      if ($("zeroTrueKeyInput") && res.zeroTrueApiKey) {
-        $("zeroTrueKeyInput").value = res.zeroTrueApiKey;
+      if ($("zeroTrueState")) {
+        $("zeroTrueState").textContent = res.zeroTrueConfigured ? "Configured" : "Not configured";
+        $("zeroTrueState").className = `pill ${res.zeroTrueConfigured ? "good" : "muted"}`;
       }
     }
   } catch {}
@@ -299,8 +487,8 @@ $("btnSaveZeroTrueKey")?.addEventListener("click", async () => {
   if (!key) {
     if (msgEl) {
       msgEl.style.display = "block";
-      msgEl.style.color = "#ff9090";
-      msgEl.textContent = "Paste your ZeroTrue API key first.";
+      msgEl.className = "message error";
+      msgEl.textContent = "Please enter your ZeroTrue API key.";
     }
     return;
   }
@@ -310,15 +498,42 @@ $("btnSaveZeroTrueKey")?.addEventListener("click", async () => {
     const res = await send({ type: "SAVE_ZEROTRUE_CONFIG", apiKey: key });
     if (msgEl) {
       msgEl.style.display = "block";
-      msgEl.style.color = res.ok ? "#86efac" : "#ff9090";
+      msgEl.className = res.ok ? "message good" : "message error";
       msgEl.textContent = res.ok ? "ZeroTrue API key saved." : ("Error: " + res.error);
     }
+    $("zeroTrueKeyInput").value = "";
+    await initZeroTrueConfig();
     await refreshAudio();
   } catch (err) {
     if (msgEl) {
       msgEl.style.display = "block";
-      msgEl.style.color = "#ff9090";
+      msgEl.className = "message error";
       msgEl.textContent = "Save error: " + err.message;
+    }
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("btnRemoveZeroTrueKey")?.addEventListener("click", async () => {
+  const btn = $("btnRemoveZeroTrueKey");
+  btn.disabled = true;
+  const msgEl = $("zeroTrueKeyMsg");
+  try {
+    await send({ type: "SAVE_ZEROTRUE_CONFIG", apiKey: "" });
+    if (msgEl) {
+      msgEl.style.display = "block";
+      msgEl.className = "message";
+      msgEl.textContent = "ZeroTrue API key removed.";
+    }
+    $("zeroTrueKeyInput").value = "";
+    await initZeroTrueConfig();
+    await refreshAudio();
+  } catch (err) {
+    if (msgEl) {
+      msgEl.style.display = "block";
+      msgEl.className = "message error";
+      msgEl.textContent = "Remove error: " + err.message;
     }
   } finally {
     btn.disabled = false;
@@ -328,62 +543,28 @@ $("btnSaveZeroTrueKey")?.addEventListener("click", async () => {
 $("btnTestZeroTrueKey")?.addEventListener("click", async () => {
   const key = $("zeroTrueKeyInput")?.value?.trim() || "";
   const msgEl = $("zeroTrueKeyMsg");
-  if (!key) {
-    if (msgEl) {
-      msgEl.style.display = "block";
-      msgEl.style.color = "#ff9090";
-      msgEl.textContent = "Enter your ZeroTrue API key to test.";
-    }
-    return;
-  }
   const btn = $("btnTestZeroTrueKey");
   btn.disabled = true;
   if (msgEl) {
     msgEl.style.display = "block";
-    msgEl.style.color = "#cbd5e1";
-    msgEl.textContent = "Testing ZeroTrue API connection...";
+    msgEl.className = "message";
+    msgEl.textContent = "Testing ZeroTrue connection…";
   }
   try {
+    // Test with input key or stored key
     const res = await send({ type: "TEST_ZEROTRUE_KEY", apiKey: key });
     if (msgEl) {
       msgEl.style.display = "block";
-      msgEl.style.color = res.ok ? "#86efac" : "#ff9090";
-      msgEl.textContent = res.ok ? "✅ ZeroTrue API connection verified!" : ("Test failed: " + res.error);
+      msgEl.className = res.ok ? "message good" : "message error";
+      msgEl.textContent = res.ok ? "ZeroTrue API connection verified!" : ("Test failed: " + res.error);
     }
   } catch (err) {
     if (msgEl) {
       msgEl.style.display = "block";
-      msgEl.style.color = "#ff9090";
+      msgEl.className = "message error";
       msgEl.textContent = "Test error: " + err.message;
     }
   } finally {
-    btn.disabled = false;
-  }
-});
-
-$("btnPlaybackCapture")?.addEventListener("click", async () => {
-  const btn = $("btnPlaybackCapture");
-  btn.disabled = true;
-
-  try {
-    const tab = await activeTab();
-    if (!tab?.id) throw new Error("Could not identify the active tab.");
-
-    // Open detailed review slide directly
-    await chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
-
-    // Start timed tab playback capture (auto-detects end or 30s)
-    const res = await send({ type: "AUDIO_START_PLAYBACK_CAPTURE", tabId: tab.id, maxDurationSec: 30 });
-    if (!res || !res.ok) throw new Error(res?.error || "Could not start playback capture.");
-
-    // Close popup so user interacts via sidepanel
-    window.close();
-  } catch (err) {
-    const statusEl = $("audioCurrentStatus");
-    if (statusEl) {
-      statusEl.textContent = "Playback Error: " + err.message;
-      statusEl.className = "audio-current-status audio-status-err";
-    }
     btn.disabled = false;
   }
 });
@@ -395,13 +576,82 @@ async function refreshAudio() {
   } catch {}
 }
 
-// Live status updates pushed from background
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener(message => {
   if (message.type === "AUDIO_STATUS_UPDATE") {
     renderAudioStatus(message.status);
   }
 });
 
-initAudioEngineConfig().catch(() => {});
+// ─────────────────────────────────────────────────────────────────────────────
+// HISTORY (Image & Video History Records)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadHistory() {
+  const listEl = $("popupHistoryList");
+  if (!listEl) return;
+  listEl.textContent = "Loading records…";
+
+  try {
+    const [imgRes, vidRes] = await Promise.all([
+      send({ type: "GET_HISTORY" }).catch(() => ({ items: [] })),
+      send({ type: "VIDEO_GET_HISTORY" }).catch(() => ({ data: [] }))
+    ]);
+
+    const imgItems = (imgRes?.items || []).map(i => ({ ...i, mediaType: "Image", timestamp: i.time }));
+    const vidItems = (Array.isArray(vidRes?.data) ? vidRes.data : []).map(v => ({ ...v, mediaType: "Video", timestamp: v.timestamp }));
+
+    const combined = [...imgItems, ...vidItems]
+      .filter(x => x && (x.timestamp || x.time))
+      .sort((a, b) => (b.timestamp || b.time || 0) - (a.timestamp || a.time || 0))
+      .slice(0, 10);
+
+    if (!combined.length) {
+      listEl.textContent = "No detections recorded yet.";
+      return;
+    }
+
+    listEl.replaceChildren();
+    for (const item of combined) {
+      const row = document.createElement("div");
+      row.className = "history-item";
+
+      const left = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "history-item-title";
+      const verdictText = item.verdict || (item.isAI === true ? "AI-generated" : item.isAI === false ? "Not AI" : "Inconclusive");
+      title.textContent = `[${item.mediaType}] ${verdictText}`;
+
+      const sub = document.createElement("div");
+      sub.className = "history-item-sub";
+      const dateStr = item.dateFormatted || new Date(item.timestamp || item.time).toLocaleTimeString();
+      const modelStr = item.model || item.provider || "";
+      sub.textContent = `${dateStr}${modelStr ? " · " + modelStr : ""}`;
+
+      left.append(title, sub);
+
+      const pill = document.createElement("span");
+      pill.className = `pill ${item.isAI ? "bad" : item.isAI === false ? "good" : "muted"}`;
+      pill.textContent = item.confidence ? `${Math.round(item.confidence <= 1 ? item.confidence * 100 : item.confidence)}%` : "Done";
+
+      row.append(left, pill);
+      listEl.appendChild(row);
+    }
+  } catch (err) {
+    listEl.textContent = "Could not load history: " + err.message;
+  }
+}
+
+$("refreshHistory")?.addEventListener("click", loadHistory);
+
+$("clearHistory")?.addEventListener("click", async () => {
+  if (confirm("Clear local detection history?")) {
+    await chrome.storage.local.set({ detectionHistory: [], videoDetectionHistory: [] });
+    await loadHistory();
+  }
+});
+
+// Initial loaders
+refresh().catch(err => { $("keyMessage").textContent = err.message; });
+initZeroTrueConfig().catch(() => {});
 refreshAudio().catch(() => {});
-setInterval(() => { refreshAudio().catch(() => {}); }, 2500);
+setInterval(() => { refresh().catch(() => {}); }, 2500);

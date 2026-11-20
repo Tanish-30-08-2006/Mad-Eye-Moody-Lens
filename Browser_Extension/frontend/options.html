@@ -3,32 +3,99 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Provider Settings · Mad-Eye Moody Lens</title>
+  <title>Provider Settings &middot; Mad-Eye Moody Lens</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <main class="page">
     <header class="opt-header">
-      <div class="mark">M</div>
+      <div class="mark" aria-hidden="true">M</div>
       <div>
-        <h1>Detection Provider Configuration</h1>
-        <p>Configure the native Mad-Eye Moody Lens backend, BitMind, or a compatible custom REST API detector.</p>
+        <h1>Provider Settings &amp; API Configuration</h1>
+        <p>Configure detection providers, audio engines, and credentials for Mad-Eye Moody Lens.</p>
       </div>
     </header>
 
-    <!-- SECTION 1: NATIVE MOODY LENS SERVER -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: BITMIND ORACLE                                  -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <section class="card">
-      <h2>1. Mad-Eye Moody Lens Official Server</h2>
-      <p>Connect directly to the team's backend API (FastAPI + PyTorch pipelines) for native image, audio, and video deepfake forensics with Grad-CAM support.</p>
+      <div class="card-header">
+        <h2>1. BitMind Oracle (Image &amp; Video)</h2>
+        <span id="optBitmindState" class="pill muted">Not configured</span>
+      </div>
+      <p>Standard cloud detection provider for automated image and video deepfake verification.</p>
+      <div class="link-row">
+        <a href="https://app.bitmind.ai/api" target="_blank" class="ext-link" rel="noopener noreferrer">
+          Get API Key at app.bitmind.ai/api &#x2197;
+        </a>
+      </div>
+
+      <label for="optBitmindKey">BitMind API Key</label>
+      <div class="input-with-button">
+        <input id="optBitmindKey" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
+        <button type="button" id="optToggleBitmindKey" class="icon-toggle-btn" title="Show or hide key" aria-label="Toggle BitMind key visibility">Show</button>
+      </div>
+
+      <div class="actions">
+        <button id="optSaveBitmindKey" class="primary" type="button">Save Key</button>
+        <button id="optRemoveBitmindKey" class="secondary" type="button">Remove Key</button>
+        <button id="optTestBitmindKey" class="secondary" type="button">Test Connection</button>
+      </div>
+      <div id="optBitmindMsg" class="message" style="display: none;"></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: ZEROTRUE MULTI-MODAL ONLINE API                 -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <section class="card">
+      <div class="card-header">
+        <h2>2. ZeroTrue Multi-Modal Cloud API (Image, Audio, Video)</h2>
+        <span id="optZeroTrueState" class="pill muted">Not configured</span>
+      </div>
+      <p>Universal multi-modal deepfake and AI detection endpoint (<code>/api/v1/analyze/file</code>). Evaluates images, videos, audio streams, and files in real time.</p>
+      <div class="link-row">
+        <a href="https://zerotrue.app" target="_blank" class="ext-link" rel="noopener noreferrer">
+          Get API Key at zerotrue.app &#x2197;
+        </a>
+      </div>
+
+      <label for="optAudioEngineSelect">Audio Engine Mode</label>
+      <select id="optAudioEngineSelect">
+        <option value="auto">Auto &mdash; Local GPU with ZeroTrue Cloud Fallback</option>
+        <option value="zerotrue">ZeroTrue Online API (https://zerotrue.app)</option>
+        <option value="local">Local Model Only (127.0.0.1:8765)</option>
+      </select>
+
+      <label for="optZeroTrueKey">ZeroTrue API Key</label>
+      <div class="input-with-button">
+        <input id="optZeroTrueKey" type="password" autocomplete="off" placeholder="Paste ZeroTrue API key (zt_...)">
+        <button type="button" id="optToggleZeroTrueKey" class="icon-toggle-btn" title="Show or hide key" aria-label="Toggle ZeroTrue key visibility">Show</button>
+      </div>
+
+      <div class="actions">
+        <button id="optSaveZeroTrueKey" class="primary" type="button">Save Key</button>
+        <button id="optRemoveZeroTrueKey" class="secondary" type="button">Remove Key</button>
+        <button id="optTestZeroTrueKey" class="secondary" type="button">Test Connection</button>
+      </div>
+      <div id="optZeroTrueMsg" class="message" style="display: none;"></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3: MAD-EYE MOODY LENS SERVER                       -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <section class="card">
+      <h2>3. Mad-Eye Moody Lens Official Server</h2>
+      <p>Connect directly to the team's backend API (FastAPI + PyTorch) for native image, audio, and video deepfake forensics with Grad-CAM support.</p>
 
       <div class="grid two">
         <div>
           <label for="moodyServerUrl">Server Base URL</label>
           <input id="moodyServerUrl" type="url" placeholder="http://127.0.0.1:8080" value="http://127.0.0.1:8080">
-          <p class="help">Default local development: <code>http://127.0.0.1:8080</code>. Production requires an HTTPS URL.</p>
+          <p class="help">Default: <code>http://127.0.0.1:8080</code>. Production requires an HTTPS URL.</p>
         </div>
         <div>
-          <label for="moodyApiKey">API Key (Optional)</label>
+          <label for="moodyApiKey">API Key <span style="font-weight:400; opacity:0.7;">(Optional)</span></label>
           <input id="moodyApiKey" type="password" autocomplete="off" placeholder="Optional server authorization token">
           <p class="help">Sent as <code>X-API-Key</code> header if configured on the server.</p>
         </div>
@@ -36,14 +103,16 @@
 
       <div class="actions">
         <button id="saveMoodyConfig" class="primary" type="button">Save Server Configuration</button>
-        <button id="testMoodyConfig" class="secondary" type="button">Test Server Connection</button>
+        <button id="testMoodyConfig" class="secondary" type="button">Test Connection</button>
       </div>
       <div id="moodyMessage" class="message" style="display: none;"></div>
     </section>
 
-    <!-- SECTION 2: CUSTOM REST API CONNECTOR -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: CUSTOM REST API CONNECTOR                       -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <section class="card intro">
-      <h2>2. Custom REST API Connector</h2>
+      <h2>4. Custom REST API Connector</h2>
       <p>Integrate any standard HTTP POST image detection endpoint. The extension formats the image as JSON, multipart, or raw binary, and normalizes the JSON response according to your field mappings.</p>
     </section>
 
@@ -78,8 +147,8 @@
         </div>
       </div>
 
-      <label for="additionalHeaders">Additional HTTP Headers (JSON Object)</label>
-      <textarea id="additionalHeaders" rows="3" spellcheck="false">{}</textarea>
+      <label for="additionalHeaders">Additional HTTP Headers <span style="font-weight:400; opacity:0.7;">(JSON Object)</span></label>
+      <textarea id="additionalHeaders" rows="2" spellcheck="false">{}</textarea>
       <p class="help">Example: <code>{"X-Client-ID":"demo"}</code>. Do not configure Authorization or Content-Type here; set those above.</p>
 
       <hr>
@@ -108,7 +177,7 @@
           <input id="modelField" value="model">
         </div>
         <div>
-          <label for="modelHeaderName">Model Header (Raw Binary Mode Only)</label>
+          <label for="modelHeaderName">Model Header <span style="font-weight:400; opacity:0.7;">(Raw Binary Only)</span></label>
           <input id="modelHeaderName" value="X-Model-ID">
         </div>
       </div>
@@ -164,7 +233,7 @@
       <p id="message" class="message" role="status">Configuration and credentials are stored securely in this Chrome profile.</p>
     </form>
 
-    <!-- SECTION 3: PRIVACY & SECURITY NOTE -->
+    <!-- SECTION 5: SECURITY NOTE -->
     <section class="card note">
       <h2>Security &amp; Host Isolation</h2>
       <p>Credentials and endpoints configured here reside strictly within Chrome extension storage and are never exposed to visited webpage contexts. Only user-approved API host origins receive image payloads during analysis.</p>

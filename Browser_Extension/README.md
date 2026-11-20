@@ -1,6 +1,6 @@
-# Mad Eye Moody Lens – Image & Audio Deepfake Detection Extension
+# Mad Eye Moody Lens – Image, Video & Audio Deepfake Detection Extension
 
-Mad Eye Moody Lens is a Chrome Manifest V3 extension for real-time deepfake detection across both **images** and **tab audio**. It screens prominent webpage images using configurable providers (BitMind or Custom REST APIs) and performs forensic deepfake analysis on audio played in Chrome tabs or shared audio files using either a local neural network or the ZeroTrue Cloud API.
+Mad Eye Moody Lens is a Chrome Manifest V3 extension for deepfake and AI-generated content detection across **images, videos, and audio**. It screens webpage images using configurable cloud providers, supports uploaded and URL-based video analysis, and performs forensic audio analysis on tab playback or uploaded audio using a local model or ZeroTrue Cloud API.
 
 Detection results are probabilistic forensic signals, not mathematical proof of authenticity or authorship.
 
@@ -49,7 +49,7 @@ Browser_Extension/
 ## Requirements
 
 - Google Chrome with Manifest V3 and the Side Panel API.
-- A BitMind API key for the BitMind provider, or access to a compatible custom image-detection REST API.
+- A BitMind API key, a ZeroTrue API key, or access to a compatible custom detection API.
 - Internet access for remote detection providers.
 - Node.js is required only to run the included provider-engine unit tests; the extension itself does not require a package install or build step.
 
@@ -91,6 +91,17 @@ Content-Type: application/json
 ```
 
 The adapter expects a Boolean `isAI` field. It also maps confidence and similarity into the common result object. Manual uploads continue to be passed as image data URIs as in the original prototype.
+
+### BitMind video analysis
+
+The video adapter uses BitMind's documented `POST /oracle/v1/34/detect-video` endpoint. Direct public media URLs are downloaded by the extension and submitted as multipart file data (`video` + `rich=true`), rather than being sent as arbitrary third-party URL strings. When you click **Analyze Video** with a URL, Chrome may ask for access to that URL's host; allow it so the extension can fetch the media.
+
+- Videos up to 10 MB use the direct multipart video-upload endpoint.
+- Videos larger than 10 MB and up to 200 MB use BitMind's documented presigned-upload workflow: request an upload URL, post the returned form fields and file to temporary S3 storage, then analyze the returned S3 `videoUrl`.
+- URLs must point to downloadable video files (MP4, M4V, MOV, AVI, MKV, WebM or WMV). YouTube/watch/player pages are not direct video files; use the extension's playing-tab/frame workflow for those.
+- BitMind API errors and missing verdict fields are surfaced explicitly. A response without a Boolean `isAI` value is not shown as an authentic result.
+
+Official API reference: https://docs.bitmind.ai/api-reference
 
 ## Configuring a Custom REST API
 
@@ -180,7 +191,7 @@ Mad Eye Moody Lens v2.0 introduces real-time tab audio forensic inspection to id
 
 3. **Dual Detection Engine Architecture:**
    - **Local AI Engine (CUDA/GPU):** Self-hosted PyTorch service running wav2vec 2.0 XLSR-300M + AASIST graph neural network on `ws://127.0.0.1:8765`.
-   - **ZeroTrue Cloud API (https://zerotrue.app):** Online detection option for users without a local GPU. Multi-modal AI voice detector with instant analysis.
+   - **ZeroTrue Cloud API (https://zerotrue.app):** Multi-modal detection for supported image, video, and audio files. Direct media-file URLs use ZeroTrue’s URL-analysis endpoint; local uploads use its file-analysis endpoint.
    - **Auto Mode (Default):** Checks if the local GPU service is online; if offline, automatically routes detection through ZeroTrue Online API.
 
 4. **Complete Forensic Report Card:**
@@ -193,8 +204,8 @@ Mad Eye Moody Lens v2.0 introduces real-time tab audio forensic inspection to id
 ## Permissions and privacy
 
 - **Storage:** provider credentials, scan preferences, detection cache and recent result metadata are stored in the current Chrome profile. Extension storage access is restricted to trusted extension pages and the service worker; webpage content scripts receive only non-secret scanner settings through extension messages. This is extension-local storage, not a hardware-backed secret vault.
-- **Website access:** automatic scanning requests website access separately from API access. Scanning is opt-in and can consume provider quota.
-- **API host access:** the Custom REST settings page requests permission for the configured API origin only. Users can review or revoke extension site access in Chrome settings.
+- **Website access:** automatic scanning requests website access separately from API access. Direct public video URL analysis may request permission for the specific media host so the extension can download the video before upload. Scanning is opt-in and can consume provider quota.
+- **API host access:** the extension has access to the BitMind and ZeroTrue API hosts and BitMind's documented temporary video-upload bucket. The Custom REST settings page requests permission for the configured API origin only. Direct media URL scans request permission for the specific media host entered by the user. Users can review or revoke extension site access in Chrome settings.
 - **Image transmission:** URL mode sends the image URL to the selected provider. Base64, multipart and raw-byte modes transmit image bytes. Review the selected provider's privacy and retention practices before analyzing sensitive images.
 - **Image fetching:** for upload transports, the extension fetches public HTTP(S) image URLs from the service worker. Private/local image hosts are blocked by this generic fetch path; upload the image directly instead. The image host must be accessible to the extension.
 - **Cache:** URL results are cached for 24 hours. Cache keys include the provider and that provider's configuration version, so switching providers or updating a configuration does not reuse a different provider's result.
@@ -220,3 +231,8 @@ node --test tests/provider-engine.test.cjs
 The tests cover response mapping, confidence normalization, inconclusive results, endpoint validation, authentication requirements and request configuration validation. They do not replace live integration tests against a real provider account.
 
 No npm install or build process is required. Reload the unpacked extension in Chrome after source changes.
+
+
+## Video URL access (v2.0.2)
+
+For direct video URLs, grant the requested media-host permission. For BitMind URL downloads, the extension uses the browser's existing session cookies for that host, when available, and sends only the active page origin as the cross-site referrer. ZeroTrue and Moody Lens continue using anonymous URL downloads. This may help with sources that require a signed-in session or referrer. HTTP 401/403 responses are still enforced by the source server and cannot be bypassed by Chrome permissions. When a source and BitMind both deny URL retrieval, download the file from the source while signed in and drag the saved video into the Video tab.

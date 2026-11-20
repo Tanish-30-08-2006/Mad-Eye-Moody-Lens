@@ -29,7 +29,13 @@ import {
   AUDIO_ENGINE_MODES,
 } from "./audio/audio-manager.js";
 import { AudioStorage } from "./audio/audio-storage.js";
-import { testZeroTrueApiKey } from "./audio/zerotrue-client.js";
+import {
+  testZeroTrueApiKey,
+  callZeroTrueFileApi,
+  callZeroTrueUrlApi,
+  normalizeZeroTrueImageResponse,
+  normalizeZeroTrueVideoResponse,
+} from "./audio/zerotrue-client.js";
 
 // Keep provider credentials and configuration out of webpage content scripts.
 let storageAccessReady = Promise.resolve();
@@ -61,10 +67,11 @@ async function withApiConcurrencyLimit(task) {
 }
 
 function isExtensionPage(sender) {
+  if (sender?.id && sender.id === chrome.runtime.id) return true;
   return typeof sender?.url === "string" && sender.url.startsWith(chrome.runtime.getURL(""));
 }
 
-const IMAGE_PROVIDERS = ["bitmind", "custom", MoodyLens.PROVIDER_ID];
+const IMAGE_PROVIDERS = ["bitmind", "zerotrue", "custom", MoodyLens.PROVIDER_ID];
 const MOODYLENS_DEFAULTS = {
   moodyLensServerUrl: MoodyLens.DEFAULT_SERVER_URL, moodyLensApiKey: "", moodyLensUpdatedAt: 0,
 };
@@ -81,6 +88,7 @@ function customConfigIsReady(config) {
 }
 
 function providerIsReady(settings, provider = settings.activeProvider) {
+  if (provider === "zerotrue") return Boolean(String(settings.zeroTrueApiKey || "").trim());
   if (provider === "custom") return customConfigIsReady(settings.customProviderConfig);
   if (provider === MoodyLens.PROVIDER_ID) return MoodyLens.serverUrlIsValid(settings.moodyLensServerUrl);
   return provider === "bitmind" && Boolean(String(settings.apiKey || "").trim());
@@ -88,6 +96,7 @@ function providerIsReady(settings, provider = settings.activeProvider) {
 
 async function providerIsUsable(settings, provider = settings.activeProvider) {
   if (!providerIsReady(settings, provider)) return false;
+  if (provider === "zerotrue") return true;
   if (provider === MoodyLens.PROVIDER_ID) return MoodyLens.serverIsUsable(moodyLensConfig(settings));
   if (provider !== "custom") return true;
   try {
@@ -99,12 +108,14 @@ async function providerIsUsable(settings, provider = settings.activeProvider) {
 }
 
 function getProviderVersion(settings, provider) {
+  if (provider === "zerotrue") return settings.zeroTrueUpdatedAt || (settings.zeroTrueApiKey ? 1 : 0);
   if (provider === "custom") return settings.customProviderConfig?.updatedAt || 0;
   if (provider === MoodyLens.PROVIDER_ID) return settings.moodyLensUpdatedAt || 0;
   return settings.apiKeyUpdatedAt || 0;
 }
 
 function providerSetupMessage(provider) {
+  if (provider === "zerotrue") return "Add your ZeroTrue API key in settings first.";
   if (provider === "custom") return "Configure the Custom REST API and grant its API host permission in Manage provider settings.";
   if (provider === MoodyLens.PROVIDER_ID) return "Set the Mad-Eye Moody Lens server address in settings and allow the extension to reach it.";
   return "Add your BitMind API key in the extension popup first.";
@@ -246,6 +257,7 @@ async function getStored() {
   return chrome.storage.local.get({
     apiKey: "", apiKeyUpdatedAt: 0, activeProvider: "bitmind", customProviderConfig: null,
     scanEnabled: false, recentDetections: [], scanThreshold: "standard",
+    zeroTrueApiKey: "", zeroTrueUpdatedAt: 0,
     ...MOODYLENS_DEFAULTS,
   });
 }
@@ -385,19 +397,29 @@ async function loadImageBlob(image) {
   let response;
   try {
     response = await fetch(url.toString(), {
-      method: "GET", credentials: "omit", cache: "no-store", redirect: "error",
+      method: "GET", credentials: "omit", cache: "no-store", redirect: "follow",
+      headers: { "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
   } catch (error) {
     throw new Error(`Could not fetch image bytes. Grant access to the image host or upload the image directly. (${error.message})`);
   }
   if (!response.ok) throw new Error(`Image host returned HTTP ${response.status}.`);
-  const type = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-  if (!type.startsWith("image/")) throw new Error("The supplied URL did not return an image content type.");
+  let type = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   const declaredLength = Number(response.headers.get("content-length") || 0);
   if (declaredLength > MAX_UPLOAD_BYTES) throw new Error("Image exceeds the 8 MB upload limit.");
   const blob = await response.blob();
   if (blob.size > MAX_UPLOAD_BYTES) throw new Error("Image exceeds the 8 MB upload limit.");
+
+  // If content-type is generic, infer from URL pathname
+  if (!type || !type.startsWith("image/")) {
+    const pathname = url.pathname.toLowerCase();
+    if (pathname.endsWith(".png")) type = "image/png";
+    else if (pathname.endsWith(".webp")) type = "image/webp";
+    else if (pathname.endsWith(".gif")) type = "image/gif";
+    else type = "image/jpeg";
+  }
+
   return blob.type ? blob : blob.slice(0, blob.size, type);
 }
 
@@ -466,10 +488,74 @@ async function callMoodyLensImage(image, settings) {
   return MoodyLens.toImageResponse(result);
 }
 
-async function analyzeImage(image, source) {
+async function prepareZeroTrueImageBlob(blob) {
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    throw new Error("The webpage did not provide a usable image file.");
+  }
+  if (blob.size > MAX_UPLOAD_BYTES) {
+    throw new Error("Image exceeds the 8 MB ZeroTrue upload limit.");
+  }
+
+  const mime = String(blob.type || "").toLowerCase();
+  if (mime === "image/jpeg" || mime === "image/png") return { blob, extension: mime === "image/png" ? "png" : "jpg" };
+  if (!mime.startsWith("image/")) {
+    throw new Error(`The webpage URL did not return image content (received ${mime || "unknown content type"}).`);
+  }
+
+  // ZeroTrue's public image detector documents JPG/PNG input. Webpages commonly
+  // serve WebP, AVIF, GIF or SVG thumbnails, so rasterize those to JPEG before
+  // falling back to file upload. This also avoids misleading MIME/filename pairs.
+  if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function") {
+    throw new Error(`The image format ${mime} needs browser image conversion, which is unavailable in this context.`);
+  }
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(blob);
+    if (!bitmap.width || !bitmap.height) throw new Error("The image has no decodable dimensions.");
+    const maxDimension = 2560;
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(width, height);
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Could not create an image conversion canvas.");
+    context.drawImage(bitmap, 0, 0, width, height);
+    const jpeg = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.92 });
+    if (!jpeg.size) throw new Error("Image conversion produced an empty file.");
+    if (jpeg.size > MAX_UPLOAD_BYTES) throw new Error("Converted image exceeds the 8 MB ZeroTrue upload limit.");
+    return { blob: jpeg, extension: "jpg" };
+  } catch (error) {
+    throw new Error(`Could not prepare this webpage image for ZeroTrue: ${error.message || "Image conversion failed"}`);
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
+async function callZeroTrueImage(image, apiKey) {
+  if (!apiKey || !String(apiKey).trim()) {
+    throw new Error("Add your ZeroTrue API key in settings first.");
+  }
+
+  // Automatic webpage detections and manual uploads now share the same official
+  // /analyze/file multipart API. Do not send `input.type: image` to /check: that
+  // endpoint rejects it (HTTP 422). Download the public page image, normalize
+  // unsupported web formats to JPEG, then upload the actual image bytes.
+  const blob = await loadImageBlob(image);
+  const prepared = await prepareZeroTrueImageBlob(blob);
+  const { data, latencyMs } = await callZeroTrueFileApi(
+    prepared.blob,
+    apiKey,
+    `image.${prepared.extension}`
+  );
+  return normalizeZeroTrueImageResponse(data, latencyMs);
+}
+
+async function analyzeImage(image, source, requestedProvider) {
   if (!image || typeof image !== "string") throw new Error("No image URL or image data was supplied.");
   const settings = await getStored();
-  const provider = settings.activeProvider || "bitmind";
+  const provider = (requestedProvider && IMAGE_PROVIDERS.includes(requestedProvider))
+    ? requestedProvider
+    : (settings.activeProvider || "bitmind");
   if (!(await providerIsUsable(settings, provider))) throw new Error(providerSetupMessage(provider));
 
   trimMemoryCache();
@@ -487,6 +573,7 @@ async function analyzeImage(image, source) {
     }
     const start = Date.now();
     const response = await withApiConcurrencyLimit(() => {
+      if (provider === "zerotrue") return callZeroTrueImage(image, settings.zeroTrueApiKey);
       if (provider === "custom") return callCustomProvider(image, settings.customProviderConfig);
       if (provider === MoodyLens.PROVIDER_ID) return callMoodyLensImage(image, settings);
       return callBitMind(image, settings.apiKey);
@@ -518,6 +605,7 @@ async function getProviderPublicStatus(settings) {
     activeProvider,
     activeProviderConfigured: await providerIsUsable(settings, activeProvider),
     bitmindConfigured: Boolean(String(settings.apiKey || "").trim()),
+    zeroTrueConfigured: Boolean(String(settings.zeroTrueApiKey || "").trim()),
     customConfigured: await providerIsUsable(settings, "custom"),
     customProviderName: settings.customProviderConfig?.name || "Custom REST API",
     moodyLensConfigured: await providerIsUsable(settings, MoodyLens.PROVIDER_ID),
@@ -553,8 +641,11 @@ async function broadcastScannerSettings() {
 // videoDetectionHistory, hoverScanEnabled, autoScanOnHover, hoverDelayMs, pendingReviewVideo.
 // Shared with image: apiKey / apiKeyUpdatedAt (one BitMind key) and the moodyLens* server config.
 
-const VIDEO_PROVIDERS = ["bitmind", "custom", MoodyLens.PROVIDER_ID];
+const VIDEO_PROVIDERS = ["bitmind", "zerotrue", "custom", MoodyLens.PROVIDER_ID];
 const BITMIND_VIDEO_ENDPOINT = "https://api.bitmind.ai/oracle/v1/34/detect-video";
+const BITMIND_VIDEO_UPLOAD_URL_ENDPOINT = "https://api.bitmind.ai/oracle/v1/34/get-video-upload-url";
+const BITMIND_VIDEO_DIRECT_UPLOAD_MAX_BYTES = 10 * 1024 * 1024; // API Gateway direct-upload limit
+const BITMIND_VIDEO_MAX_BYTES = 200 * 1024 * 1024; // documented presigned-upload limit
 const VIDEO_REQUEST_TIMEOUT_MS = 60000;
 const VIDEO_MAX_FRAMES = 3;
 const VIDEO_MAX_CACHE = 150;
@@ -570,6 +661,7 @@ const withVideoConcurrencyLimit = makeConcurrencyLimiter(3);
 async function getVideoSettings() {
   return chrome.storage.local.get({
     apiKey: "", apiKeyUpdatedAt: 0,
+    zeroTrueApiKey: "", zeroTrueUpdatedAt: 0,
     videoActiveProvider: "bitmind", videoCustomProviderConfig: null,
     hoverScanEnabled: true, autoScanOnHover: true, hoverDelayMs: 400,
     ...MOODYLENS_DEFAULTS,
@@ -577,12 +669,14 @@ async function getVideoSettings() {
 }
 
 function videoProviderVersion(settings, provider) {
+  if (provider === "zerotrue") return settings.zeroTrueUpdatedAt || (settings.zeroTrueApiKey ? 1 : 0);
   if (provider === "custom") return settings.videoCustomProviderConfig?.updatedAt || 0;
   if (provider === MoodyLens.PROVIDER_ID) return settings.moodyLensUpdatedAt || 0;
   return settings.apiKeyUpdatedAt || 0;
 }
 
 async function videoProviderIsUsable(settings, provider = settings.videoActiveProvider) {
+  if (provider === "zerotrue") return Boolean(String(settings.zeroTrueApiKey || "").trim());
   if (provider === "bitmind") return Boolean(String(settings.apiKey || "").trim());
   if (provider === MoodyLens.PROVIDER_ID) return MoodyLens.serverIsUsable(moodyLensConfig(settings));
   if (provider === "custom") {
@@ -597,6 +691,7 @@ async function videoProviderIsUsable(settings, provider = settings.videoActivePr
 }
 
 function videoSetupMessage(provider) {
+  if (provider === "zerotrue") return "Add your ZeroTrue API key in settings first.";
   if (provider === "custom") return "Configure the Custom Video REST API and grant its API host permission in settings.";
   if (provider === MoodyLens.PROVIDER_ID) return "Set the Mad-Eye Moody Lens server address in settings and allow the extension to reach it.";
   return "BitMind API key is not configured. Please open extension settings to add your key.";
@@ -646,79 +741,6 @@ async function videoCacheIdentity(payload) {
   return null;
 }
 
-async function callBitMindVideo(payload, apiKey) {
-  const headers = {
-    "Authorization": `Bearer ${apiKey}`,
-    "x-bitmind-application": "oracle-api",
-    "Content-Type": "application/json"
-  };
-
-  // A direct, PUBLIC video URL goes to the BitMind video endpoint. Private/intranet/blob URLs
-  // are never sent to a third party; they fall through to frame analysis.
-  if (payload.videoUrl && isPublicHttpUrl(payload.videoUrl)) {
-    try {
-      const response = await fetch(BITMIND_VIDEO_ENDPOINT, {
-        method: "POST", headers, credentials: "omit", redirect: "error",
-        body: JSON.stringify({ video: payload.videoUrl, rich: true }),
-        signal: AbortSignal.timeout(VIDEO_REQUEST_TIMEOUT_MS)
-      });
-      if (response.ok) {
-        const data = await readJsonResponse(response, "BitMind Video");
-        return VideoProviderEngine.normalizeBitMindResponse(data);
-      }
-    } catch (videoEndpointError) {
-      console.warn("Direct video endpoint call failed, attempting frame analysis:", videoEndpointError);
-    }
-  }
-
-  const frames = videoFrames(payload);
-  if (!frames.length) {
-    throw new Error("BitMind could not analyse this video by URL and no frame was captured. Play the video for a moment and scan again.");
-  }
-
-  const postFrame = async frameDataUri => {
-    const response = await fetch(API_ENDPOINT, {
-      method: "POST", headers, credentials: "omit", redirect: "error",
-      body: JSON.stringify({ image: frameDataUri, rich: true }),
-      signal: AbortSignal.timeout(VIDEO_REQUEST_TIMEOUT_MS)
-    });
-    return VideoProviderEngine.normalizeBitMindResponse(await readJsonResponse(response, "BitMind Frame"));
-  };
-
-  if (frames.length > 1) {
-    const frameResults = [];
-    for (const frame of frames) {
-      try {
-        const norm = await postFrame(frame.dataUri);
-        frameResults.push({ timestamp: frame.timestamp, isAI: norm.isAI, confidence: norm.confidence });
-      } catch (err) {
-        console.warn("Error scanning frame at " + frame.timestamp, err);
-      }
-    }
-    if (frameResults.length > 0) {
-      const aiCount = frameResults.filter(f => f.isAI).length;
-      const avgConfidence = frameResults.reduce((acc, f) => acc + (f.confidence || 0.5), 0) / frameResults.length;
-      const isAI = aiCount >= (frameResults.length / 2);
-      return {
-        provider: "bitmind",
-        providerName: "BitMind Video Oracle",
-        model: "BitMind Video Multi-Frame Analysis",
-        isAI,
-        confidence: Number(avgConfidence.toFixed(4)),
-        similarity: null,
-        verdict: VideoProviderEngine.verdictFor(isAI, avgConfidence),
-        frameBreakdown: frameResults,
-        explanation: isAI
-          ? `Deepfake artifacts detected across ${aiCount}/${frameResults.length} analyzed video frames.`
-          : `Video evaluated as authentic across ${frameResults.length} sampled frames.`,
-        rawResponse: { frameResults }
-      };
-    }
-  }
-
-  return postFrame(frames[0].dataUri);
-}
-
 async function callCustomVideoProvider(payload, rawConfig) {
   const config = VideoProviderEngine.validateCustomConfig(rawConfig);
   const headers = new Headers(JSON.parse(config.additionalHeaders || "{}"));
@@ -760,21 +782,259 @@ async function callCustomVideoProvider(payload, rawConfig) {
   return VideoProviderEngine.normalizeCustomResponse(rawData, config);
 }
 
-async function fetchPublicVideo(url) {
-  const response = await fetch(url, {
-    method: "GET", credentials: "omit", cache: "no-store", redirect: "error",
-    signal: AbortSignal.timeout(VIDEO_REQUEST_TIMEOUT_MS)
-  });
+function safeVideoReferrer(value) {
+  if (!isPublicHttpUrl(value)) return "";
+  try {
+    const referrer = new URL(value);
+    referrer.username = "";
+    referrer.password = "";
+    referrer.hash = "";
+    // Only the origin is sent cross-site by the policy below. Strip query strings
+    // up front as an additional privacy guard for signed/player-page URLs.
+    referrer.search = "";
+    return referrer.href;
+  } catch (_) {
+    return "";
+  }
+}
+
+async function fetchPublicVideo(url, options = {}) {
+  if (!isPublicHttpUrl(url)) throw new Error("Enter a public HTTP or HTTPS video URL.");
+  let response;
+  const useBrowserSession = options.includeSession === true;
+  const referrer = useBrowserSession ? safeVideoReferrer(options.referrerUrl) : "";
+  try {
+    // BitMind URL uploads may point to sources that require the user's signed-in
+    // browser session or an originating-page referrer. Only the BitMind path opts
+    // into credentials, after the user grants permission for this exact media host.
+    // Cookies are sent only to that host; cross-site referrers are reduced to origin.
+    response = await fetch(url, {
+      method: "GET", credentials: useBrowserSession ? "include" : "omit", cache: "no-store", redirect: "follow",
+      ...(referrer ? { referrer, referrerPolicy: "strict-origin-when-cross-origin" } : { referrerPolicy: "no-referrer" }),
+      signal: AbortSignal.timeout(180000)
+    });
+  } catch (error) {
+    const detail = error?.message || String(error);
+    if (/permission|host permission|access.*denied|failed to fetch/i.test(detail)) {
+      throw new Error(`Chrome could not download this video from ${new URL(url).origin}. Grant access to that site and retry. (${detail})`);
+    }
+    throw new Error(`Could not download the video URL: ${detail}`);
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(`The video host denied the download (HTTP ${response.status}). The URL may require a signed-in browser session, a valid download token, or an originating-page referrer. Chrome site permission cannot override a server-side denial. Download the video from its source while signed in, then drop the saved video file into the extension.`);
+  }
   if (!response.ok) throw new Error(`Video host returned HTTP ${response.status}.`);
+  if (response.url && !isPublicHttpUrl(response.url)) {
+    throw new Error("The video URL redirected to a private or unsupported address.");
+  }
   const type = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-  if (!type.startsWith("video/") && type !== "application/octet-stream") {
-    throw new Error("The video URL did not return a video file (streaming pages are analysed from captured frames).");
+  const path = new URL(response.url || url).pathname.toLowerCase();
+  const hasVideoExtension = /\.(mp4|m4v|mov|avi|mkv|webm|wmv)$/.test(path);
+  if (!type.startsWith("video/") && !["application/octet-stream", "application/mp4", "binary/octet-stream"].includes(type) && !hasVideoExtension) {
+    throw new Error(`The URL returned ${type || "an unknown content type"}, not a video file. Use a direct downloadable MP4, MOV, AVI, MKV, WebM, or WMV URL.`);
   }
   const declared = Number(response.headers.get("content-length") || 0);
-  if (declared > MoodyLens.MAX_BYTES.video) throw new Error("The video is larger than the server's 100 MB limit.");
+  if (declared > BITMIND_VIDEO_MAX_BYTES) throw new Error("The video is larger than BitMind's 200 MB upload limit.");
   const blob = await response.blob();
-  if (blob.size > MoodyLens.MAX_BYTES.video) throw new Error("The video is larger than the server's 100 MB limit.");
+  if (!blob.size) throw new Error("The video URL returned an empty file.");
+  if (blob.size > BITMIND_VIDEO_MAX_BYTES) throw new Error("The video is larger than BitMind's 200 MB upload limit.");
   return blob;
+}
+
+function bitMindVideoFileInfo(filename, blob) {
+  const cleanName = String(filename || "video.mp4").split(/[\\/]/).pop().replace(/[^a-z0-9._-]/gi, "_").slice(0, 120) || "video.mp4";
+  let ext = (cleanName.split(".").pop() || "").toLowerCase();
+  const mimeByExt = {
+    mp4: "video/mp4", m4v: "video/x-m4v", mov: "video/quicktime", avi: "video/x-msvideo",
+    mkv: "video/x-matroska", webm: "video/webm", wmv: "video/x-ms-wmv"
+  };
+  if (!mimeByExt[ext]) {
+    const mime = String(blob?.type || "").toLowerCase();
+    const match = Object.entries(mimeByExt).find(([, value]) => value === mime);
+    ext = match?.[0] || "mp4";
+  }
+  return { filename: /\.[a-z0-9]{2,5}$/i.test(cleanName) ? cleanName : `${cleanName}.${ext}`, ext, contentType: mimeByExt[ext] || blob?.type || "video/mp4" };
+}
+
+function bitMindAuthHeaders(apiKey, contentType = "") {
+  const headers = {
+    Authorization: `Bearer ${String(apiKey || "").trim()}`,
+    "x-bitmind-application": "oracle-api"
+  };
+  if (contentType) headers["Content-Type"] = contentType;
+  return headers;
+}
+
+function requireBitMindVideoVerdict(raw, sourceLabel) {
+  const normalized = VideoProviderEngine.normalizeBitMindResponse(raw);
+  if (typeof normalized.isAI !== "boolean") {
+    throw new Error(`${sourceLabel} succeeded but did not return a Boolean AI verdict. The result was not classified as authentic or AI-generated.`);
+  }
+  return normalized;
+}
+
+async function callBitMindVideoUrl(videoUrl, apiKey) {
+  const response = await fetch(BITMIND_VIDEO_ENDPOINT, {
+    method: "POST", headers: bitMindAuthHeaders(apiKey, "application/json"), credentials: "omit", redirect: "error",
+    body: JSON.stringify({ video: videoUrl, rich: true }),
+    signal: AbortSignal.timeout(180000)
+  });
+  const data = await readJsonResponse(response, "BitMind Video URL");
+  return requireBitMindVideoVerdict(data, "BitMind Video URL analysis");
+}
+
+async function callBitMindVideoBlob(blob, filename, apiKey) {
+  if (!(blob instanceof Blob)) throw new Error("The selected video could not be read as a file.");
+  if (!blob.size) throw new Error("The selected video file is empty.");
+  if (blob.size > BITMIND_VIDEO_MAX_BYTES) throw new Error("BitMind supports video uploads up to 200 MB.");
+  const fileInfo = bitMindVideoFileInfo(filename, blob);
+  const authHeaders = bitMindAuthHeaders(apiKey);
+
+  // BitMind documents direct multipart uploads for files up to 10 MB.
+  if (blob.size <= BITMIND_VIDEO_DIRECT_UPLOAD_MAX_BYTES) {
+    const form = new FormData();
+    form.append("video", blob, fileInfo.filename);
+    form.append("rich", "true");
+    const response = await fetch(BITMIND_VIDEO_ENDPOINT, {
+      method: "POST", headers: authHeaders, body: form, credentials: "omit", redirect: "error",
+      signal: AbortSignal.timeout(180000)
+    });
+    const data = await readJsonResponse(response, "BitMind Video Upload");
+    return requireBitMindVideoVerdict(data, "BitMind video upload");
+  }
+
+  // Larger videos use BitMind's documented three-stage S3 flow:
+  // request a presigned upload, POST its exact fields + file to S3, then detect the S3 videoUrl.
+  const presignResponse = await fetch(BITMIND_VIDEO_UPLOAD_URL_ENDPOINT, {
+    method: "POST", headers: bitMindAuthHeaders(apiKey, "application/json"), credentials: "omit", redirect: "error",
+    body: JSON.stringify({ filename: fileInfo.filename, contentType: fileInfo.contentType }),
+    signal: AbortSignal.timeout(60000)
+  });
+  const presign = await readJsonResponse(presignResponse, "BitMind Video Upload Setup");
+  if (!presign?.url || !presign?.videoUrl || !presign?.fields || typeof presign.fields !== "object") {
+    throw new Error("BitMind returned incomplete presigned-upload details.");
+  }
+  const s3Form = new FormData();
+  for (const [name, value] of Object.entries(presign.fields)) {
+    if (value !== undefined && value !== null) s3Form.append(name, String(value));
+  }
+  s3Form.append("file", blob, fileInfo.filename);
+  const uploadResponse = await fetch(presign.url, {
+    method: "POST", body: s3Form, credentials: "omit", redirect: "error",
+    signal: AbortSignal.timeout(180000)
+  });
+  if (!uploadResponse.ok) {
+    const detail = (await uploadResponse.text().catch(() => "")).slice(0, 350);
+    throw new Error(`BitMind's temporary video upload failed (HTTP ${uploadResponse.status})${detail ? `: ${detail}` : "."}`);
+  }
+
+  const detectResponse = await fetch(BITMIND_VIDEO_ENDPOINT, {
+    method: "POST", headers: bitMindAuthHeaders(apiKey, "application/json"), credentials: "omit", redirect: "error",
+    body: JSON.stringify({ video: presign.videoUrl, rich: true, startTime: 0, fps: 30 }),
+    signal: AbortSignal.timeout(180000)
+  });
+  const data = await readJsonResponse(detectResponse, "BitMind Video Detection");
+  return requireBitMindVideoVerdict(data, "BitMind video detection");
+}
+
+async function callBitMindVideo(payload, apiKey) {
+  if (!String(apiKey || "").trim()) throw new Error("BitMind API key is not configured.");
+
+  let lastWholeVideoError = null;
+  const frames = videoFrames(payload);
+
+  // Local File/Blob payloads are supported for direct upload. If the runtime message
+  // cannot carry the File object, the captured-frame path below remains available.
+  if (payload.videoFileIsVideo && payload.videoFile instanceof Blob) {
+    try {
+      return await callBitMindVideoBlob(payload.videoFile, payload.videoFileName || "video.mp4", apiKey);
+    } catch (error) {
+      lastWholeVideoError = error;
+      if (!frames.length) throw error;
+      console.warn("BitMind whole-video upload failed; trying captured frames:", error.message);
+    }
+  }
+
+  if (payload.videoUrl && isPublicHttpUrl(payload.videoUrl)) {
+    let videoBlob = null;
+    try {
+      videoBlob = await fetchPublicVideo(payload.videoUrl, { referrerUrl: payload.referrerUrl, includeSession: true });
+    } catch (downloadError) {
+      lastWholeVideoError = downloadError;
+      console.warn("Could not download the video in the extension:", downloadError.message);
+
+      // This can work when the URL is already a provider-accessible/presigned object URL.
+      // It is not the primary path for arbitrary media links; those are uploaded as bytes.
+      try { return await callBitMindVideoUrl(payload.videoUrl, apiKey); }
+      catch (providerUrlError) {
+        const isForbidden = /HTTP 403|HTTP 401|denied the download/i.test(downloadError.message);
+        lastWholeVideoError = new Error(isForbidden
+          ? `${downloadError.message} BitMind's server-side URL analysis also failed: ${providerUrlError.message}`
+          : `Video download failed: ${downloadError.message}. BitMind's URL request also failed: ${providerUrlError.message}`);
+      }
+    }
+
+    if (videoBlob) {
+      const filename = bitMindVideoFileInfo(new URL(payload.videoUrl).pathname, videoBlob).filename;
+      try {
+        return await callBitMindVideoBlob(videoBlob, filename, apiKey);
+      } catch (uploadError) {
+        lastWholeVideoError = uploadError;
+        if (!frames.length) throw uploadError;
+        console.warn("BitMind file upload failed; trying captured frames:", uploadError.message);
+      }
+    }
+  }
+
+  if (!frames.length) {
+    if (lastWholeVideoError) {
+      const isForbidden = /HTTP 403|HTTP 401|denied the download/i.test(lastWholeVideoError.message);
+      throw new Error(isForbidden
+        ? `${lastWholeVideoError.message} This is an access restriction at the video source, not a BitMind detection result. Download the video from the original website using your browser session, then drag the saved file into the Video tab.`
+        : `${lastWholeVideoError.message} For direct video URLs, allow Chrome site access when prompted and use a publicly downloadable video file (not a watch/player page).`);
+    }
+    throw new Error("No video file or captured frame was available. Enter a direct downloadable video URL, upload a video, or scan while the video is playing in a tab.");
+  }
+
+  const postFrame = async frameDataUri => {
+    const response = await fetch(API_ENDPOINT, {
+      method: "POST", headers: bitMindAuthHeaders(apiKey, "application/json"), credentials: "omit", redirect: "error",
+      body: JSON.stringify({ image: frameDataUri, rich: true }),
+      signal: AbortSignal.timeout(VIDEO_REQUEST_TIMEOUT_MS)
+    });
+    const normalized = VideoProviderEngine.normalizeBitMindResponse(await readJsonResponse(response, "BitMind Frame"));
+    if (typeof normalized.isAI !== "boolean") throw new Error("BitMind frame response did not contain a Boolean isAI result.");
+    return normalized;
+  };
+
+  if (frames.length > 1) {
+    const frameResults = [];
+    for (const frame of frames) {
+      try {
+        const norm = await postFrame(frame.dataUri);
+        frameResults.push({ timestamp: frame.timestamp, isAI: norm.isAI, confidence: norm.confidence });
+      } catch (err) {
+        console.warn("Error scanning frame at " + frame.timestamp, err);
+      }
+    }
+    if (frameResults.length > 0) {
+      const aiCount = frameResults.filter(f => f.isAI).length;
+      const avgConfidence = frameResults.reduce((acc, f) => acc + (f.confidence || 0.5), 0) / frameResults.length;
+      const isAI = aiCount >= (frameResults.length / 2);
+      return {
+        provider: "bitmind", providerName: "BitMind Video Oracle", model: "BitMind Video Multi-Frame Analysis",
+        isAI, confidence: Number(avgConfidence.toFixed(4)), similarity: null,
+        verdict: VideoProviderEngine.verdictFor(isAI, avgConfidence), frameBreakdown: frameResults,
+        explanation: isAI
+          ? `Deepfake artifacts detected across ${aiCount}/${frameResults.length} analyzed video frames.`
+          : `Video evaluated as authentic across ${frameResults.length} sampled frames.`,
+        rawResponse: { frameResults }
+      };
+    }
+  }
+
+  if (frames.length === 1) return postFrame(frames[0].dataUri);
+  throw new Error(lastWholeVideoError?.message || "BitMind could not analyse the video. No video file or usable frame was available.");
 }
 
 async function callMoodyLensVideo(payload, settings) {
@@ -799,6 +1059,103 @@ async function callMoodyLensVideo(payload, settings) {
     results.push({ timestamp: frame.timestamp, result: await MoodyLens.analyzeBlob("image", blob, cfg) });
   }
   return MoodyLens.framesToVideoResponse(results);
+}
+
+async function callZeroTrueVideo(payload, apiKey) {
+  if (!apiKey || !String(apiKey).trim()) {
+    throw new Error("Add your ZeroTrue API key in settings first.");
+  }
+  const cleanKey = String(apiKey).trim();
+
+  // Uploaded side-panel files use the documented /analyze/file route.
+  if (payload.videoFileIsVideo && payload.videoFile instanceof Blob) {
+    const fileBlob = payload.videoFile;
+    if (fileBlob.size > MoodyLens.MAX_BYTES.video) throw new Error("Video exceeds the 100 MB upload limit.");
+    const filename = String(payload.videoFileName || "video.mp4").replace(/[^a-z0-9._-]/gi, "_");
+    const ext = (filename.split(".").pop() || "mp4").toLowerCase();
+    const { data, latencyMs } = await callZeroTrueFileApi(fileBlob, cleanKey, `video.${ext}`, 300000);
+    return normalizeZeroTrueVideoResponse(data, latencyMs);
+  }
+
+  let urlAnalysisError = null;
+  // For a public URL, let ZeroTrue fetch the original media using its documented
+  // /analyze/url route. This avoids browser CORS, redirects, range-request, and
+  // cross-origin download failures common with CDN/video hosts.
+  if (payload.videoUrl && isPublicHttpUrl(payload.videoUrl)) {
+    try {
+      const { data, latencyMs } = await callZeroTrueUrlApi(payload.videoUrl, cleanKey, 300000);
+      return normalizeZeroTrueVideoResponse(data, latencyMs);
+    } catch (error) {
+      urlAnalysisError = error;
+      console.warn("ZeroTrue URL analysis failed; trying browser download + file upload:", error.message);
+    }
+
+    // Fallback for valid downloadable video URLs if ZeroTrue's URL fetcher cannot
+    // retrieve the source. File uploads still use the known-working file endpoint.
+    try {
+      const blob = await fetchPublicVideo(payload.videoUrl);
+      const path = new URL(payload.videoUrl).pathname;
+      const pathExt = (path.split(".").pop() || "").toLowerCase();
+      const mimeExt = (blob.type.split("/")[1] || "").toLowerCase();
+      const ext = (/^(mp4|mov|avi|mkv|webm)$/.test(pathExt) ? pathExt : mimeExt)
+        .replace(/[^a-z0-9.+-]/gi, "") || "mp4";
+      const { data, latencyMs } = await callZeroTrueFileApi(blob, cleanKey, `video.${ext}`, 300000);
+      return normalizeZeroTrueVideoResponse(data, latencyMs);
+    } catch (error) {
+      urlAnalysisError = new Error(`URL analysis failed (${urlAnalysisError.message}); browser download/upload fallback failed (${error.message}).`);
+      console.warn("ZeroTrue video URL fallback failed:", error.message);
+    }
+  }
+
+  // When the user is scanning a video playing in a tab, frame-based analysis is
+  // still available. A pasted webpage URL cannot produce frames by itself.
+  const frames = videoFrames(payload);
+  if (!frames.length) {
+    if (urlAnalysisError) {
+      throw new Error(`${urlAnalysisError.message} ZeroTrue URL scans require a direct, publicly accessible media-file URL with a supported extension (MP4, MOV, AVI, MKV, or WebM). Streaming/watch-page URLs must be scanned from their playing video instead.`);
+    }
+    throw new Error("Enter a direct public video-file URL (MP4, MOV, AVI, MKV, or WebM), or scan a video while it is playing in a webpage so frames can be captured.");
+  }
+
+  if (frames.length > 1) {
+    const frameResults = [];
+    for (const frame of frames) {
+      try {
+        const frameBlob = dataUriToBlob(frame.dataUri, MAX_UPLOAD_BYTES);
+        const { data, latencyMs } = await callZeroTrueFileApi(frameBlob, cleanKey, "frame.jpg");
+        const norm = normalizeZeroTrueImageResponse(data, latencyMs);
+        frameResults.push({ timestamp: frame.timestamp, isAI: norm.isAI, confidence: norm.confidence });
+      } catch (err) {
+        console.warn("Error scanning frame with ZeroTrue at " + frame.timestamp, err);
+      }
+    }
+    if (frameResults.length > 0) {
+      const aiCount = frameResults.filter(f => f.isAI).length;
+      const avgConfidence = frameResults.reduce((acc, f) => acc + (f.confidence || 0.5), 0) / frameResults.length;
+      const isAI = aiCount >= (frameResults.length / 2);
+      const confidence = Number(avgConfidence.toFixed(4));
+      return {
+        provider: "zerotrue",
+        providerName: "ZeroTrue Video AI",
+        model: "ZeroTrue Multi-Frame AI Detector",
+        isAI,
+        confidence,
+        similarity: null,
+        verdict: confidence < 0.58 ? "uncertain" : (isAI ? "likely_ai" : "likely_not_ai"),
+        frameBreakdown: frameResults,
+        explanation: isAI
+          ? `Deepfake artifacts detected across ${aiCount}/${frameResults.length} analyzed video frames.`
+          : `Video evaluated as authentic across ${frameResults.length} sampled frames.`,
+        rawResponse: { frameResults }
+      };
+    }
+    if (urlAnalysisError) throw new Error(`${urlAnalysisError.message} Frame-based fallback also failed: no frames could be analysed.`);
+    throw new Error("ZeroTrue could not analyse any captured video frames. Try scanning again while the video is playing.");
+  }
+
+  const singleBlob = dataUriToBlob(frames[0].dataUri, MAX_UPLOAD_BYTES);
+  const { data, latencyMs } = await callZeroTrueFileApi(singleBlob, cleanKey, "frame.jpg");
+  return normalizeZeroTrueVideoResponse(data, latencyMs);
 }
 
 function safeSourceUrl(value) {
@@ -872,7 +1229,9 @@ async function readVideoCache(cacheKey) {
 async function scanVideo(payload, sender) {
   if (!payload || typeof payload !== "object") throw new Error("No video was supplied for analysis.");
   const settings = await getVideoSettings();
-  const provider = settings.videoActiveProvider;
+  const provider = (payload?.provider && VIDEO_PROVIDERS.includes(payload.provider))
+    ? payload.provider
+    : settings.videoActiveProvider;
   if (!(await videoProviderIsUsable(settings, provider))) throw new Error(videoSetupMessage(provider));
 
   const identity = await videoCacheIdentity(payload);
@@ -888,7 +1247,8 @@ async function scanVideo(payload, sender) {
   const task = withVideoConcurrencyLimit(async () => {
     const startTime = Date.now();
     let result;
-    if (provider === "custom") result = await callCustomVideoProvider(payload, settings.videoCustomProviderConfig);
+    if (provider === "zerotrue") result = await callZeroTrueVideo(payload, settings.zeroTrueApiKey);
+    else if (provider === "custom") result = await callCustomVideoProvider(payload, settings.videoCustomProviderConfig);
     else if (provider === MoodyLens.PROVIDER_ID) result = await callMoodyLensVideo(payload, settings);
     else result = await callBitMindVideo(payload, settings.apiKey);
 
@@ -959,6 +1319,7 @@ const VIDEO_HANDLERS = {
       activeProvider: settings.videoActiveProvider,
       isConfigured: await videoProviderIsUsable(settings),
       bitmindConfigured: await videoProviderIsUsable(settings, "bitmind"),
+      zeroTrueConfigured: await videoProviderIsUsable(settings, "zerotrue"),
       customConfigured: await videoProviderIsUsable(settings, "custom"),
       moodyLensConfigured: await videoProviderIsUsable(settings, MoodyLens.PROVIDER_ID),
     };
@@ -1015,8 +1376,6 @@ const VIDEO_HANDLERS = {
     requireExtensionPage(sender);
     const provider = message.provider;
     if (!VIDEO_PROVIDERS.includes(provider)) throw new Error("Choose a supported video detection provider.");
-    const settings = await getVideoSettings();
-    if (!(await videoProviderIsUsable(settings, provider))) throw new Error(videoSetupMessage(provider));
     await chrome.storage.local.set({ videoActiveProvider: provider });
     return { provider };
   },
@@ -1120,10 +1479,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       const provider = message.provider;
       if (!IMAGE_PROVIDERS.includes(provider)) throw new Error("Choose a supported detection provider.");
-      const settings = await getStored();
-      if (!(await providerIsUsable(settings, provider))) {
-        throw new Error(provider === "bitmind" ? "Save your BitMind API key before selecting BitMind." : providerSetupMessage(provider));
-      }
       await chrome.storage.local.set({ activeProvider: provider });
       await broadcastScannerSettings();
       return { ok: true, provider };
@@ -1196,7 +1551,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "ANALYZE_IMAGE") {
-    analyzeImage(String(message.image || ""), message.source || "manual")
+    analyzeImage(String(message.image || ""), message.source || "manual", message.provider)
       .then(sendResponse).catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
   }
@@ -1204,8 +1559,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TEST_API_KEY") {
     if (!isExtensionPage(sender)) { sendResponse({ ok: false, error: "This action is available only inside the extension." }); return false; }
     (async () => {
-      const { apiKey } = await getStored();
-      if (!apiKey) throw new Error("Save your BitMind API key first.");
+      const { apiKey: storedKey } = await getStored();
+      const apiKey = String(message.apiKey || storedKey || "").trim();
+      if (!apiKey) throw new Error("Save or enter your BitMind API key first.");
       return await callBitMind("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=480", apiKey);
     })().then(response => sendResponse({ ok: true, response }))
       .catch(error => sendResponse({ ok: false, error: error.message }));
@@ -1410,7 +1766,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
     const toSave = {};
-    if (message.apiKey != null) toSave.zeroTrueApiKey = String(message.apiKey).trim();
+    if (message.apiKey != null) {
+      toSave.zeroTrueApiKey = String(message.apiKey).trim();
+      toSave.zeroTrueUpdatedAt = Date.now();
+    }
     if (message.engineMode) toSave.audioEngineMode = message.engineMode;
     chrome.storage.local.set(toSave)
       .then(() => sendResponse({ ok: true }))
@@ -1420,8 +1779,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "TEST_ZEROTRUE_KEY") {
     if (!isExtensionPage(sender)) { sendResponse({ ok: false, error: "This action is available only inside the extension." }); return false; }
-    testZeroTrueApiKey(message.apiKey)
-      .then(res => sendResponse({ ok: true, ...res }))
+    (async () => {
+      let key = String(message.apiKey || "").trim();
+      if (!key) {
+        const stored = await chrome.storage.local.get("zeroTrueApiKey");
+        key = String(stored.zeroTrueApiKey || "").trim();
+      }
+      if (!key) throw new Error("Please enter or save your ZeroTrue API key first.");
+      return await testZeroTrueApiKey(key);
+    })().then(res => sendResponse({ ok: true, ...res }))
       .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
   }

@@ -3,185 +3,362 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Mad-Eye Moody Lens – Detailed Forensic Review</title>
+  <title>Mad-Eye Moody Lens – Forensic Review</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
   <div class="page">
     <header class="sp-header">
       <div class="brand-wrap">
-        <div class="brand-mark">M</div>
+        <div class="brand-mark" aria-hidden="true">M</div>
         <div>
-          <h1 class="brand-title">Forensic Inspection Lab</h1>
-          <p class="brand-subtitle">Media Authenticity &amp; Anomaly Analysis</p>
+          <h1 class="brand-title">Mad-Eye Moody Lens</h1>
+          <p class="brand-subtitle">Media Authenticity &amp; Deepfake Forensics</p>
         </div>
       </div>
     </header>
 
-    <nav class="sp-tabs">
-      <button class="sp-tab-btn active" data-target="paneImage">Image Inspection</button>
-      <button class="sp-tab-btn" data-target="paneAudio">Audio Forensics</button>
-      <button class="sp-tab-btn" data-target="paneHistory">History &amp; Logs</button>
+    <!-- TOP-LEVEL NAVIGATION -->
+    <nav class="sp-tabs main-tabs" role="tablist" aria-label="Main navigation">
+      <button class="sp-tab-btn active" data-target="paneAnalyse" role="tab" aria-selected="true" aria-controls="paneAnalyse">Analyse</button>
+      <button class="sp-tab-btn" data-target="paneHistory" role="tab" aria-selected="false" aria-controls="paneHistory">History</button>
+      <button class="sp-tab-btn" data-target="paneSettings" role="tab" aria-selected="false" aria-controls="paneSettings">Settings</button>
     </nav>
 
     <div class="pane-container">
-      <!-- PANE 1: IMAGE INSPECTION (PRIMARY WORKFLOW) -->
-      <section id="paneImage" class="sp-pane active">
-        <div class="card">
-          <h2>Image Source Intake</h2>
-          <div id="dropzone" class="dropzone" tabindex="0">
-            <div class="drop-icon">&#8682;</div>
-            <strong>Drag and drop image here</strong>
-            <span>Drag directly from a webpage or choose a local file</span>
-            <span class="or">or</span>
-            <label class="file-button" for="fileInput">Choose Image File</label>
-            <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- 1. ANALYSE (Image, Audio, Video)                           -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <section id="paneAnalyse" class="sp-pane active" role="tabpanel">
+        <!-- Sub-Navigation for Modalities -->
+        <nav class="sub-nav" role="tablist" aria-label="Modality">
+          <button class="sub-tab-btn active" data-sub="subPaneImage" role="tab" aria-selected="true" aria-controls="subPaneImage">Image</button>
+          <button class="sub-tab-btn" data-sub="subPaneAudio" role="tab" aria-selected="false" aria-controls="subPaneAudio">Audio</button>
+          <button class="sub-tab-btn" data-sub="subPaneVideo" role="tab" aria-selected="false" aria-controls="subPaneVideo">Video</button>
+        </nav>
+
+        <!-- SUB-PANE 1: IMAGE INSPECTION -->
+        <div id="subPaneImage" class="sub-pane active" role="tabpanel">
+          <div class="card">
+            <h2>Image Source Intake</h2>
+            <div id="dropzone" class="dropzone" tabindex="0" aria-label="Image drop zone — drag an image here or choose a file">
+              <div class="drop-icon" aria-hidden="true">&#8682;</div>
+              <strong>Drag an image here</strong>
+              <span>From a webpage, desktop, or choose a local file</span>
+              <span class="or">or</span>
+              <label class="file-button" for="fileInput">Choose file</label>
+              <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Choose image file">
+            </div>
+
+            <label for="imageUrl">Or paste a public image URL</label>
+            <input id="imageUrl" type="url" placeholder="https://example.com/image.jpg">
+
+            <img id="preview" alt="Selected image preview">
+
+            <div class="field-row" style="margin-top: 10px;">
+              <div style="flex: 1; margin-right: 8px;">
+                <label for="spImageProviderSelect" style="margin-top: 0;">Detection Provider</label>
+                <select id="spImageProviderSelect">
+                  <option value="bitmind">BitMind Oracle</option>
+                  <option value="zerotrue">ZeroTrue Cloud AI</option>
+                  <option value="moodylens">Mad-Eye Moody Lens Server</option>
+                  <option value="custom">Custom REST API</option>
+                </select>
+              </div>
+              <div style="width: 140px;">
+                <label style="margin-top: 0;">Model</label>
+                <div id="spImageModelBadge" class="model-badge" style="display: block; padding: 7px 8px; text-align: center;">Managed by provider</div>
+              </div>
+            </div>
+
+            <div id="spImageProviderNotice" class="provider-notice" style="display: none; margin-top: 8px;"></div>
+
+            <div class="actions" style="margin-top: 10px;">
+              <button id="analyze" class="primary">Analyze Image</button>
+              <button id="clear" class="secondary">Clear</button>
+            </div>
+            <p class="hint" style="margin-top: 6px;">Supports JPEG, PNG, WebP and GIF (up to 8 MB).</p>
           </div>
 
-          <label for="imageUrl">Or analyze via public image URL</label>
-          <input id="imageUrl" type="url" placeholder="https://example.com/sample.jpg">
+          <div class="card">
+            <div class="result-heading">
+              <h2>Detection Result</h2>
+              <span id="status" class="pill">Not analyzed</span>
+            </div>
 
-          <img id="preview" alt="Selected image preview">
+            <div id="verdict" class="verdict empty">Your result will appear here.</div>
 
-          <div class="actions">
-            <button id="analyze" class="primary">Analyze Image</button>
-            <button id="clear" class="secondary">Clear</button>
+            <div class="metrics">
+              <div>
+                <span>Confidence</span>
+                <strong id="confidence">&mdash;</strong>
+              </div>
+              <div>
+                <span>Similarity</span>
+                <strong id="similarity">&mdash;</strong>
+              </div>
+              <div>
+                <span>Time</span>
+                <strong id="duration">&mdash;</strong>
+              </div>
+            </div>
+
+            <h3>Forensic Assessment</h3>
+            <p id="explanation" class="explanation">Choose or drop an image and click Analyze to view detector findings.</p>
+
+            <p class="gradcam-note">Spatial attention heatmaps (Grad-CAM) are available via the native Moody Lens face detector. External providers supply global probability metrics.</p>
+
+            <details>
+              <summary>Technical details &amp; raw response</summary>
+              <pre id="raw">{ }</pre>
+            </details>
+
+            <button id="copy" class="secondary full">Copy Report</button>
           </div>
-          <p class="hint" style="margin-top: 8px;">Supports JPEG, PNG, WebP and GIF (up to 8 MB). Analyzed with the active detection provider.</p>
         </div>
 
-        <div class="card">
-          <div class="result-heading">
-            <h2>Detection Result</h2>
-            <span id="status" class="pill">Not analyzed</span>
-          </div>
-
-          <div id="verdict" class="verdict empty">Your result will appear here.</div>
-
-          <div class="metrics">
-            <div>
-              <span>Confidence</span>
-              <strong id="confidence">—</strong>
+        <!-- SUB-PANE 2: AUDIO FORENSICS -->
+        <div id="subPaneAudio" class="sub-pane" role="tabpanel">
+          <div class="card" id="audioForensicSection">
+            <div class="result-heading">
+              <h2>Audio Deepfake Detection</h2>
+              <span id="audioForensicPill" class="pill muted">Idle</span>
             </div>
-            <div>
-              <span>Similarity</span>
-              <strong id="similarity">—</strong>
-            </div>
-            <div>
-              <span>Request Time</span>
-              <strong id="duration">—</strong>
-            </div>
-          </div>
+            <p class="hint">Acoustic feature analysis via local neural models or ZeroTrue Cloud. Capture playing tab audio or upload audio files.</p>
 
-          <h3>Detailed Assessment</h3>
-          <p id="explanation" class="explanation">Choose or drop an image and click Analyze to view detector findings.</p>
+            <button id="btnStartPlaybackCapture" class="primary full" style="margin-top: 8px;">
+              Capture Tab Audio (30s)
+            </button>
 
-          <div class="gradcam-note">
-            <strong>Forensic Note:</strong> Spatial attention heatmaps (Grad-CAM) are available via the native Moody Lens face detector. External providers (BitMind, Custom REST) supply global probability metrics.
-          </div>
-
-          <details>
-            <summary>Technical Metadata &amp; Raw Response</summary>
-            <pre id="raw">{ }</pre>
-          </details>
-
-          <button id="copy" class="secondary full">Copy Report</button>
-        </div>
-      </section>
-
-      <!-- PANE 2: AUDIO FORENSICS -->
-      <section id="paneAudio" class="sp-pane">
-        <div class="card" id="audioForensicSection">
-          <div class="result-heading">
-            <h2>Audio Deepfake Detection</h2>
-            <span id="audioForensicPill" class="pill muted">Idle</span>
-          </div>
-          <p class="hint" style="margin: 4px 0 10px;">
-            Neural acoustic analysis (wav2vec 2.0 XLSR-300M + AASIST or ZeroTrue Cloud). Capture playing tab audio or upload recorded audio files for deepfake verification.
-          </p>
-
-          <button id="btnStartPlaybackCapture" class="primary full" style="margin-bottom: 8px;">
-            Capture &amp; Analyze Tab Audio (30s)
-          </button>
-
-          <!-- LIVE PLAYBACK CAPTURE STATUS BOX -->
-          <div id="playbackLiveBox" style="display: none; margin-bottom: 10px; padding: 10px; background: var(--bg-subtle); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
-              <strong id="playbackLiveStatus" style="color: #60a5fa;">Recording tab audio playback...</strong>
-              <span id="playbackLiveBadge" class="pill good" style="font-size: 9px; padding: 2px 6px;">CAPTURING</span>
-            </div>
-            <div style="background: #090e18; border-radius: 4px; height: 6px; overflow: hidden; margin: 8px 0 4px;">
-              <div id="playbackProgressBar" style="width: 0%; height: 100%; background: #3b82f6; transition: width 0.3s ease;"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 6px;">
-              <span id="playbackTimerText">0.0s / 30s</span>
-              <span id="playbackSpeechIndicator" style="color: #cbd5e1;">Waiting for audio…</span>
-            </div>
-            <button id="btnStopAndAnalyzePlayback" class="secondary full" style="font-size: 11px; padding: 6px;">Stop &amp; Analyze Captured Audio</button>
-          </div>
-
-          <!-- AUDIO FILE DROPZONE -->
-          <div id="audioFileDropzone" class="dropzone" tabindex="0" style="min-height: 100px;">
-            <div class="drop-icon">&#9835;</div>
-            <strong>Drop an audio file here</strong>
-            <span>Recorded voice files (.wav, .mp3, .m4a, .webm)</span>
-            <label class="file-button" for="audioFileInput" style="margin-top: 4px;">Choose Audio File</label>
-            <input id="audioFileInput" type="file" accept="audio/*">
-          </div>
-
-          <div id="audioForensicStatusBanner" style="display: none; margin-top: 10px; padding: 10px; border-radius: var(--radius-md); font-size: 11px; line-height: 1.5;"></div>
-
-          <!-- COMPLETE AUDIO FORENSIC REPORT CARD -->
-          <div id="audioReportCard" style="display: none; margin-top: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); background: var(--bg-card); overflow: hidden;">
-            <div id="reportVerdictBanner" style="padding: 12px; text-align: center; border-bottom: 1px solid var(--border-color);">
-              <div id="reportVerdictIcon" style="font-size: 22px; margin-bottom: 2px;">&#10003;</div>
-              <div id="reportVerdictTitle" style="font-size: 14px; font-weight: 700; letter-spacing: -0.01em;">VERIFIED GENUINE AUDIO</div>
-              <div id="reportVerdictSub" style="font-size: 11px; opacity: 0.85; margin-top: 2px;">Authentic human speech characteristics verified</div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; background: rgba(0,0,0,0.15);">
-              <div style="background: var(--bg-subtle); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                <div style="font-size: 9.5px; color: var(--text-subtle); text-transform: uppercase;">Confidence / Risk</div>
-                <div id="reportConfidence" style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">98.5%</div>
+            <!-- Live capture progress -->
+            <div id="playbackLiveBox" class="capture-live-box" style="display: none;">
+              <div class="capture-live-header">
+                <strong id="playbackLiveStatus">Recording tab audio playback&hellip;</strong>
+                <span id="playbackLiveBadge" class="pill good capture-pill">CAPTURING</span>
               </div>
-              <div style="background: var(--bg-subtle); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                <div style="font-size: 9.5px; color: var(--text-subtle); text-transform: uppercase;">Countermeasure (CM)</div>
-                <div id="reportCmScore" style="font-size: 14px; font-weight: 700; color: #34d399; margin-top: 2px;">+4.22</div>
+              <div class="progress-track">
+                <div id="playbackProgressBar" class="progress-fill"></div>
               </div>
-              <div style="background: var(--bg-subtle); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                <div style="font-size: 9.5px; color: var(--text-subtle); text-transform: uppercase;">Audio Duration</div>
-                <div id="reportDuration" style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-top: 2px;">14.8s</div>
+              <div class="capture-live-meta">
+                <span id="playbackTimerText">0.0s / 30s</span>
+                <span id="playbackSpeechIndicator">Waiting for audio&hellip;</span>
               </div>
-              <div style="background: var(--bg-subtle); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                <div style="font-size: 9.5px; color: var(--text-subtle); text-transform: uppercase;">Inference Speed</div>
-                <div id="reportLatency" style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-top: 2px;">142 ms</div>
+              <button id="btnStopAndAnalyzePlayback" class="secondary full" style="font-size: 11px; padding: 5px;">Stop &amp; Analyze</button>
+            </div>
+
+            <!-- Audio file dropzone -->
+            <div id="audioFileDropzone" class="dropzone" tabindex="0" style="min-height: 90px; margin-top: 10px;" aria-label="Audio file drop zone">
+              <div class="drop-icon" aria-hidden="true">&#9835;</div>
+              <strong>Drop an audio file here</strong>
+              <span>Recorded voice files (.wav, .mp3, .m4a, .webm)</span>
+              <label class="file-button" for="audioFileInput" style="margin-top: 4px;">Choose audio file</label>
+              <input id="audioFileInput" type="file" accept="audio/*" aria-label="Choose audio file">
+            </div>
+
+            <div id="audioForensicStatusBanner" class="status-banner" style="display: none;"></div>
+          </div>
+
+          <!-- Complete Audio Forensic Report Card -->
+          <div id="audioReportCard" class="card" style="display: none;">
+            <div id="reportVerdictBanner" class="verdict-banner">
+              <div id="reportVerdictIcon" class="verdict-icon" aria-hidden="true">&#10003;</div>
+              <div id="reportVerdictTitle" class="verdict-title">VERIFIED GENUINE AUDIO</div>
+              <div id="reportVerdictSub" class="verdict-sub">Authentic human speech characteristics verified</div>
+            </div>
+
+            <div class="metrics two-col" style="margin-top: 10px;">
+              <div>
+                <span>Confidence / Risk</span>
+                <strong id="reportConfidence">98.5%</strong>
+              </div>
+              <div>
+                <span>CM Score</span>
+                <strong id="reportCmScore">+4.22</strong>
+              </div>
+              <div>
+                <span>Duration</span>
+                <strong id="reportDuration">14.8s</strong>
+              </div>
+              <div>
+                <span>Latency</span>
+                <strong id="reportLatency">142 ms</strong>
               </div>
             </div>
 
-            <div style="padding: 10px 12px; font-size: 11.5px; line-height: 1.5; color: #cbd5e1;">
-              <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-main);">Forensic Assessment</div>
+            <div class="report-assessment">
+              <div class="report-assessment-label">Forensic Assessment</div>
               <div id="reportExplanationText"></div>
               <div id="reportIncidentsList" style="margin-top: 8px; display: none;"></div>
             </div>
 
-            <div style="padding: 6px 12px; background: #060910; border-top: 1px solid var(--border-color); font-size: 10px; color: var(--text-subtle); display: flex; justify-content: space-between;">
+            <div class="report-footer">
               <span id="reportModelInfo">SSL Anti-Spoofing (wav2vec 2.0 + AASIST)</span>
-              <span id="reportEngineBadge">Local Engine (CUDA)</span>
+              <span id="reportEngineBadge">Local Engine</span>
             </div>
+          </div>
+        </div>
+
+        <!-- SUB-PANE 3: VIDEO FORENSICS -->
+        <div id="subPaneVideo" class="sub-pane" role="tabpanel">
+          <div class="card">
+            <h2>Video Deepfake Inspection</h2>
+            <p class="hint">Inspect web video streams, public video URLs, or drag &amp; drop video files (.mp4, .webm, .mov).</p>
+
+            <!-- Video File Dropzone -->
+            <div id="videoDropzone" class="dropzone" tabindex="0" style="min-height: 90px; margin-bottom: 12px;" aria-label="Video file drop zone">
+              <div class="drop-icon" aria-hidden="true">&#127916;</div>
+              <strong>Drop a video file here</strong>
+              <span>MP4, WebM, MOV, or video frames</span>
+              <label class="file-button" for="videoFileInput" style="margin-top: 4px;">Choose video file</label>
+              <input id="videoFileInput" type="file" accept="video/mp4,video/webm,video/quicktime,video/*,image/*" aria-label="Choose video file">
+            </div>
+
+            <video id="videoPreviewPlayer" class="video-preview" controls playsinline style="display: none;"></video>
+            <div id="videoFileInfo" style="display: none; font-size: 11px; color: var(--text-subtle); margin-bottom: 10px;">
+              <strong id="videoFileName"></strong> &bull; <span id="videoFileMeta"></span>
+            </div>
+
+            <label for="spVideoUrlInput">Or Direct Public Video File URL</label>
+            <input id="spVideoUrlInput" type="url" placeholder="https://example.com/sample-video.mp4">
+            <p class="help">Use a directly downloadable MP4, M4V, MOV, AVI, MKV, WebM, or WMV file URL. Watch-page links (YouTube, social posts, player pages) are not direct media files.</p>
+
+            <div class="field-row" style="margin-top: 8px;">
+              <div style="flex: 1; margin-right: 8px;">
+                <label for="spVideoProviderSelect" style="margin-top: 0;">Video Provider</label>
+                <select id="spVideoProviderSelect">
+                  <option value="bitmind">BitMind detect-video</option>
+                  <option value="zerotrue">ZeroTrue Video AI</option>
+                  <option value="moodylens">Moody Lens Server (Frame analysis)</option>
+                  <option value="custom">Custom Video REST API</option>
+                </select>
+              </div>
+              <div style="width: 140px;">
+                <label style="margin-top: 0;">Model</label>
+                <div class="model-badge" style="display: block; padding: 7px 8px; text-align: center;">Managed by engine</div>
+              </div>
+            </div>
+
+            <div class="actions" style="margin-top: 10px;">
+              <button id="btnAnalyzeVideo" class="primary">Analyze Video</button>
+              <button id="btnClearVideo" class="secondary">Clear</button>
+            </div>
+          </div>
+
+          <div id="videoResultCard" class="card" style="display: none;">
+            <div class="result-heading">
+              <h2>Video Detection Result</h2>
+              <span id="videoStatusPill" class="pill">Done</span>
+            </div>
+
+            <div id="videoVerdict" class="verdict empty">Awaiting video analysis</div>
+
+            <div class="metrics">
+              <div>
+                <span>Confidence</span>
+                <strong id="videoConfidence">&mdash;</strong>
+              </div>
+              <div>
+                <span>Duration</span>
+                <strong id="videoDuration">&mdash;</strong>
+              </div>
+              <div>
+                <span>Provider</span>
+                <strong id="videoProviderName">&mdash;</strong>
+              </div>
+            </div>
+
+            <h3>Assessment</h3>
+            <p id="videoExplanation" class="explanation">Detector assessment will appear here.</p>
           </div>
         </div>
       </section>
 
-      <!-- PANE 3: HISTORY & LOGS -->
-      <section id="paneHistory" class="sp-pane">
-        <div class="card history-card">
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- 2. HISTORY SECTION                                          -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <section id="paneHistory" class="sp-pane" role="tabpanel">
+        <div class="card">
           <div class="result-heading">
             <h2>Recent Detection Records</h2>
             <button id="refreshHistory" class="text-button">Refresh</button>
           </div>
-          <div id="history" class="history">No detections yet.</div>
+          <div id="history" class="history">No detections recorded yet.</div>
+          <div class="actions" style="margin-top: 10px;">
+            <button id="spClearHistory" class="secondary full">Clear Detection History</button>
+          </div>
         </div>
-        <p class="privacy">Results are estimates. Local history stores metadata only; image files are not stored locally or transmitted to telemetry.</p>
+        <p class="privacy">Results are estimates. Local history stores metadata only; media files are not retained.</p>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <!-- 3. SETTINGS SECTION (Settings > Providers)                  -->
+      <!-- ═══════════════════════════════════════════════════════════ -->
+      <section id="paneSettings" class="sp-pane" role="tabpanel">
+        <!-- BITMIND SETTINGS -->
+        <div class="card">
+          <div class="result-heading">
+            <h2>BitMind API Configuration</h2>
+            <span id="spBitmindState" class="pill muted">Not configured</span>
+          </div>
+          <p class="hint">Cloud oracle for image and video deepfake detection.</p>
+          <div class="link-row">
+            <a href="https://app.bitmind.ai/api" target="_blank" class="ext-link" rel="noopener noreferrer">
+              Get API Key at app.bitmind.ai/api &#x2197;
+            </a>
+          </div>
+
+          <label for="spBitmindKeyInput">API Key</label>
+          <div class="input-with-button">
+            <input id="spBitmindKeyInput" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
+            <button type="button" id="toggleSpBitmindKey" class="icon-toggle-btn" title="Show or hide key" aria-label="Toggle BitMind key visibility">Show</button>
+          </div>
+          <div class="actions">
+            <button id="spBtnSaveBitmindKey" class="primary">Save Key</button>
+            <button id="spBtnRemoveBitmindKey" class="secondary">Remove</button>
+            <button id="spBtnTestBitmindKey" class="secondary">Test</button>
+          </div>
+          <div id="spBitmindKeyMsg" class="message" style="display: none;"></div>
+        </div>
+
+        <!-- ZEROTRUE SETTINGS -->
+        <div class="card">
+          <div class="result-heading">
+            <h2>ZeroTrue Multi-Modal Configuration</h2>
+            <span id="spZeroTrueState" class="pill muted">Not configured</span>
+          </div>
+          <p class="hint">Universal cloud deepfake and AI detection for images, video, audio, and files.</p>
+          <div class="link-row">
+            <a href="https://zerotrue.app" target="_blank" class="ext-link" rel="noopener noreferrer">
+              Get API Key at zerotrue.app &#x2197;
+            </a>
+          </div>
+
+          <label for="spAudioEngineSelect">Audio Engine Mode</label>
+          <select id="spAudioEngineSelect">
+            <option value="auto">Auto &mdash; Local GPU with ZeroTrue fallback</option>
+            <option value="zerotrue">ZeroTrue Cloud API only</option>
+            <option value="local">Local model only (127.0.0.1:8765)</option>
+          </select>
+
+          <label for="spZeroTrueKeyInput">API Key</label>
+          <div class="input-with-button">
+            <input id="spZeroTrueKeyInput" type="password" placeholder="Paste ZeroTrue API key (zt_...)" autocomplete="off">
+            <button type="button" id="toggleSpZeroTrueKey" class="icon-toggle-btn" title="Show or hide key" aria-label="Toggle ZeroTrue key visibility">Show</button>
+          </div>
+          <div class="actions">
+            <button id="spBtnSaveZeroTrueKey" class="primary">Save Key</button>
+            <button id="spBtnRemoveZeroTrueKey" class="secondary">Remove</button>
+            <button id="spBtnTestZeroTrueKey" class="secondary">Test</button>
+          </div>
+          <div id="spZeroTrueKeyMsg" class="message" style="display: none;"></div>
+        </div>
+
+        <!-- OTHER PROVIDERS -->
+        <div class="card">
+          <h2>Advanced Providers</h2>
+          <p class="hint">Configure the native Mad-Eye Moody Lens backend server or a custom HTTP POST REST API connector.</p>
+          <button id="spOpenOptions" class="secondary full" style="margin-top: 8px;">Open Full Provider Settings &#x2197;</button>
+        </div>
       </section>
     </div>
   </div>

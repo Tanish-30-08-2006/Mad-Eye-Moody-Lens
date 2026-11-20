@@ -4,9 +4,9 @@ This folder is one Manifest V3 service worker covering all three modalities. The
 
 | Modality | Engine | Providers |
 | --- | --- | --- |
-| Image | `providers/provider-engine.js` | BitMind `detect-image`, Custom REST, **Mad-Eye Moody Lens server** |
+| Image | `providers/provider-engine.js` | BitMind `detect-image`, ZeroTrue `/analyze/file`, Custom REST, **Mad-Eye Moody Lens server** |
 | Audio | `audio/*` | Local WebSocket model (`ws://127.0.0.1:8765`), ZeroTrue, **Mad-Eye Moody Lens server** (deep analysis) |
-| Video | `providers/video-provider-engine.js` | BitMind `detect-video` (falls back to captured frames), Custom REST, **Mad-Eye Moody Lens server** |
+| Video | `providers/video-provider-engine.js` | BitMind `detect-video` (falls back to captured frames), ZeroTrue `/analyze/file` + `/analyze/url`, Custom REST, **Mad-Eye Moody Lens server** |
 
 "Mad-Eye Moody Lens server" is the team's own backend (`functional-ui-models-backend`, `/api/v1`), which runs the project's pretrained models. `providers/moodylens-client.js` turns its answers into the shapes the existing UIs already render, so no new result view is needed.
 
@@ -19,7 +19,7 @@ The manifest and the UI files (popup, side panel, content scripts, `frontend/aud
   "manifest_version": 3,
   "background": { "service_worker": "background.js", "type": "module" },   // "type": "module" is required
   "permissions": ["storage", "contextMenus", "sidePanel", "scripting", "tabs", "tabCapture", "offscreen"],
-  "host_permissions": ["https://api.bitmind.ai/*", "https://api.zerotrue.app/*", "https://app.zerotrue.app/*"],
+  "host_permissions": ["https://api.bitmind.ai/*", "https://api.zerotrue.app/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"]   // page scanning, custom providers, the team server
 }
 ```
@@ -73,7 +73,8 @@ New keys: `moodyLensServerUrl` (default `http://127.0.0.1:8080`), `moodyLensApiK
 ## Tests
 
 ```bash
-node --test tests/          # merged-worker behaviour with a mocked chrome.* (Node 20+, no npm install)
+# from the extension root; Node 20+, no npm install
+node --test backend/tests/*.test.mjs tests/*.test.cjs
 
 # Against a running API, e.g. the stub stack (MML_DETECTOR_BACKEND=stub):
 MML_E2E_URL=http://127.0.0.1:8000 MML_E2E_VIDEO=clip.mp4 node --test tests/
