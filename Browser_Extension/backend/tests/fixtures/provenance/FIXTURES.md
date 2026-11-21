@@ -17,6 +17,7 @@ path; it generates fresh random certificates/signatures, so the new bytes differ
 | untrusted.png | Independently signed with disposable root B | Unknown signer |
 | corrupted-signature.png | Change first `ProvenanceFixture` P to Q inside signed claim; repair containing caBX CRC | Signature invalid |
 | truncated.png | 17 bytes: PNG header + absurd caBX length + one byte | Signature invalid (SDK parsing error) |
+| binding-mismatch.png | Adds legal Comment tEXt before IEND after signing | Signature invalid (data hash mismatch) |
 
 `mutation.json` records the exact zero-based byte offset and CRC adjustment.
 Corruption changes the signed claim rather than the pixels. Signing uses generated
@@ -31,6 +32,9 @@ valid credential is a signed declaration, not proof that its statement is true.
 
 Each file has `*.expected.json` for parser/status/declaration expectations.
 `*.c2patool-{untrusted,test-trusted}.json` are actual offline CLI outputs, not
-fabricated validation results. SDK output cross-checks are added with the
-verification implementation. Refresh those records and mutation offsets whenever
+fabricated validation results. `*.sdk-{untrusted,test-trusted}.json` record actual
+vendored WASM reports for the original signed variants. Automated tests rerun real
+WASM and compare state and validation code sets with the CLI for all four signed
+variants. CLI embeds c2pa-rs 0.92.0; the tested validation code sets agree with
+the pinned WASM implementation. Refresh records and mutation offsets whenever
 regenerating; expired test certificates should fail validation in the future.

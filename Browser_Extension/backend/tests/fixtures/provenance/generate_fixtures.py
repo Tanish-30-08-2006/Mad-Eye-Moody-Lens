@@ -93,6 +93,9 @@ def main(tool):
                 break
             pos += size + 12
         (ROOT / 'corrupted-signature.png').write_bytes(corrupted)
+        # Add an otherwise legal PNG text chunk outside the manifest exclusions.
+        signed = (ROOT / 'signed.png').read_bytes()
+        (ROOT / 'binding-mismatch.png').write_bytes(signed[:-12] + chunk(b'tEXt', b'Comment\0added after signing') + signed[-12:])
         (ROOT / 'mutation.json').write_text(json.dumps({'file': 'corrupted-signature.png', 'offset': offset, 'from': '0x50 (P)', 'to': '0x51 (Q)', 'also': 'Recomputed containing PNG caBX CRC32; pixels unchanged.'}, indent=2) + '\n')
     # CLI records use offline anchors and no remote/OCSP downloads.
     for label, anchors in [('untrusted', ''), ('test-trusted', (ROOT / 'test-root-A.crt').read_text())]:
@@ -100,7 +103,7 @@ def main(tool):
             settings = Path(handle.name)
             json.dump({'verify': {'verify_trust': True, 'remote_manifest_fetch': False, 'ocsp_fetch': False}, 'trust': {'trust_anchors': anchors} if anchors else {}}, handle)
         try:
-            for name in ['signed', 'untrusted', 'corrupted-signature']:
+            for name in ['signed', 'untrusted', 'corrupted-signature', 'binding-mismatch']:
                 run = subprocess.run([tool, str(ROOT / f'{name}.png'), '--settings', str(settings)], capture_output=True, text=True)
                 if run.returncode:
                     raise RuntimeError(run.stderr or run.stdout)

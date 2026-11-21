@@ -23,6 +23,21 @@ raw percent bytes, unsafe hosts/redirect policy, declared and streamed oversize,
 fetch/body timeouts, cancellation and HTTP failures. Hashes are test assertions;
 runtime acquisition does not calculate, display, export or persist hashes.
 
+Verification tests execute the vendored 9,162,406-byte WASM in Node using its
+official `WasmReader.fromBytes` entry point. Four signed fixture variants are
+cross-checked against actual c2patool 0.29.0 reports with empty and test-root-A
+trust stores (eight cases). Network fetch is forbidden in these tests. They test
+real cryptography, not a mock signature implementation. Classification branch
+tests additionally use recorded SDK reports and clearly marked synthetic failures
+for expiry/unknown-code cases. Adapter initialization/settings/timeout and worker
+URL validation are isolated tests. Browser worker execution is still manual.
+
+The minimal manifest change adds only `script-src 'self' 'wasm-unsafe-eval';
+object-src 'self';` as extension_pages CSP. This is required by official Chrome
+documentation; it has **not** been validated in Chrome by this agent. If the user
+observes a CSP/worker/WASM error, treat the real Chrome path as failing and do not
+merge until the checklist passes. No remote-code or blob-worker CSP is added.
+
 ## Manual Chrome checklist (user runs; not automated)
 
 - Load `Browser_Extension/` unpacked at chrome://extensions and open its side panel.
