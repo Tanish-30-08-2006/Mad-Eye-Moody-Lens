@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Mad-Eye Moody Lens – Forensic Review</title>
   <link rel="stylesheet" href="sidepanel.css">
+  <link rel="stylesheet" href="provenance/provenance.css">
 </head>
 <body>
   <div class="page">
@@ -115,6 +116,7 @@
 
             <button id="copy" class="secondary full">Copy Report</button>
           </div>
+          <section id="provenancePanel" class="card provenance-panel" aria-label="Provenance (file credentials)"></section>
         </div>
 
         <!-- SUB-PANE 2: AUDIO FORENSICS -->
@@ -364,5 +366,6 @@
   </div>
 
   <script src="sidepanel.js"></script>
+  <script type="module" src="provenance/provenance-panel.js"></script>
 </body>
 </html>

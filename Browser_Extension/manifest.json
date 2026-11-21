@@ -22,6 +22,9 @@
     "https://zerotrue.app/*",
     "https://applications-temp-videos-us-east-1.s3.us-east-1.amazonaws.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
   "background": {
     "service_worker": "backend/background.js",
     "type": "module"
