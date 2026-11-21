@@ -85,6 +85,49 @@
 
   const preset = () => PRESETS[thresholdName] || PRESETS.standard;
 
+  // Frame-bounded layout cache: caches getBoundingClientRect() queries within a single animation
+  // frame or tick to avoid repeated synchronous reflows across candidates and video player trees.
+  let layoutRectCache = new WeakMap();
+  let cachedConnectedVideos = null;
+  let layoutCacheFrameScheduled = false;
+
+  function clearLayoutCache() {
+    layoutRectCache = new WeakMap();
+    cachedConnectedVideos = null;
+    layoutCacheFrameScheduled = false;
+  }
+
+  function scheduleLayoutCacheClear() {
+    if (layoutCacheFrameScheduled) return;
+    layoutCacheFrameScheduled = true;
+    const clear = () => clearLayoutCache();
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(clear);
+    } else {
+      setTimeout(clear, 16);
+    }
+  }
+
+  function getCachedRect(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+    let r = layoutRectCache.get(el);
+    if (r) return r;
+    const raw = el.getBoundingClientRect();
+    r = { left: raw.left, top: raw.top, right: raw.right, bottom: raw.bottom, width: raw.width, height: raw.height };
+    layoutRectCache.set(el, r);
+    scheduleLayoutCacheClear();
+    return r;
+  }
+
+  function getConnectedVideos() {
+    if (cachedConnectedVideos !== null) return cachedConnectedVideos;
+    cachedConnectedVideos = typeof document !== 'undefined' && document.querySelectorAll
+      ? Array.from(document.querySelectorAll('video')).filter(v => v.isConnected)
+      : [];
+    scheduleLayoutCacheClear();
+    return cachedConnectedVideos;
+  }
+
   function isVideoRelatedElement(el) {
     if (!el || !(el instanceof Element)) return false;
     if (el instanceof HTMLVideoElement) return true;
@@ -93,27 +136,25 @@
     if (el.querySelector?.('video')) return true;
     if (el.closest?.(videoSelectors)) return true;
 
-    // Geometric bounding rect check against connected videos
-    if (typeof document !== 'undefined' && document.querySelectorAll) {
-      const videos = document.querySelectorAll('video');
-      if (videos.length && el.getBoundingClientRect) {
-        const elRect = el.getBoundingClientRect();
-        if (elRect.width > 0 && elRect.height > 0) {
-          for (const v of videos) {
-            if (!v.isConnected) continue;
-            const vRect = v.getBoundingClientRect();
-            if (vRect.width <= 0 || vRect.height <= 0) continue;
-            const left = Math.max(elRect.left, vRect.left);
-            const top = Math.max(elRect.top, vRect.top);
-            const right = Math.min(elRect.right, vRect.right);
-            const bottom = Math.min(elRect.bottom, vRect.bottom);
-            if (right > left && bottom > top) {
-              const intersection = (right - left) * (bottom - top);
-              const elArea = elRect.width * elRect.height;
-              const vArea = vRect.width * vRect.height;
-              if (elArea > 0 && (intersection / elArea > 0.25 || intersection / vArea > 0.25)) {
-                return true;
-              }
+    // Geometric bounding rect check against connected videos using frame-cached geometry
+    const videos = getConnectedVideos();
+    if (videos.length) {
+      const elRect = getCachedRect(el);
+      if (elRect && elRect.width > 0 && elRect.height > 0) {
+        for (const v of videos) {
+          if (!v.isConnected) continue;
+          const vRect = getCachedRect(v);
+          if (!vRect || vRect.width <= 0 || vRect.height <= 0) continue;
+          const left = Math.max(elRect.left, vRect.left);
+          const top = Math.max(elRect.top, vRect.top);
+          const right = Math.min(elRect.right, vRect.right);
+          const bottom = Math.min(elRect.bottom, vRect.bottom);
+          if (right > left && bottom > top) {
+            const intersection = (right - left) * (bottom - top);
+            const elArea = elRect.width * elRect.height;
+            const vArea = vRect.width * vRect.height;
+            if (elArea > 0 && (intersection / elArea > 0.25 || intersection / vArea > 0.25)) {
+              return true;
             }
           }
         }
@@ -160,8 +201,8 @@
   }
 
   function rectOf(el) {
-    const r = el.getBoundingClientRect();
-    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    const r = getCachedRect(el);
+    return r || { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
   }
 
   // X sometimes gives its child IMG a tiny/hidden layout box while the visible
@@ -305,8 +346,8 @@
     if (typeof document !== 'undefined' && document.querySelectorAll) {
       for (const vb of document.querySelectorAll('.ds-video-badge')) {
         if (vb.style.display === 'none') continue;
-        const vbRect = vb.getBoundingClientRect();
-        if (Math.abs(targetLeft - vbRect.left) < 70 && Math.abs(targetTop - vbRect.top) < 35) {
+        const vbRect = getCachedRect(vb);
+        if (vbRect && Math.abs(targetLeft - vbRect.left) < 70 && Math.abs(targetTop - vbRect.top) < 35) {
           badge.style.display = 'none';
           return;
         }
@@ -398,7 +439,7 @@
 
   function removeConflictingImageBadges(video) {
     if (!video) return;
-    const vRect = video.getBoundingClientRect?.();
+    const vRect = getCachedRect(video);
     const container = videoContainerFor(video) || video.parentElement;
     for (const [candidate, badge] of overlays) {
       let conflict = false;
@@ -410,16 +451,18 @@
         isVideoRelatedElement(candidate)
       ) {
         conflict = true;
-      } else if (vRect && candidate.getBoundingClientRect) {
-        const cRect = candidate.getBoundingClientRect();
-        const left = Math.max(cRect.left, vRect.left);
-        const top = Math.max(cRect.top, vRect.top);
-        const right = Math.min(cRect.right, vRect.right);
-        const bottom = Math.min(cRect.bottom, vRect.bottom);
-        if (right > left && bottom > top) {
-          const area = (right - left) * (bottom - top);
-          const cArea = cRect.width * cRect.height;
-          if (cArea > 0 && area / cArea > 0.2) conflict = true;
+      } else if (vRect) {
+        const cRect = getCachedRect(candidate);
+        if (cRect) {
+          const left = Math.max(cRect.left, vRect.left);
+          const top = Math.max(cRect.top, vRect.top);
+          const right = Math.min(cRect.right, vRect.right);
+          const bottom = Math.min(cRect.bottom, vRect.bottom);
+          if (right > left && bottom > top) {
+            const area = (right - left) * (bottom - top);
+            const cArea = cRect.width * cRect.height;
+            if (cArea > 0 && area / cArea > 0.2) conflict = true;
+          }
         }
       }
       if (conflict) {
@@ -532,8 +575,8 @@
     // Purge any conflicting image badges in the top-right corner of this video
     if (typeof document !== 'undefined' && document.querySelectorAll) {
       for (const ib of document.querySelectorAll('.ds-image-badge')) {
-        const ibRect = ib.getBoundingClientRect();
-        if (Math.abs(targetLeft - ibRect.left) < 90 && Math.abs(targetTop - ibRect.top) < 45) {
+        const ibRect = getCachedRect(ib);
+        if (ibRect && Math.abs(targetLeft - ibRect.left) < 90 && Math.abs(targetTop - ibRect.top) < 45) {
           ib.remove();
         }
       }
@@ -1164,6 +1207,7 @@
   function stop() {
     enabled = false;
     scanGeneration++;
+    clearLayoutCache();
     mutationObserver?.disconnect(); intersectionObserver?.disconnect(); resizeObserver?.disconnect();
     mutationObserver = intersectionObserver = resizeObserver = null;
     observed = new WeakSet();
@@ -1185,6 +1229,7 @@
 
   function rescan() {
     scanGeneration++;
+    clearLayoutCache();
     queue.length = 0;
     jobsByUrl.clear();
     videoQueue.length = 0;
