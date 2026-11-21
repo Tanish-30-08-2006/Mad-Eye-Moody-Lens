@@ -576,7 +576,16 @@ $("btnAnalyzeVideo")?.addEventListener("click", async () => {
   const provider = $("spVideoProviderSelect")?.value || "bitmind";
 
   if (!url && (!selectedVideoFrames.length && !selectedVideoFile)) {
-    alert("Please drop a video file or enter a public video URL to analyze.");
+    const card = $("videoResultCard");
+    if (card) card.style.display = "block";
+    $("videoStatusPill").textContent = "Input required";
+    $("videoStatusPill").className = "pill warn";
+    $("videoVerdict").textContent = "No video selected";
+    $("videoVerdict").className = "verdict empty";
+    $("videoConfidence").textContent = "—";
+    $("videoDuration").textContent = "—";
+    $("videoProviderName").textContent = providerNames[provider] || provider;
+    $("videoExplanation").textContent = "Please drop a video file (.mp4, .webm, .mov) or enter a public video URL to analyze.";
     return;
   }
 
@@ -1392,10 +1401,24 @@ $("spBtnTestZeroTrueKey")?.addEventListener("click", async () => {
   }
 });
 
+function setInlineStatusMessage(elementId, message, type = "error") {
+  const el = $(elementId);
+  if (!el) return;
+  if (!message) {
+    el.textContent = "";
+    el.style.display = "none";
+    return;
+  }
+  el.textContent = message;
+  el.className = `message ${type}`;
+  el.style.display = "block";
+}
+
 // Automated image & video scan toggle actions
 $("spToggleImageScan")?.addEventListener("click", async () => {
   const btn = $("spToggleImageScan");
   btn.disabled = true;
+  setInlineStatusMessage("spImageScanMsg", "");
   try {
     const status = await send({ type: "GET_PUBLIC_STATUS" });
     if (status.scanEnabled) {
@@ -1406,12 +1429,13 @@ $("spToggleImageScan")?.addEventListener("click", async () => {
         throw new Error("Configure your image detection provider in Settings > Providers first.");
       }
       const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
-      if (!granted) throw new Error("Website permission was not granted.");
+      if (!granted) throw new Error("Website permission was not granted. Please approve website access to enable auto-scanning.");
       const res = await send({ type: "ENABLE_SCANNING" });
       if (!res?.ok) throw new Error(res?.error || "Could not enable image auto-scanning.");
     }
   } catch (err) {
-    alert(err.message);
+    console.warn("Image auto-scan toggle failed:", err);
+    setInlineStatusMessage("spImageScanMsg", err?.message || "Failed to toggle image auto-scanning.");
   } finally {
     btn.disabled = false;
     await initSettingsPane();
@@ -1421,6 +1445,7 @@ $("spToggleImageScan")?.addEventListener("click", async () => {
 $("spToggleVideoScan")?.addEventListener("click", async () => {
   const btn = $("spToggleVideoScan");
   btn.disabled = true;
+  setInlineStatusMessage("spVideoScanMsg", "");
   try {
     const status = await send({ type: "GET_PUBLIC_STATUS" });
     const isCurrentlyOn = status.videoScanEnabled !== false;
@@ -1432,12 +1457,13 @@ $("spToggleVideoScan")?.addEventListener("click", async () => {
         throw new Error("Configure your video detection provider in Settings > Providers first.");
       }
       const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
-      if (!granted) throw new Error("Website permission was not granted.");
+      if (!granted) throw new Error("Website permission was not granted. Please approve website access to enable video auto-scanning.");
       const res = await send({ type: "ENABLE_VIDEO_SCANNING" });
       if (!res?.ok) throw new Error(res?.error || "Could not enable video auto-scanning.");
     }
   } catch (err) {
-    alert(err.message);
+    console.warn("Video auto-scan toggle failed:", err);
+    setInlineStatusMessage("spVideoScanMsg", err?.message || "Failed to toggle video auto-scanning.");
   } finally {
     btn.disabled = false;
     await initSettingsPane();
