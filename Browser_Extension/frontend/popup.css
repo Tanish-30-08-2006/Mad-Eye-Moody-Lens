@@ -561,4 +561,50 @@ footer.app-footer {
   flex-shrink: 0;
 }
 
+/* ── Warning banners and notices ── */
+.provider-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(180, 83, 9, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fbbf24;
+}
+
+.provider-warning-banner .warning-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.provider-warning-banner .warning-content {
+  flex: 1;
+}
+
+.provider-warning-banner .warning-link {
+  display: inline-block;
+  margin-top: 4px;
+  color: #60a5fa;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.provider-warning-banner .warning-link:hover {
+  color: #93c5fd;
+}
+
+.provider-notice.info {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: var(--text-secondary, #94a3b8);
+  display: flex;
+  gap: 8px;
+}
+
 [hidden] { display: none !important; }

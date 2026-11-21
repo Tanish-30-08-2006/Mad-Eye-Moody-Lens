@@ -41,6 +41,15 @@
 
       <!-- SUB-PANE: IMAGE DETECTION -->
       <div id="subImage" class="sub-pane active" role="tabpanel">
+        <!-- Provider Warning Banner (shown when active provider is not configured or invalid) -->
+        <div id="imageProviderWarning" class="provider-warning-banner" style="display: none;">
+          <span class="warning-icon">&#x26A0;</span>
+          <div class="warning-content">
+            <span id="imageProviderWarningText">Provider is not configured.</span>
+            <div><a id="imageGoToSettings" class="warning-link">Open Settings &rarr; Providers</a></div>
+          </div>
+        </div>
+
         <section class="card">
           <div class="card-header">
             <h2 class="card-title">Quick Scan</h2>
@@ -73,7 +82,7 @@
 
         <section class="card">
           <div class="card-header">
-            <h2 class="card-title">Automated Webpage Scanning</h2>
+            <h2 class="card-title">Automated Image Scanning</h2>
             <span id="scanState" class="pill muted">Off</span>
           </div>
           <p class="help">Scans images as you browse. Small icons, avatars, and UI navigation items are filtered out.</p>
@@ -85,7 +94,7 @@
             <option value="xlarge">Extra large &mdash; 480 &times; 300 px</option>
           </select>
 
-          <button id="toggleScan" class="secondary full" style="margin-top: 8px;">Enable auto-scan</button>
+          <button id="toggleScan" class="secondary full" style="margin-top: 8px;">Enable image auto-scan</button>
           <p class="notice">Auto-scan submits public image URLs to the active provider. Cached locally for 24h.</p>
         </section>
 
@@ -163,9 +172,36 @@
             <span class="model-badge">Managed by video engine</span>
           </div>
 
+          <!-- BitMind Video Platform Scope Notice -->
+          <div id="bitmindVideoNotice" class="provider-notice info" style="display: none; margin-top: 8px;">
+            <span>ℹ️</span>
+            <div>
+              <strong>BitMind Platform Scope:</strong> Direct detection supports X/Twitter, TikTok, Facebook URLs, and local video file uploads. Arbitrary websites require whole-video download or ZeroTrue.
+            </div>
+          </div>
+
+          <!-- Video Provider Warning Banner -->
+          <div id="videoProviderWarning" class="provider-warning-banner" style="display: none; margin-top: 8px;">
+            <span class="warning-icon">&#x26A0;</span>
+            <div class="warning-content">
+              <span id="videoProviderWarningText">Video provider is not configured.</span>
+              <div><a id="videoGoToSettings" class="warning-link">Open Settings &rarr; Providers</a></div>
+            </div>
+          </div>
+
           <div class="actions" style="margin-top: 10px;">
             <button id="btnOpenVideoSidepanel" class="primary full">Open Video Inspector in Side Panel</button>
           </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Automated Video Scanning</h2>
+            <span id="videoScanState" class="pill muted">Off</span>
+          </div>
+          <p class="help">Automatically scans video streams and HTML5 videos on supported web pages as you browse.</p>
+          <button id="toggleVideoScan" class="secondary full" style="margin-top: 8px;">Enable video auto-scan</button>
+          <p class="notice">Video auto-scan detects deepfakes on playing web videos. Status badges display on videos.</p>
         </section>
 
         <section class="card">
