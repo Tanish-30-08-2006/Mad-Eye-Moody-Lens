@@ -1,0 +1,7 @@
+{
+  "file": "corrupted-signature.png",
+  "offset": 43267,
+  "from": "0x50 (P)",
+  "to": "0x51 (Q)",
+  "also": "Recomputed containing PNG caBX CRC32; pixels unchanged."
+}

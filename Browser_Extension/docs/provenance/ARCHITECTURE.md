@@ -51,3 +51,11 @@ credentials in detector inputs, but the side panel uses the original reference.
 If a user supplies an already converted/recompressed file, the removed credentials
 cannot be recovered. A URL may serve different bytes over time; uploading the
 original file gives the strongest acquisition guarantee.
+
+The hint parser supports PNG text (including bounded native deflate), TIFF EXIF
+Software tags, JPEG XMP and WebP EXIF/XMP. Limits: 8 MiB input, 64 KiB per text
+chunk/decompression, 256 KiB total decoded text, 4096 container steps, 128 EXIF
+entries per IFD and depth 3, 12 hints of 240 characters. Ambiguous/truncated
+containers return marker unknown, so the SDK will decide. No parsing exception
+escapes to the caller. Generated fixtures use disposable test credentials; test
+root injection is confined to tests and cannot influence runtime trust.

@@ -9,6 +9,14 @@ Baseline on 2026-11-21, before changes:
 New tests use `backend/tests/provenance-*.test.mjs`, included by `npm test`.
 Run both commands before each commit and again before pushing.
 
+The metadata/fixture commit adds 12 passing tests: PNG tEXt/iTXt/zTXt,
+decompression limits, JPEG EXIF/XMP, WebP chunks, malicious text, every truncation
+of small PNG/JPEG files, and 500 deterministic fuzz inputs. Fixtures and their
+exact CLI signing/corruption recipes are in backend/tests/fixtures/provenance/.
+Both signed fixtures show **Unknown signer** with production trust anchors;
+**Verified credentials** is tested only with the explicit test-root-A injection.
+Never add that test root to the production trust list.
+
 ## Manual Chrome checklist (user runs; not automated)
 
 - Load `Browser_Extension/` unpacked at chrome://extensions and open its side panel.
