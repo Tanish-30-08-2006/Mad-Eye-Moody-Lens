@@ -100,6 +100,60 @@ export interface ModelInfo {
   loaded: boolean;
 }
 
+// ------------------------------------------------ duplicate image detection
+export interface DuplicateGroup {
+  group_id: string;
+  sha256: string;
+  files: string[];
+  count: number;
+}
+
+export interface SimilarMatch {
+  file_a: string;
+  file_b: string;
+  hamming_distance: number;
+  similarity_percent: number;
+  classification: "very_similar" | "potentially_similar";
+}
+
+export interface NoStrongMatch {
+  file_a: string;
+  file_b: string;
+  hamming_distance: number;
+  similarity_percent: number;
+}
+
+export interface FailedFile {
+  filename: string;
+  error: string;
+}
+
+export interface DuplicateSummary {
+  total_images: number;
+  valid_images: number;
+  failed_images: number;
+  total_comparisons: number;
+  exact_duplicate_groups: number;
+  exact_duplicate_pairs: number;
+  very_similar_pairs: number;
+  potentially_similar_pairs: number;
+  no_match_pairs: number;
+}
+
+export interface DuplicateCompareResponse {
+  success: boolean;
+  total_images: number;
+  valid_images: number;
+  failed_images: number;
+  total_comparisons: number;
+  exact_duplicate_groups: DuplicateGroup[];
+  similar_matches: SimilarMatch[];
+  no_strong_matches: NoStrongMatch[];
+  failed_files: FailedFile[];
+  summary: DuplicateSummary;
+  disclaimer: string;
+}
+
 /**
  * "" (empty) = same origin: the production build is served by nginx next to /api,
  * so calls go to relative /api/v1/... paths and no CORS is needed.
@@ -183,3 +237,33 @@ export const getExplanation = (id: string) =>
   getJson<Explanation>(`/api/v1/analyses/${encodeURIComponent(id)}/explanation`);
 export const listModels = () => getJson<ModelInfo[]>("/api/v1/models");
 export const health = () => getJson<{ status: string }>("/api/v1/health");
+
+/**
+ * Compare a batch of 2-20 images for exact byte duplicates (SHA-256) and perceptual similarity (pHash).
+ */
+export function compareDuplicates(
+  files: File[],
+  onProgress?: Progress,
+): Promise<DuplicateCompareResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE}/api/v1/duplicate-detection/compare`);
+    xhr.responseType = "json";
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      };
+    }
+    xhr.onload = () => {
+      const body = xhr.response ?? {};
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as DuplicateCompareResponse);
+      else reject(new ApiError(messageFrom(xhr.status, body), xhr.status));
+    };
+    xhr.onerror = () => reject(unreachable());
+    const form = new FormData();
+    for (const f of files) {
+      form.append("files", f);
+    }
+    xhr.send(form);
+  });
+}
