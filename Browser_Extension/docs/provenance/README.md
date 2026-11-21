@@ -1,0 +1,17 @@
+# Image Provenance Check
+
+This feature reads the selected image's file bytes locally to verify C2PA Content
+Credentials and inspect unsigned generator metadata. It is independent of the
+detector provider, its API key, and its success or failure.
+
+Planned use: select/upload an image in the side panel and read **Provenance (file
+credentials)** below the detector. Re-check repeats the local check. URLs may need
+existing site access; upload the original file when downloading fails.
+
+A valid signature does not prove the content is true. Missing credentials do not
+prove authenticity. Unsigned metadata can be edited or forged.
+
+See [architecture](ARCHITECTURE.md), [result contract](RESULT_CONTRACT.md),
+[security](SECURITY_AND_PRIVACY.md), [testing](TESTING.md), [issues](ISSUES_MAP.md),
+and [future-agent briefing](LLM_CONTEXT.md). Implementation follows the seven
+commits listed in the issue map. Browser checks are explicitly manual.
