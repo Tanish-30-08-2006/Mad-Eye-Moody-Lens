@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "format": "image/jpeg",
+  "marker": "present",
+  "hintLabels": [],
+  "status": "untrusted_signer",
+  "aiDeclaration": "declared_ai_generated",
+  "signer": "Adobe Firefly C2PA",
+  "claimGenerator": "Adobe_Firefly",
+  "actionCodes": ["c2pa.created"],
+  "checkedOn": "2026-11-21"
+}

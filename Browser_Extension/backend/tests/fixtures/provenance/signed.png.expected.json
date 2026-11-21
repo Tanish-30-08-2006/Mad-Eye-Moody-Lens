@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "format": "image/png",
+  "marker": "present",
+  "hintLabels": [],
+  "status": "untrusted_signer",
+  "aiDeclaration": "declared_ai_generated",
+  "withTestRootA": "verified"
+}
