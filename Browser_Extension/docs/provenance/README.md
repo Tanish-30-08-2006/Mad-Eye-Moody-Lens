@@ -16,6 +16,10 @@ See [architecture](ARCHITECTURE.md), [result contract](RESULT_CONTRACT.md),
 and [future-agent briefing](LLM_CONTEXT.md). Implementation follows the seven
 commits listed in the issue map. Browser checks are explicitly manual.
 
+Implementation and automated Node checks are complete. The user's manual Chrome
+acceptance is pending. [PR_HANDOFF.md](PR_HANDOFF.md) contains a filled repository
+PR template, issue-number mapping, review/merge steps, CI limits and conflict guide.
+
 The existing Copy Report action is unchanged and does not export provenance.
 Nothing from this feature is saved to history or chrome.storage. Supported file
 containers are JPEG, PNG and WebP, up to 8 MiB. GIF and other formats receive

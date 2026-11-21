@@ -1,5 +1,16 @@
 # Security and privacy
 
+The manifest exception is exactly the minimum documented WASM extension-page
+policy. It permits local WASM compilation; it adds no remote script, eval,
+blob-worker source, host permission or web-accessible resource. The same-extension
+worker URL patch is documented with pristine/patched source and hashes in
+vendor/c2pa/VERSION.md. Actual Chrome enforcement is pending the user's checklist.
+
+Trust is relative to the official signer/TSA PEM snapshot dated 2026-11-21.
+Revocation is not fetched live, and a snapshot can age. This is not an identity,
+truth, legal-evidence, or ownership guarantee. File size/bounds/timeouts limit
+work; browser code cannot pre-resolve public DNS or recover stripped credentials.
+
 Verification is local. No Moody Lens backend, detector, analytics, trust-list,
 OCSP, remote-manifest, thumbnail, ingredient, or icon download is permitted by the
 new verification flow. Only initial public image URL acquisition and packaged

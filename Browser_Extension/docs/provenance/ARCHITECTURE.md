@@ -1,5 +1,40 @@
 # Architecture and decisions
 
+## Production image-byte loss audit
+
+The source audit excluded the explicitly stale lowercase copy, tests, generated
+vendor code and training notebooks. These production derivatives do not feed the
+new original-image acquisition path:
+
+| Source | Transformation / why provenance is unaffected |
+| --- | --- |
+| Browser_Extension/backend/background.js, prepareZeroTrueImageBlob | Non-JPEG/PNG formats become JPEG, max dimension 2560, quality 0.92. Only detector input changes; provenance fetches the preview's original reference independently. |
+| Browser_Extension/frontend/content.js, scan fallback | Canvas JPEG, max width 1280, quality 0.9, strips file credentials. It is an automatic detector input; right-click pendingReviewImage uses the source URL. |
+| Browser_Extension/frontend/sidepanel.js, video frame extraction | Canvas JPEG frames, max width 1280, quality 0.88. Video input uses separate DOM/state, not the image preview. |
+| functional-ui-models-backend/backend/app/services/pipelines.py | run_image decodes to PIL RGB; heatmap_to_png creates a new grayscale PNG. Neither is read by this local file feature. |
+| functional-ui-models-backend/backend/app/preprocessing/faces.py; app/detectors/{image,face,video,stub}.py | Face crops, model resize/normalization and decoded video frames operate on pixels. These are model inputs/derivatives; the side panel never verifies them as the original file. |
+| functional-ui-models-backend/frontend/src/components/HeatmapPanel.tsx | Crops/tints/overlays canvas pixels and exports PNG heatmap tiles. No source credentials survive in those derivatives; they are outside the preview-byte path. |
+
+Preserving paths: background loadImageBlob returns response.blob or raw base64
+bytes. Side-panel readFile and website externalProvider readAsDataURL encode the
+original file bytes without rasterizing. Telegram's bot forwards its downloaded
+bytearray, and Reddit's optional pHash reads pixels without rewriting the upload;
+neither participates in this local feature. If any platform or user supplies an
+already recompressed photo/heatmap/frame/screenshot, credentials lost upstream
+cannot be restored and absence must remain neutral. There is no claim that a
+URL response is identical to a server's historical/original upload.
+
+## Runtime cost and lifecycle
+
+No runtime hash cache is used. Each credential-bearing/ambiguous check lazily
+loads the SDK and starts a dedicated packaged worker; disposal drops its file and
+manifest state after the check. Clear/switch aborts and invalidates the generation.
+Startup/verification has a 15-second result timeout; an SDK initialization handle
+that arrives after abandonment is immediately disposed. A browser-startup failure
+that never produces a handle remains a manual integration concern. Unsigned files
+with clearly absent markers avoid WASM. Bounded JPEG scanning may conservatively
+defer large entropy-coded files to the SDK even without credentials.
+
 Container magic is checked as binary bytes plus ASCII. In particular, PNG's
 0x89 signature byte must not depend on Latin-1/Windows-1252 decoder alias behavior;
 a cross-runtime decoder test protects that browser boundary.
