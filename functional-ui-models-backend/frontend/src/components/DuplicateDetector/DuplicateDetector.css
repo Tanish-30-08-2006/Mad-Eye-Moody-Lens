@@ -1,0 +1,595 @@
+/* ==========================================================================
+   Bonsai-Inspired Premium White Theme — Duplicate Image Detector
+   Clean, modern, editorial white canvas with bold black typography,
+   minimal cards, subtle borders, and soft natural elevation.
+   ========================================================================== */
+
+.bonsai-page {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #ffffff;
+  color: #111827;
+  min-height: 100vh;
+  padding: 40px 0 96px 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.bonsai-container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---------- Typography ---------- */
+.bonsai-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  margin-bottom: 20px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.bonsai-title {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: clamp(2.25rem, 4vw, 3.25rem) !important;
+  font-weight: 800 !important;
+  color: #000000 !important;
+  letter-spacing: -0.035em !important;
+  line-height: 1.15 !important;
+  margin: 0 0 16px 0 !important;
+}
+
+.bonsai-desc {
+  font-size: 1.125rem;
+  color: #4b5563;
+  line-height: 1.6;
+  max-width: 640px;
+  margin: 0 0 8px 0;
+}
+
+.bonsai-meta {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 32px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- Buttons (Bonsai Pill Style) ---------- */
+.bonsai-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #000000 !important;
+  border-radius: 9999px !important;
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  padding: 12px 28px !important;
+  cursor: pointer;
+  text-decoration: none;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+  min-height: 44px;
+}
+
+.bonsai-btn-primary:hover:not(:disabled) {
+  background: #1f2937 !important;
+  border-color: #1f2937 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.bonsai-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bonsai-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 9999px !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  padding: 8px 18px !important;
+  cursor: pointer;
+  text-decoration: none;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  transition: all 0.15s ease;
+}
+
+.bonsai-btn-secondary:hover:not(:disabled) {
+  background: #f9fafb !important;
+  border-color: #9ca3af !important;
+}
+
+.bonsai-btn-link {
+  background: none;
+  border: none;
+  color: #4b5563;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.bonsai-btn-link:hover {
+  color: #000000;
+}
+
+/* ---------- Upload Area ---------- */
+.bonsai-upload-box {
+  background: #ffffff;
+  border: 1.5px dashed #d1d5db;
+  border-radius: 16px;
+  padding: 48px 24px;
+  text-align: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  margin-bottom: 28px;
+}
+
+.bonsai-upload-box.is-dragging {
+  border-color: #000000;
+  background: #fafafa;
+  transform: scale(0.995);
+}
+
+.bonsai-upload-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px auto;
+  color: #111827;
+  stroke-width: 1.75;
+}
+
+.bonsai-upload-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.01em;
+}
+
+.bonsai-upload-subtitle {
+  font-size: 0.9375rem;
+  color: #4b5563;
+  margin: 0 0 20px 0;
+}
+
+.bonsai-upload-specs {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 16px 0 0 0;
+}
+
+/* ---------- Selected Files Grid ---------- */
+.bonsai-files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.bonsai-file-card {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bonsai-file-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.06);
+}
+
+.bonsai-file-card.has-error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.bonsai-thumb-wrap {
+  width: 100%;
+  height: 120px;
+  background: #f3f4f6;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bonsai-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bonsai-file-info {
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.bonsai-file-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.bonsai-file-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.bonsai-format-chip {
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bonsai-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.bonsai-remove-btn:hover {
+  background: #000000;
+}
+
+/* ---------- Summary Cards (Reference 2 Inspiration) ---------- */
+.bonsai-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.bonsai-summary-card {
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.01);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bonsai-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.05);
+}
+
+.bonsai-card-icon {
+  width: 28px;
+  height: 28px;
+  color: #111827;
+  margin-bottom: 12px;
+  stroke-width: 1.75;
+}
+
+.bonsai-card-val {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #000000;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  margin: 0 0 6px 0;
+}
+
+.bonsai-card-label {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.bonsai-card-desc {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ---------- Results Layout ---------- */
+.bonsai-section {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 32px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.bonsai-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 16px;
+}
+
+.bonsai-section-title {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 1.375rem !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 0 4px 0 !important;
+}
+
+.bonsai-section-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Duplicate Group Box */
+.bonsai-group-card {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.bonsai-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.bonsai-badge-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.bonsai-hash-chip {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.75rem;
+  color: #4b5563;
+  background: #f3f4f6;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+/* Similar Pair Row */
+.bonsai-pair-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.bonsai-pair-previews {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bonsai-pair-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 120px;
+}
+
+.bonsai-pair-img-wrap {
+  width: 100px;
+  height: 80px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.bonsai-pair-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #374151;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 6px;
+}
+
+.bonsai-vs-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9ca3af;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.bonsai-pair-metrics {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.bonsai-sim-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #000000;
+  letter-spacing: -0.02em;
+}
+
+.bonsai-badge-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.bonsai-badge-neutral {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Minimal Table (Section 3) */
+.bonsai-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.bonsai-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.bonsai-table th {
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #111827;
+  border-bottom: 1.5px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.bonsai-table td {
+  padding: 14px 16px;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.bonsai-table tr:hover td {
+  background: #fafafa;
+}
+
+/* Empty State Box */
+.bonsai-empty-state {
+  padding: 32px;
+  text-align: center;
+  color: #6b7280;
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+}
+
+/* Privacy & Footer Notice */
+.bonsai-privacy-box {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 48px;
+}
+
+.bonsai-privacy-icon {
+  width: 24px;
+  height: 24px;
+  color: #4b5563;
+  flex-shrink: 0;
+}
+
+.bonsai-privacy-text {
+  font-size: 0.8125rem;
+  color: #4b5563;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Error Banner */
+.bonsai-error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9375rem;
+}
