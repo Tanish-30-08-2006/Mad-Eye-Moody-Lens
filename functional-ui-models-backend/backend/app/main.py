@@ -17,7 +17,8 @@ from __future__ import annotations
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, File, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
@@ -107,6 +108,15 @@ def create_app() -> FastAPI:
     async def unexpected(_: Request, exc: Exception) -> JSONResponse:
         log.exception("unhandled_error", error_type=type(exc).__name__)
         return JSONResponse({"error": INTERNAL_ERROR_MESSAGE}, status_code=500)
+
+    @app.post("/api/duplicate-detection/compare", include_in_schema=False)
+    async def duplicate_detection_alias(
+        request: Request,
+        files: list[UploadFile] = File(...),
+    ) -> JSONResponse:
+        from app.services import duplicate_detector
+        res = await run_in_threadpool(duplicate_detector.compare_batch, files)
+        return JSONResponse(res.model_dump())
 
     ext_router = _extension_router()
     # The extension router goes FIRST: its GET /health and GET /jobs/{id} are supersets of
