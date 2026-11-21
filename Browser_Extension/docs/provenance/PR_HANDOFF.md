@@ -38,8 +38,8 @@ licences, hashes, fixtures, and security/testing docs are included.
 - [x] No Secret Leaks: reviewed feature changes; only public trust/test certificates included; no private keys.
 
 ## Additional verification
-- Extension backend: 76 tests, 71 pass, 5 MML_E2E_URL skips, 0 fail.
-- Provenance subset: 45 pass, including real vendored WASM and eight CLI cross-check cases.
+- Extension backend: 80 tests, 75 pass, 5 MML_E2E_URL skips, 0 fail.
+- Provenance subset: 49 pass, including real vendored WASM and eight CLI cross-check cases.
 - Existing CJS provider suite: 13 pass.
 - Contract parity passed. Ruff/Mypy unavailable locally; website build blocked by missing vite/client types.
 - Chrome manual checklist: PENDING — replace with browser version and actual outcomes.
@@ -107,11 +107,17 @@ and coordinate with the teammate instead of discarding either feature.
 
 ## Merge and confirm issue closure
 
-Choose GitHub **Create a merge commit**. Do not squash; this preserves the seven
-feature commits and their original IDs for the viva. GitHub rebase-and-merge
+Choose GitHub **Create a merge commit**. Do not squash; this preserves the feature
+commits and their original IDs for the viva. GitHub rebase-and-merge
 preserves separate commits but changes their IDs, so a merge commit is preferable.
 
 Only merge after acceptance evidence, manual Chrome checks, reviews and CI pass.
 After merging into main, confirm all five linked issues show Closed with this
 PR as the closing reference, and check main's commit graph includes each feature
 commit. The issue-by-issue viva summary is in ISSUES_MAP.md.
+
+Manual-test follow-up: an eighth fix commit preserves the original seven commits
+and corrects null-reader handling for unsigned JPEGs, adds safe failure diagnostics,
+and avoids presenting uninspected fields as absent. User reported the signed
+fixture succeeds in Chrome; the unsigned-JPEG fix still needs the listed manual
+retest. Use a merge commit to preserve this follow-up in the viva history too.

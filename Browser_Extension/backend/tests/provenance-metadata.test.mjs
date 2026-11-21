@@ -23,7 +23,7 @@ function jpegSegment(marker, data) {
   return Buffer.concat([header, data]);
 }
 
-for (const name of ['plain.png', 'stable-diffusion.png', 'compressed-metadata.png', 'stripped.jpg', 'signed.png', 'untrusted.png', 'corrupted-signature.png', 'truncated.png']) {
+for (const name of ['plain.png', 'stable-diffusion.png', 'compressed-metadata.png', 'stripped.jpg', 'large-stripped.jpg', 'signed.png', 'untrusted.png', 'corrupted-signature.png', 'truncated.png']) {
   test(`fixture parser expectations: ${name}`, async () => {
     const expected = JSON.parse(await fixture(`${name}.expected.json`));
     const actual = await readMetadata(await fixture(name));

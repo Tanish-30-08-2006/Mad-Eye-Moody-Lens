@@ -32,6 +32,13 @@ def png(*text_chunks):
             + b''.join(text_chunks) + chunk(b'IDAT', zlib.compress(b'\0\xff\0\0\0\xff\0' * 2)) + chunk(b'IEND', b''))
 
 
+def large_stripped_jpeg():
+    # Original deterministic artwork, large enough that the cheap marker walk defers to SDK.
+    pixels = bytes((x * 17 + y * 31 + x * y + channel * 53) % 256
+                   for y in range(128) for x in range(128) for channel in range(3))
+    Image.frombytes('RGB', (128, 128), pixels).save(ROOT / 'large-stripped.jpg', 'JPEG', quality=90, exif=b'')
+
+
 def certificate(name, key, issuer_name=None, issuer_key=None, ca=False):
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
     builder = (x509.CertificateBuilder().subject_name(subject).issuer_name(issuer_name or subject)
@@ -58,6 +65,7 @@ def main(tool):
         chunk(b'zTXt', b'Software\0\0' + zlib.compress(b'ComfyUI')),
         chunk(b'iTXt', b'prompt\0\x01\0\0\0' + zlib.compress(b'{"text":"a small test square"}'))))
     Image.new('RGB', (2, 2), (180, 50, 80)).save(ROOT / 'stripped.jpg', 'JPEG', exif=b'')
+    large_stripped_jpeg()
     (ROOT / 'truncated.png').write_bytes(b'\x89PNG\r\n\x1a\n\xff\xff\xff\xffcaBX\0')
     with tempfile.TemporaryDirectory(prefix='mml-provenance-fixtures-') as tmp:
         temp = Path(tmp)

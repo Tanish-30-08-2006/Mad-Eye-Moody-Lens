@@ -24,3 +24,9 @@ The existing Copy Report action is unchanged and does not export provenance.
 Nothing from this feature is saved to history or chrome.storage. Supported file
 containers are JPEG, PNG and WebP, up to 8 MiB. GIF and other formats receive
 Unsupported format. A remote manifest link is reported but never downloaded.
+
+Ordinary supported images without credentials normally show No credentials found.
+Unavailable means a read/startup/verification failure, with a specific safe message;
+it must not be interpreted as no metadata. If a web URL is blocked, upload its
+original downloaded file. The browser SDK's null-reader absence result is handled
+explicitly, including larger unsigned JPEGs that require an SDK read.

@@ -13,6 +13,7 @@ path; it generates fresh random certificates/signatures, so the new bytes differ
 | stable-diffusion.png | Adds tEXt `parameters`, test prompt, steps/sampler/seed | No credentials found + unsigned SD hint |
 | compressed-metadata.png | Adds zTXt Software=ComfyUI and compressed iTXt prompt JSON | No credentials found + unsigned hints |
 | stripped.jpg | Pillow JPEG encoder, no EXIF/XMP, 2x2 solid color | No credentials found |
+| large-stripped.jpg | Original deterministic 128x128 RGB pattern, Pillow JPEG quality 90, no EXIF; 13,242 bytes | No credentials found after authoritative SDK read |
 | signed.png | c2patool, ES256 leaf under disposable root A, four actions, created AI source type | Unknown signer |
 | untrusted.png | Independently signed with disposable root B | Unknown signer |
 | corrupted-signature.png | Change first `ProvenanceFixture` P to Q inside signed claim; repair containing caBX CRC | Signature invalid |
@@ -38,3 +39,9 @@ WASM and compare state and validation code sets with the CLI for all four signed
 variants. CLI embeds c2pa-rs 0.92.0; the tested validation code sets agree with
 the pinned WASM implementation. Refresh records and mutation offsets whenever
 regenerating; expired test certificates should fail validation in the future.
+
+The large JPEG is made by large_stripped_jpeg() in the generator. Pixel channel c
+at (x,y) is (17*x + 31*y + x*y + 53*c) mod 256. The marker walk exhausts its cheap
+scan budget, so it must use the SDK. This catches the browser SDK's null-reader
+absence result that the original small JPEG fixture did not exercise. Its recipe
+can be invoked independently without regenerating the random signing certificates.

@@ -20,6 +20,8 @@ contract. All text is untrusted and length-capped before display.
 | actionsTruncated | More actions exist, or bounded inspection was incomplete |
 | ingredientCount | Active manifest ingredient count |
 | metadataHints | At most 12 unsigned, editable/forgeable hints; values at most 240 characters |
+| metadataInspected | Boolean: the bounded metadata parser actually ran on acquired bytes |
+| diagnosticCode | Null or a fixed application failure code, separate from SDK reasons |
 | remoteManifestNotFetched | A remote manifest reference was found but deliberately not fetched |
 | message | Fixed plain-language explanation; never a raw exception |
 
@@ -54,6 +56,7 @@ vendored WASM outputs are recorded with the fixtures and cross-checked by tests.
 | signingCredential.ocsp.skipped | Informational; offline revocation limitation |
 | No active manifest/validation report or missing affirmative evidence | unavailable |
 | C2pa(JumbfNotFound) SDK exception | no_credentials |
+| Public browser Reader.fromBlob returns null | no_credentials (same absence condition; must not dereference null) |
 | C2pa(InvalidAsset(...)) / known malformed credential errors | invalid; no invented validation code |
 | Unknown SDK exception, init failure, timeout | unavailable |
 
@@ -62,6 +65,15 @@ only as Unknown signer. Raw SDK codes are deduplicated, capped at 128 entries of
 160 characters; exceptions are not invented as validation codes. Ingredient delta
 codes are retained; signer classification comes from the active manifest. A
 credential using an unrecognized binding scheme fails closed as unavailable.
+
+For unavailable results, diagnosticCode distinguishes bytes_unavailable,
+source_rejected, size_limit_exceeded, sdk_load_failed, trust_anchors_unavailable,
+sdk_initialization_failed, verifier_timeout, verification_failed,
+validation_incomplete, check_cancelled and check_failed. These are application
+diagnostics, never invented SDK validation codes. Each maps to a fixed safe
+message; raw exceptions/URLs/prompts are never displayed or logged. Failed reads
+must not display empty credential fields as if absence had been established.
+These additive fields retain schemaVersion 1 and do not alter detector contracts.
 
 ## Declaration mapping
 

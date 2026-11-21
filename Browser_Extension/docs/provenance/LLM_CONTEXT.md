@@ -1,7 +1,7 @@
 # Future-agent briefing
 
 Purpose: local image-file provenance alongside the independent detector.
-Branch: feature/image-provenance-check. Seven requested commits; do not commit
+Branch: feature/image-provenance-check. Seven planned commits plus one manual-test fix; do not commit
 main, force-push, or create/merge a PR. User will open one PR for five issues.
 
 Status: implementation and Node tests complete; Chrome checklist PENDING. Do not
@@ -50,8 +50,8 @@ only existing side-panel hooks.
 
 ## Verification and remaining work
 
-Browser_Extension/backend: npm test -> 76 total, 71 pass, 5 MML_E2E_URL skips.
-Provenance subset -> 45 pass (real WASM plus recorded SDK/CLI and mocked DOM/API
+Browser_Extension/backend: npm test -> 80 total, 75 pass, 5 MML_E2E_URL skips.
+Provenance subset -> 49 pass (real WASM plus recorded SDK/CLI and mocked DOM/API
 tests). Browser_Extension: node --test tests/*.cjs -> 13 pass. Parity script passed.
 Optional backend pytest was interrupted after producing no output for minutes;
 Ruff/Mypy absent; website build missing vite/client dependencies. No broad pass
@@ -68,3 +68,11 @@ text budget; incomplete declaration inspection remains not_declared. URL servers
 may change bytes; DNS cannot be pre-resolved safely in browser code. Offline
 anchors age and revocation is not live. SDK/browser worker startup still needs
 manual acceptance. Full protocol and issue acceptance are in the adjacent docs.
+
+Manual follow-up: user confirms signed.png -> Unknown signer with declarations
+in Chrome. An ordinary-JPEG bug was reproduced and fixed: the public browser
+Reader.fromBlob returns null for absent credentials, unlike raw WasmReader which
+throws JumbfNotFound. Exactly null now becomes no_credentials. Large-stripped.jpg
+forces this SDK path. Results additionally include fixed diagnosticCode and
+metadataInspected; unavailable UI hides uninspected credential fields. No raw
+error messages or image URLs are exposed. Post-fix Chrome retest is pending.

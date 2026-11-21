@@ -4,9 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import init, { WasmReader } from '../../frontend/provenance/vendor/c2pa/wasm-bindings.js';
-import { Context } from '../../frontend/provenance/vendor/c2pa/sdk.js';
+import { Context, Reader } from '../../frontend/provenance/vendor/c2pa/sdk.js';
 import { verifyC2pa, VERIFY_SETTINGS, sdkReadError } from '../../frontend/provenance/c2pa-verifier.js';
-import { checkProvenance, classifyC2pa } from '../../frontend/provenance/provenance-core.js';
+import { checkProvenance, classifyC2pa, unavailableResult } from '../../frontend/provenance/provenance-core.js';
+import { readMetadata } from '../../frontend/provenance/metadata-reader.js';
 
 const fixture = name => readFile(new URL(`./fixtures/provenance/${name}`, import.meta.url));
 const json = async name => JSON.parse(await fixture(name));
@@ -105,6 +106,35 @@ test('adapter uses packaged URLs, offline settings, separate trust stores, and a
   assert.deepEqual(settings.verify, VERIFY_SETTINGS); assert.equal(settings.trust.trustAnchors, 'test anchors'); assert.equal(settings.tsaTrust.trustAnchors, 'test anchors');
 });
 
+test('browser SDK null reader means no credentials, including JPEGs deferred to the SDK', async () => {
+  const anchors = (await fixture('test-root-A.crt')).toString();
+  const bytes = await fixture('stripped.jpg');
+  let disposed = 0, calls = 0;
+  const options = {
+    getURL: path => 'chrome-extension://current/' + path,
+    fetchPackaged: async () => new Response(anchors),
+    loadSdk: async () => ({ Context, Reader, createC2pa: async () => ({
+      worker: { tx: { reader_fromBlob: async (format, blob, settings) => {
+        calls++;
+        try { const reader = await WasmReader.fromBytes(format, new Uint8Array(await blob.arrayBuffer()), settings); reader.free(); assert.fail('unsigned file must not have a manifest'); }
+        catch (error) { throw new Error(String(error)); } // Same string-to-Error transport as the upstream worker.
+      } } }, dispose() { disposed++; }
+    }) })
+  };
+  // Uses the actual public Reader class, which converts JumbfNotFound to null.
+  const outcome = await verifyC2pa(bytes, 'image/jpeg', options);
+  assert.equal(outcome.kind, 'no_credentials');
+  assert.equal(calls, 1); assert.equal(disposed, 1);
+  const large = await fixture('large-stripped.jpg');
+  assert.equal((await readMetadata(large)).marker, 'unknown');
+  const result = await checkProvenance(`data:image/jpeg;base64,${large.toString('base64')}`, {
+    verify: (image, format, config) => verifyC2pa(image, format, { ...options, ...config })
+  });
+  assert.equal(result.status, 'no_credentials');
+  assert.equal(result.signatureStatus, 'absent'); assert.equal(result.metadataInspected, true);
+  assert.equal(calls, 2); assert.equal(disposed, 2);
+});
+
 test('load errors, timeouts, aborts and unknown SDK errors become unavailable', async () => {
   const options = { getURL: path => 'chrome-extension://current/' + path, fetchPackaged: async () => new Response('anchors') };
   assert.equal((await verifyC2pa(new Uint8Array(), 'image/png', { ...options, loadSdk: async () => { throw new Error('CSP'); } })).kind, 'unavailable');
@@ -112,6 +142,32 @@ test('load errors, timeouts, aborts and unknown SDK errors become unavailable', 
   const controller = new AbortController(); controller.abort();
   assert.equal((await verifyC2pa(new Uint8Array(), 'image/png', { signal: controller.signal })).kind, 'unavailable');
   assert.equal(sdkReadError(new Error('unexpected runtime failure')).kind, 'unavailable');
+});
+
+test('failure diagnostics identify load, trust, initialization, read and timeout stages without exposing raw errors', async () => {
+  const privateText = 'https://private.example/image?token=secret <img onerror=alert(1)> prompt';
+  const base = { getURL: path => 'chrome-extension://current/' + path, fetchPackaged: async () => new Response('test anchors') };
+  const loadError = await verifyC2pa(new Uint8Array(), 'image/jpeg', { ...base, loadSdk: async () => { throw new Error(privateText); } });
+  assert.equal(loadError.diagnosticCode, 'sdk_load_failed');
+  const trustError = await verifyC2pa(new Uint8Array(), 'image/jpeg', { ...base, loadSdk: async () => ({}), fetchPackaged: async () => new Response('denied', { status: 404 }) });
+  assert.equal(trustError.diagnosticCode, 'trust_anchors_unavailable');
+  const initError = await verifyC2pa(new Uint8Array(), 'image/jpeg', { ...base, loadSdk: async () => ({ createC2pa: async () => { throw new Error(privateText); } }) });
+  assert.equal(initError.diagnosticCode, 'sdk_initialization_failed');
+  const timeout = await verifyC2pa(new Uint8Array(), 'image/jpeg', { ...base, timeoutMs: 5, loadSdk: () => new Promise(() => {}) });
+  assert.equal(timeout.diagnosticCode, 'verifier_timeout');
+  const undefinedReader = await verifyC2pa(new Uint8Array(), 'image/jpeg', { ...base, loadSdk: async () => ({ createC2pa: async () => ({ dispose() {} }), Context: class {}, Reader: { fromBlob: async () => undefined } }) });
+  assert.equal(undefinedReader.kind, 'unavailable'); // Only the SDK's explicit null means absence.
+  for (const failure of [loadError, trustError, initError, timeout, undefinedReader, sdkReadError(new Error(privateText))]) {
+    const result = classifyC2pa(failure);
+    assert.equal(result.status, 'unavailable'); assert.ok(result.diagnosticCode);
+    assert.deepEqual(result.reasons, []); assert.ok(!JSON.stringify(result).includes('secret')); assert.ok(!JSON.stringify(result).includes('<img'));
+  }
+  assert.equal(unavailableResult(privateText).diagnosticCode, 'check_failed');
+  const denied = await checkProvenance('unused', { acquire: async () => { throw new Error(privateText); } });
+  assert.equal(denied.diagnosticCode, 'bytes_unavailable'); assert.equal(denied.metadataInspected, false);
+  assert.ok(denied.message.includes('Upload the original'));
+  const sdkFailure = await checkProvenance('unused', { acquire: async () => ({ bytes: await fixture('signed.png') }), verify: async () => initError });
+  assert.equal(sdkFailure.diagnosticCode, 'sdk_initialization_failed'); assert.equal(sdkFailure.metadataInspected, true);
 });
 
 test('orchestration skips WASM only for clear marker absence and keeps hints unsigned', async () => {

@@ -6,9 +6,9 @@ Recorded 2026-11-21 on Windows, Node 22.16.0. No Chrome automation was used.
 
 | Command / location | Baseline | Final automated result |
 | --- | --- | --- |
-| npm test in Browser_Extension/backend | 31 total: 26 pass, 5 skip | 76 total: 71 pass, 5 skip, 0 fail |
+| npm test in Browser_Extension/backend | 31 total: 26 pass, 5 skip | 80 total: 75 pass, 5 skip, 0 fail |
 | node --test tests/*.cjs in Browser_Extension | 13 pass | 13 pass, 0 fail |
-| node --test tests/provenance-*.test.mjs in Browser_Extension/backend | Absent | 45 provenance tests pass |
+| node --test tests/provenance-*.test.mjs in Browser_Extension/backend | Absent | 49 provenance tests pass |
 | python -m scripts.check_parity ../frontend in website backend | Optional broader check | Passed |
 | MML_DETECTOR_BACKEND=stub + python -m pytest -q -p no:cacheprovider | Optional broader check | Attempted; no output after several minutes; interrupted, not a pass |
 | Ruff / Mypy | Optional broader checks | Not run: neither tool/module installed |
@@ -21,7 +21,7 @@ checks as passing. Full CI remains a pre-merge gate.
 
 ## What Node verifies
 
-- Metadata (14 tests): eight fixture expectations, PNG tEXt/iTXt/zTXt, JPEG
+- Metadata (15 tests): nine fixture expectations, PNG tEXt/iTXt/zTXt, JPEG
   EXIF/XMP, WebP EXIF/XMP/C2PA, Windows-1252 alias independence, field/chunk caps,
   compressed bombs including a per-file inflation work budget, all truncations
   of two small files, and 500 deterministic fuzz inputs.
@@ -29,7 +29,7 @@ checks as passing. Full CI remains a pre-merge gate.
   through data URIs and mocked streamed fetches; raw percent bytes; public-host
   exclusions; redirect rejection; declared/streamed 8 MiB caps; cancellation and
   fetch/body timeouts. Hashes exist only in test assertions, never runtime output.
-- Verifier (15 tests): real vendored WASM, actual SDK Context serialization using
+- Verifier (17 tests): real vendored WASM, actual SDK Context serialization using
   official offline trust anchors, no trust-resource/verification fetches, SDK/CLI
   agreement in eight signed-fixture/trust-store combinations, malformed/no-credential
   reads, classification, file hashes/one-line worker patch, initialization options
@@ -38,7 +38,7 @@ checks as passing. Full CI remains a pre-merge gate.
 - Declarations (5 tests): real active manifest, exact IPTC AI/capture source URIs,
   ingredient/other-manifest isolation, claimed time, unknown/malicious actions,
   truncated and conflicting declarations.
-- Panel (6 tests): a minimal DOM double rejects any innerHTML use; all six badges,
+- Panel (7 tests): a minimal DOM double rejects any innerHTML use; all six badges,
   literal malicious strings, limits, stale async results, clear/reset, disagreement
   freshness, provider/key independence, error fallback, Re-check/focus, teardown,
   and classic-script/module HTML hooks. The double is not a browser layout test.
@@ -69,6 +69,7 @@ commit generated private keys or add test-root-A.crt to runtime anchors.
    | stable-diffusion.png | No credentials found; unsigned Stable Diffusion parameters |
    | compressed-metadata.png | No credentials found; unsigned Software/ComfyUI prompt hints |
    | stripped.jpg | No credentials found |
+   | large-stripped.jpg | No credentials found after SDK read (regression case) |
    | signed.png | Unknown signer; Signer A; declared AI; four recorded actions |
    | untrusted.png | Unknown signer; Signer B; declared AI; four recorded actions |
    | corrupted-signature.png | Signature invalid; claimSignature.mismatch in SDK codes |
@@ -119,3 +120,24 @@ Optional separate team-approved one-line follow-up: replace the uppercase
 background-test command with npm --prefix Browser_Extension/backend test.
 No .github file was changed here. CI also runs backend pytest/Ruff/Mypy/parity,
 the website TypeScript/Vite build, Telegram unit tests and Docker build.
+
+## Manual findings and unsigned-JPEG fix (2026-11-21)
+
+The user reports signed.png shows Unknown signer with declaration details in
+Chrome. This confirms that their loaded build can initialize the packaged worker
+and WASM; it is not a blanket CSP/startup failure. Ordinary local images showed
+Unavailable. A regression reproduced the adapter incorrectly dereferencing the
+public SDK's null Reader for no credentials; raw WASM tests had missed this public
+wrapper behavior. The fix handles exactly null as no_credentials. The new large
+unsigned JPEG forces the SDK path rather than the cheap marker-absence shortcut.
+The regression uses the actual browser Reader and actual WASM with a worker-RPC
+test double; it failed before the fix and passes after it. Undefined readers and
+unknown errors remain unavailable. Diagnostics tests cover distinct failures and
+reject raw exception/URL/prompt leakage; UI tests distinguish unread from absent.
+
+After reloading both the extension and its side-panel page, retest large-stripped.jpg
+and an ordinary local JPEG: expect No credentials found if credentials are absent.
+Retest signed.png (Unknown signer) and corrupted-signature.png (Signature invalid).
+A blocked website URL may legitimately remain Unavailable and should now explain
+that the original bytes could not be read. This post-fix Chrome retest, network
+privacy checks, and the remaining manual items are still pending user confirmation.

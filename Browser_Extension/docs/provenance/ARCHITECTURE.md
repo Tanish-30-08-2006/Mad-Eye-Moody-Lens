@@ -1,5 +1,21 @@
 # Architecture and decisions
 
+## Browser SDK absence handling (manual-test follow-up)
+
+The raw WasmReader throws C2pa(JumbfNotFound) for unsigned files. The public
+browser Reader.fromBlob catches that and returns null in SDK 0.17.1 (see the
+pristine/patched upstream Reader and J helper). The adapter must treat exactly
+null as no_credentials before calling manifestStore. The initial adapter missed
+this contract difference; ordinary JPEGs deferred to the SDK displayed unavailable.
+A new 13 KiB unsigned JPEG and a regression through the actual public Reader,
+using real WASM behind the worker-RPC test double, reproduce and protect the fix.
+
+File acquisition, SDK loading, trust resource loading, initialization, reading and
+timeout failures have separate fixed diagnostic messages. An unavailable result
+does not establish absent signer/actions/ingredients. Metadata inspection has its
+own flag, so acquired unsigned hints can still display if credential verification
+fails, while unread metadata is labelled not inspected. No raw errors are surfaced.
+
 ## Production image-byte loss audit
 
 The source audit excluded the explicitly stale lowercase copy, tests, generated

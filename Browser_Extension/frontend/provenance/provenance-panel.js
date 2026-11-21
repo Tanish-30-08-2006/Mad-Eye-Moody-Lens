@@ -37,24 +37,29 @@ export function renderProvenance(root, result, { mode = 'result', hasSource = tr
     if (result?.signer || result?.actions?.length) {
       if (status !== 'verified') content.append(element('p', 'Credential statements below have not been authenticated by a trusted, valid signature.', 'provenance-warning'));
     }
-    const details = element('dl');
-    const row = (label, value) => { details.append(element('dt', label), element('dd', capText(value, 240) || 'Not declared')); };
-    row('Signer (credential)', result?.signer);
-    row('Tool / claim generator', result?.claimGenerator);
-    row('Claimed signing time', result?.claimedSigningTime);
-    row('AI declaration', Object.hasOwn(AI_LABELS, result?.aiDeclaration || '') ? AI_LABELS[result.aiDeclaration] : AI_LABELS.not_declared);
-    if (result?.claimedDigitalSourceType) row('Claimed digital source type', result.claimedDigitalSourceType);
-    row('Ingredient count', String(Number.isSafeInteger(result?.ingredientCount) ? result.ingredientCount : 0));
-    content.append(details, element('h3', 'Recorded actions (active credential)'));
-    const actions = element('ul');
-    for (const action of (Array.isArray(result?.actions) ? result.actions : []).slice(0, 20)) actions.append(element('li', capText(action?.label, 120)));
-    if (!actions.childNodes.length) actions.append(element('li', 'No actions declared'));
-    content.append(actions);
-    if (result?.actionsTruncated) content.append(element('p', 'Action list truncated.'));
+    const hasDeclarations = Boolean(result?.signer || result?.claimGenerator || result?.claimedSigningTime || result?.claimedDigitalSourceType || result?.actions?.length);
+    if (status === 'unavailable' && !hasDeclarations) {
+      content.append(element('p', 'Credential details were not read; no origin or edit-history conclusion is available.'));
+    } else {
+      const details = element('dl');
+      const row = (label, value) => { details.append(element('dt', label), element('dd', capText(value, 240) || 'Not declared')); };
+      row('Signer (credential)', result?.signer);
+      row('Tool / claim generator', result?.claimGenerator);
+      row('Claimed signing time', result?.claimedSigningTime);
+      row('AI declaration', Object.hasOwn(AI_LABELS, result?.aiDeclaration || '') ? AI_LABELS[result.aiDeclaration] : AI_LABELS.not_declared);
+      if (result?.claimedDigitalSourceType) row('Claimed digital source type', result.claimedDigitalSourceType);
+      row('Ingredient count', String(Number.isSafeInteger(result?.ingredientCount) ? result.ingredientCount : 0));
+      content.append(details, element('h3', 'Recorded actions (active credential)'));
+      const actions = element('ul');
+      for (const action of (Array.isArray(result?.actions) ? result.actions : []).slice(0, 20)) actions.append(element('li', capText(action?.label, 120)));
+      if (!actions.childNodes.length) actions.append(element('li', 'No actions declared'));
+      content.append(actions);
+      if (result?.actionsTruncated) content.append(element('p', 'Action list truncated.'));
+    }
     content.append(element('h3', 'Unsigned metadata hints'), element('p', HINT_CAUTION, 'provenance-warning'));
     const hints = element('ul');
     for (const hint of (Array.isArray(result?.metadataHints) ? result.metadataHints : []).slice(0, 12)) hints.append(element('li', `${capText(hint?.label, 80)}: ${capText(hint?.value, 240)}`));
-    if (!hints.childNodes.length) hints.append(element('li', 'No supported generator hints found'));
+    if (!hints.childNodes.length) hints.append(element('li', result?.metadataInspected ? 'No supported generator hints found' : 'Metadata has not been inspected.'));
     content.append(hints);
     if (result?.remoteManifestNotFetched) content.append(element('p', 'A remote manifest link exists. It was not fetched to protect your privacy.'));
     const note = disagreementNote(result, detectorClass);

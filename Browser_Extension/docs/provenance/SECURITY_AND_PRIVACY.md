@@ -1,5 +1,11 @@
 # Security and privacy
 
+Failure messages are selected from fixed application diagnostic codes, separately
+from SDK validation reasons. Exceptions, file URLs and query tokens are not echoed.
+Unavailable means unknown: the UI must not imply an absent origin/edit history or
+zero ingredients when credentials could not be read. Unsigned hints remain usable
+only if metadataInspected is true (or actual parsed hints are present).
+
 The manifest exception is exactly the minimum documented WASM extension-page
 policy. It permits local WASM compilation; it adds no remote script, eval,
 blob-worker source, host permission or web-accessible resource. The same-extension

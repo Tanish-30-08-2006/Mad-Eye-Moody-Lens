@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { attachProvenancePanel, renderProvenance, disagreementNote, CAUTION, HINT_CAUTION } from '../../frontend/provenance/provenance-panel.js';
-import { makeResult, STATUS_LABELS } from '../../frontend/provenance/provenance-core.js';
+import { makeResult, unavailableResult, STATUS_LABELS } from '../../frontend/provenance/provenance-core.js';
 
 // Minimal DOM double: any HTML sink fails the test. Browser layout/worker tests are manual.
 class Element {
@@ -113,4 +113,17 @@ test('HTML integration retains classic script and adds exactly the dedicated hoo
   assert.equal((html.match(/id="provenancePanel"/g) || []).length, 1);
   assert.ok(html.includes('<script type="module" src="provenance/provenance-panel.js"></script>'));
   assert.ok(html.includes('href="provenance/provenance.css"'));
+});
+
+test('unavailable checks do not claim absent declarations or uninspected metadata', () => {
+  const { document, root } = setup();
+  renderProvenance(root, unavailableResult('bytes_unavailable'), { document });
+  assert.ok(root.textContent.includes('Upload the original file'));
+  assert.ok(root.textContent.includes('Metadata has not been inspected'));
+  for (const text of ['Not declared', 'Ingredient count', 'No actions declared', 'No supported generator hints found']) assert.ok(!root.textContent.includes(text), text);
+  const partiallyRead = { ...unavailableResult('sdk_initialization_failed'), metadataInspected: true, metadataHints: [{ label: 'Software', value: '<img src=x> ComfyUI' }] };
+  renderProvenance(root, partiallyRead, { document });
+  assert.ok(root.textContent.includes('WASM or worker could not start'));
+  assert.ok(root.textContent.includes('<img src=x> ComfyUI')); assert.ok(root.textContent.includes(HINT_CAUTION));
+  assert.ok(!root.textContent.includes('Not declared'));
 });

@@ -24,7 +24,7 @@ One PR can close all five after merging into main. No issue or PR was opened her
 7. docs(provenance): final docs, issue map and test guide (this documentation commit;
    find its hash with git log)
 
-All seven commits remain on feature/image-provenance-check. The sidepanel.html
+The first seven planned commits remain on feature/image-provenance-check. The sidepanel.html
 integration adds three lines; the manifest adds the minimum three-line WASM CSP.
 The user replaced browser automation with manual acceptance, so that CSP exception
 is documented from Chrome's official policy rather than claimed browser evidence.
@@ -53,3 +53,16 @@ and file a follow-up if any acceptance condition proves unmet.
 5. Integrity and trust differ. Untrusted-but-intact means Unknown signer; tampered
    means Signature invalid; absence remains neutral. Detector/provenance disagree
    without either result being overwritten.
+
+## Eighth commit: manual-test correction
+
+fix(provenance): handle unsigned SDK reads and explain failures
+
+This follow-up preserves the already-pushed seven commits. It resolves the
+manual-test finding that an SDK null Reader (no credentials) was dereferenced and
+misclassified as unavailable. It strengthens issues 1, 4 and 5 with a larger
+unsigned fixture and a regression through the actual public SDK wrapper backed
+by real WASM, plus safe failure-stage messages and UI tests. The test fails before
+the adapter fix. No crypto code, vendor hashes, original extension files, provider
+behavior, permissions or backend code change. User-confirmed Chrome success for
+signed.png is recorded; the post-fix ordinary-JPEG retest remains manual.
