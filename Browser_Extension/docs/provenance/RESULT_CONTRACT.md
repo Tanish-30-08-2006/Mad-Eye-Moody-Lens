@@ -14,8 +14,10 @@ contract. All text is untrusted and length-capped before display.
 | signer | Active manifest signature issuer/common name, or null |
 | claimGenerator | Active manifest generator, or null |
 | claimedSigningTime | Active manifest reported signing time, or null; labelled claimed |
+| claimedDigitalSourceType | Exact created-action source URI, capped, or null if absent/ambiguous |
 | aiDeclaration | `declared_ai_generated`, `includes_ai_generated_elements`, `declared_camera_capture`, `not_declared` |
 | actions | At most 20 active-manifest actions, with capped raw code and human label |
+| actionsTruncated | More actions exist, or bounded inspection was incomplete |
 | ingredientCount | Active manifest ingredient count |
 | metadataHints | At most 12 unsigned, editable/forgeable hints; values at most 240 characters |
 | remoteManifestNotFetched | A remote manifest reference was found but deliberately not fetched |
@@ -60,3 +62,25 @@ only as Unknown signer. Raw SDK codes are deduplicated, capped at 128 entries of
 160 characters; exceptions are not invented as validation codes. Ingredient delta
 codes are retained; signer classification comes from the active manifest. A
 credential using an unrecognized binding scheme fails closed as unavailable.
+
+## Declaration mapping
+
+Only active-manifest c2pa.actions / c2pa.actions.vN assertions are examined. The
+created action's digitalSourceType uses exact HTTP URIs under
+`http://cv.iptc.org/newscodes/digitalsourcetype/`, confirmed against the
+[IPTC vocabulary](https://cv.iptc.org/newscodes/digitalsourcetype/) and pinned SDK
+DigitalSourceType types:
+
+| URI suffix | aiDeclaration |
+| --- | --- |
+| trainedAlgorithmicMedia | declared_ai_generated |
+| compositeWithTrainedAlgorithmicMedia | includes_ai_generated_elements |
+| digitalCapture or computationalCapture | declared_camera_capture |
+| Other, absent, contradictory, or incomplete | not_declared |
+
+No matching by URL suffix, tool name, ingredient, or edited action. computationalCapture
+is real-world multi-frame capture with processing per IPTC, not a promise that
+the content has never been edited. signature_info.time is reported as claimed
+signing time; action.when is not a signing time. All declarations are shown as
+credential statements, including on invalid/untrusted credentials, with their
+verification status kept visible.

@@ -1,6 +1,7 @@
 import { acquireBytes } from './bytes.js';
 import { readMetadata } from './metadata-reader.js';
 import { verifyC2pa } from './c2pa-verifier.js';
+import { extractDeclarations } from './declarations.js';
 
 export const SCHEMA_VERSION = 1;
 export const STATUS_LABELS = Object.freeze({ verified: 'Verified credentials', untrusted_signer: 'Unknown signer', invalid: 'Signature invalid', no_credentials: 'No credentials found', unsupported_format: 'Unsupported format', unavailable: 'Unavailable' });
@@ -16,7 +17,7 @@ const messages = Object.freeze({
 /** @typedef {'verified'|'untrusted_signer'|'invalid'|'no_credentials'|'unsupported_format'|'unavailable'} ProvenanceStatus */
 /** @returns {{schemaVersion:number,status:ProvenanceStatus,signatureStatus:string,signerTrust:string,reasons:string[],signer:null|string,claimGenerator:null|string,claimedSigningTime:null|string,aiDeclaration:string,actions:object[],ingredientCount:number,metadataHints:object[],remoteManifestNotFetched:boolean,message:string}} */
 export function makeResult(status) {
-  return { schemaVersion: SCHEMA_VERSION, status, signatureStatus: status === 'verified' || status === 'untrusted_signer' ? 'valid' : status === 'invalid' ? 'invalid' : status === 'no_credentials' ? 'absent' : 'unknown', signerTrust: status === 'verified' ? 'trusted' : status === 'untrusted_signer' ? 'untrusted' : 'unknown', reasons: [], signer: null, claimGenerator: null, claimedSigningTime: null, aiDeclaration: 'not_declared', actions: [], ingredientCount: 0, metadataHints: [], remoteManifestNotFetched: false, message: messages[status] };
+  return { schemaVersion: SCHEMA_VERSION, status, signatureStatus: status === 'verified' || status === 'untrusted_signer' ? 'valid' : status === 'invalid' ? 'invalid' : status === 'no_credentials' ? 'absent' : 'unknown', signerTrust: status === 'verified' ? 'trusted' : status === 'untrusted_signer' ? 'untrusted' : 'unknown', reasons: [], signer: null, claimGenerator: null, claimedSigningTime: null, claimedDigitalSourceType: null, aiDeclaration: 'not_declared', actions: [], actionsTruncated: false, ingredientCount: 0, metadataHints: [], remoteManifestNotFetched: false, message: messages[status] };
 }
 
 function codeList(items) { return Array.isArray(items) ? items.map(x => x?.code).filter(x => typeof x === 'string') : []; }
@@ -38,6 +39,7 @@ export function classifyC2pa(outcome) {
   else if (cryptoValid && bindingValid && store.validation_state === 'Trusted' && !failures.length && success.includes('signingCredential.trusted')) status = 'verified';
   else if (cryptoValid && bindingValid && store.validation_state === 'Valid' && failures.includes('signingCredential.untrusted')) status = 'untrusted_signer';
   const result = makeResult(status);
+  Object.assign(result, extractDeclarations(store));
   result.reasons = [...new Set(reasons)].slice(0, 128).map(code => code.slice(0, 160));
   return result;
 }

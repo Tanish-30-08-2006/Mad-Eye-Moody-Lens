@@ -1,5 +1,9 @@
 # Testing and manual acceptance
 
+Declaration tests cover the actual signed fixture, exact AI/capture URIs,
+active-manifest isolation, claimed signing time, unknown/malicious actions,
+truncation and contradictory source statements. They never infer an edit history.
+
 Baseline on 2026-11-21, before changes:
 
 - `cd Browser_Extension/backend; npm test`: 31 tests, 26 passed, 5 skipped
