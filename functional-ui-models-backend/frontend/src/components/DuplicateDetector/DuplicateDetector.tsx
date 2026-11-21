@@ -4,6 +4,7 @@ import {
   compareDuplicates,
   DuplicateCompareResponse,
 } from "../../api/client";
+import "./DuplicateDetector.css";
 
 interface SelectedImage {
   id: string;
@@ -87,7 +88,7 @@ export function DuplicateDetector() {
       } else if (file.size === 0) {
         itemError = "File is empty";
       } else if (currentTotal + file.size > MAX_TOTAL_SIZE) {
-        itemError = "Adding this file exceeds 200 MB batch limit";
+        itemError = "Exceeds 200 MB batch limit";
       }
 
       if (!itemError) {
@@ -178,50 +179,35 @@ export function DuplicateDetector() {
   };
 
   return (
-    <section className="analyser-section" id="duplicate-detection" style={{ paddingTop: "2rem", paddingBottom: "4rem" }}>
-      <div className="container">
-        {/* Header */}
-        <div style={{ marginBottom: "2rem", borderBottom: "1px solid var(--border)", paddingBottom: "1.5rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
-            <span
-              style={{
-                fontFamily: "var(--mono)",
-                fontSize: "0.75rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                padding: "2px 8px",
-                border: "1px solid var(--border)",
-                borderRadius: "3px",
-              }}
-            >
-              Batch Forensic Tool
-            </span>
+    <div className="bonsai-page" id="duplicate-detection">
+      <div className="bonsai-container">
+        {/* Header Section */}
+        <div style={{ marginBottom: "40px" }}>
+          <div className="bonsai-tag">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+            Forensic Intelligence
           </div>
-          <h1 style={{ fontFamily: "var(--serif)", fontSize: "2.25rem", margin: "0 0 0.5rem 0", fontWeight: 400 }}>
-            Duplicate Image Detector
-          </h1>
-          <p style={{ color: "var(--ink-secondary)", fontSize: "1.05rem", maxWidth: "48rem", margin: "0 0 0.5rem 0" }}>
-            Identify exact duplicates and visually similar images within an uploaded batch.
+          <h1 className="bonsai-title">Duplicate Image Detector</h1>
+          <p className="bonsai-desc">
+            Instantly compare batches of images to detect exact file clones and visually similar variants with mathematical precision.
           </p>
-          <p style={{ fontFamily: "var(--mono)", fontSize: "0.82rem", color: "var(--ink-muted)", margin: 0 }}>
-            Uses SHA-256 byte fingerprints and 64-bit perceptual hashing (pHash). No persistent hash database is required.
-          </p>
+          <div className="bonsai-meta">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>SHA-256 byte hashing &amp; 64-bit perceptual hashing. No persistent database required.</span>
+          </div>
         </div>
 
-        {/* Upload Interface */}
+        {/* Upload Workspace */}
         <div
+          className={`bonsai-upload-box ${isDragging ? "is-dragging" : ""}`}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
-          style={{
-            border: isDragging ? "2px dashed var(--ink)" : "1px dashed var(--border)",
-            background: isDragging ? "var(--accent-subtle, rgba(255,255,255,0.03))" : "var(--bg-card, rgba(255,255,255,0.01))",
-            padding: "2.5rem 1.5rem",
-            textAlign: "center",
-            borderRadius: "6px",
-            marginBottom: "1.5rem",
-            transition: "border-color 0.15s, background-color 0.15s",
-          }}
         >
           <input
             id={inputId}
@@ -233,173 +219,90 @@ export function DuplicateDetector() {
             onChange={(e) => e.target.files && handleFiles(e.target.files)}
           />
 
-          <div style={{ marginBottom: "1rem" }}>
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ opacity: 0.6 }}
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-          </div>
+          <svg className="bonsai-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
 
-          <p style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem" }}>
-            Drag and drop images here, or{" "}
-            <label
-              htmlFor={inputId}
-              style={{
-                color: "var(--ink)",
-                textDecoration: "underline",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
-            >
-              browse files
-            </label>
+          <h2 className="bonsai-upload-title">Upload your images</h2>
+          <p className="bonsai-upload-subtitle">
+            Drag and drop images here, or browse files directly from your device.
           </p>
 
-          <p style={{ fontFamily: "var(--mono)", fontSize: "0.8rem", color: "var(--ink-muted)", margin: 0 }}>
-            2 to 20 images · Up to 10 MB per file · Up to 200 MB total · JPG, JPEG, PNG, WEBP (mixed formats allowed)
+          <button
+            type="button"
+            className="bonsai-btn-primary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Browse Files
+          </button>
+
+          <p className="bonsai-upload-specs">
+            Supports JPG, PNG, WEBP · 2 to 20 images · Up to 10 MB per file · Up to 200 MB total
           </p>
         </div>
 
-        {/* Selected Images Grid */}
+        {/* Selected Images Section */}
         {selectedImages.length > 0 && (
-          <div style={{ marginBottom: "2rem" }}>
+          <div style={{ marginBottom: "40px" }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "1rem",
-                fontFamily: "var(--mono)",
-                fontSize: "0.85rem",
+                marginBottom: "16px",
               }}
             >
-              <div>
-                Selected: <strong>{selectedImages.length}</strong> / {MAX_FILES} images ({formatBytes(totalBytes)})
+              <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#111827" }}>
+                Selected Images ({selectedImages.length}/{MAX_FILES}) ·{" "}
+                <span style={{ fontWeight: 400, color: "#6b7280" }}>{formatBytes(totalBytes)}</span>
                 {validImageCount < selectedImages.length && (
-                  <span style={{ color: "var(--red, #e53e3e)", marginLeft: "0.75rem" }}>
+                  <span style={{ color: "#dc2626", marginLeft: "8px", fontWeight: 500 }}>
                     ({selectedImages.length - validImageCount} invalid)
                   </span>
                 )}
               </div>
               <button
                 type="button"
+                className="bonsai-btn-link"
                 onClick={clearAll}
                 disabled={isComparing}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--ink-secondary)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "inherit",
-                  textDecoration: "underline",
-                }}
               >
                 Clear all
               </button>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-                gap: "1rem",
-                maxHeight: "360px",
-                overflowY: "auto",
-                padding: "0.5rem",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                background: "rgba(0,0,0,0.15)",
-              }}
-            >
+            {/* Previews Grid */}
+            <div className="bonsai-files-grid">
               {selectedImages.map((img) => (
-                <div
-                  key={img.id}
-                  style={{
-                    position: "relative",
-                    border: img.error ? "1px solid var(--red, #e53e3e)" : "1px solid var(--border)",
-                    borderRadius: "4px",
-                    overflow: "hidden",
-                    background: "var(--bg-card, #121212)",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <div style={{ height: "110px", width: "100%", overflow: "hidden", background: "#050505" }}>
-                    <img
-                      src={img.previewUrl}
-                      alt={img.file.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
+                <div key={img.id} className={`bonsai-file-card ${img.error ? "has-error" : ""}`}>
+                  <div className="bonsai-thumb-wrap">
+                    <img src={img.previewUrl} alt={img.file.name} className="bonsai-thumb" />
                   </div>
-                  <div style={{ padding: "0.5rem", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <div
-                      style={{
-                        fontSize: "0.75rem",
-                        fontFamily: "var(--mono)",
-                        wordBreak: "break-all",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        marginBottom: "0.25rem",
-                      }}
-                      title={img.file.name}
-                    >
+                  <div className="bonsai-file-info">
+                    <div className="bonsai-file-name" title={img.file.name}>
                       {img.file.name}
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        fontSize: "0.7rem",
-                        color: "var(--ink-muted)",
-                        fontFamily: "var(--mono)",
-                      }}
-                    >
-                      <span style={{ padding: "1px 4px", border: "1px solid var(--border)", borderRadius: "2px" }}>
-                        {getFormat(img.file)}
-                      </span>
+                    <div className="bonsai-file-meta">
+                      <span className="bonsai-format-chip">{getFormat(img.file)}</span>
                       <span>{formatBytes(img.file.size)}</span>
                     </div>
                     {img.error && (
-                      <div style={{ color: "var(--red, #e53e3e)", fontSize: "0.68rem", marginTop: "0.25rem" }}>
+                      <div style={{ color: "#dc2626", fontSize: "0.6875rem", marginTop: "4px", fontWeight: 500 }}>
                         {img.error}
                       </div>
                     )}
                   </div>
                   <button
                     type="button"
+                    className="bonsai-remove-btn"
                     onClick={() => removeImage(img.id)}
                     disabled={isComparing}
-                    style={{
-                      position: "absolute",
-                      top: "4px",
-                      right: "4px",
-                      background: "rgba(0,0,0,0.7)",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "50%",
-                      width: "22px",
-                      height: "22px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "12px",
-                    }}
-                    title="Remove image"
+                    title="Remove"
                   >
                     ✕
                   </button>
@@ -408,21 +311,13 @@ export function DuplicateDetector() {
             </div>
 
             {/* Action Bar */}
-            <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", gap: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "24px" }}>
               <button
                 type="button"
-                className="btn btn--primary"
+                className="bonsai-btn-primary"
                 onClick={startComparison}
                 disabled={validImageCount < MIN_FILES || isComparing}
-                style={{
-                  padding: "0.75rem 2rem",
-                  fontFamily: "var(--mono)",
-                  fontWeight: 600,
-                  fontSize: "0.95rem",
-                  letterSpacing: "0.05em",
-                  cursor: validImageCount >= MIN_FILES && !isComparing ? "pointer" : "not-allowed",
-                  opacity: validImageCount >= MIN_FILES && !isComparing ? 1 : 0.5,
-                }}
+                style={{ minWidth: "180px" }}
               >
                 {isComparing
                   ? progress !== null && progress > 0
@@ -432,8 +327,8 @@ export function DuplicateDetector() {
               </button>
 
               {validImageCount < MIN_FILES && (
-                <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)", fontFamily: "var(--mono)" }}>
-                  Select at least {MIN_FILES} valid images to enable comparison.
+                <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                  Select at least {MIN_FILES} valid images to start comparison.
                 </span>
               )}
             </div>
@@ -442,36 +337,15 @@ export function DuplicateDetector() {
 
         {/* Error Banner */}
         {error && (
-          <div
-            style={{
-              padding: "1rem",
-              background: "rgba(229, 62, 62, 0.1)",
-              border: "1px solid var(--red, #e53e3e)",
-              borderRadius: "4px",
-              color: "var(--red, #e53e3e)",
-              marginBottom: "1.5rem",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              fontFamily: "var(--mono)",
-              fontSize: "0.9rem",
-            }}
-          >
+          <div className="bonsai-error-banner">
             <div>
               <strong>Error:</strong> {error}
             </div>
             <button
               type="button"
+              className="bonsai-btn-secondary"
               onClick={startComparison}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--red, #e53e3e)",
-                color: "var(--red, #e53e3e)",
-                padding: "4px 12px",
-                borderRadius: "3px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              style={{ padding: "4px 14px", fontSize: "0.8125rem" }}
             >
               Retry
             </button>
@@ -480,415 +354,301 @@ export function DuplicateDetector() {
 
         {/* Results Container */}
         {result && (
-          <div style={{ marginTop: "3rem" }}>
-            {/* Top Summary Bar */}
+          <div style={{ marginTop: "48px" }}>
+            {/* Header with Clear button */}
             <div
               style={{
-                background: "var(--bg-card, #141414)",
-                border: "1px solid var(--border)",
-                borderRadius: "6px",
-                padding: "1.5rem",
-                marginBottom: "2.5rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                marginBottom: "20px",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  borderBottom: "1px solid var(--border)",
-                  paddingBottom: "1rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                <h2 style={{ fontFamily: "var(--serif)", fontSize: "1.5rem", margin: 0, fontWeight: 400 }}>
-                  Batch Comparison Summary
+              <div>
+                <h2 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#000000", margin: "0 0 4px 0", letterSpacing: "-0.02em" }}>
+                  Comparison Summary
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setResult(null)}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    color: "var(--ink)",
-                    padding: "4px 10px",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  Clear Results
-                </button>
+                <p style={{ fontSize: "0.9375rem", color: "#6b7280", margin: 0 }}>
+                  Real-time batch forensic report derived from {result.summary.total_images} uploaded files.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="bonsai-btn-secondary"
+                onClick={() => setResult(null)}
+              >
+                Clear Results
+              </button>
+            </div>
+
+            {/* 8 Clean Metric Cards (Reference 2 Styling) */}
+            <div className="bonsai-summary-grid">
+              {/* 1. Total Images */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                <div className="bonsai-card-val">{result.summary.total_images}</div>
+                <div className="bonsai-card-label">Total Uploaded</div>
+                <p className="bonsai-card-desc">Total files provided in current batch</p>
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-                  gap: "1rem",
-                  textAlign: "center",
-                  fontFamily: "var(--mono)",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Total Uploaded</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{result.summary.total_images}</div>
+              {/* 2. Valid Images */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <div className="bonsai-card-val">{result.summary.valid_images}</div>
+                <div className="bonsai-card-label">Valid Images</div>
+                <p className="bonsai-card-desc">Decoded and verified successfully</p>
+              </div>
+
+              {/* 3. Failed Images */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke={result.summary.failed_images > 0 ? "#dc2626" : "currentColor"}>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <div className="bonsai-card-val" style={{ color: result.summary.failed_images > 0 ? "#dc2626" : "#000000" }}>
+                  {result.summary.failed_images}
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Valid Images</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{result.summary.valid_images}</div>
+                <div className="bonsai-card-label">Failed Files</div>
+                <p className="bonsai-card-desc">Oversized, corrupted, or unsupported</p>
+              </div>
+
+              {/* 4. Total Comparisons */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <div className="bonsai-card-val">{result.summary.total_comparisons}</div>
+                <div className="bonsai-card-label">Total Comparisons</div>
+                <p className="bonsai-card-desc">Pairwise comparisons computed</p>
+              </div>
+
+              {/* 5. Exact Duplicate Groups */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke={result.summary.exact_duplicate_groups > 0 ? "#059669" : "currentColor"}>
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <div className="bonsai-card-val" style={{ color: result.summary.exact_duplicate_groups > 0 ? "#059669" : "#000000" }}>
+                  {result.summary.exact_duplicate_groups}
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Failed Files</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700, color: result.summary.failed_images > 0 ? "var(--red, #e53e3e)" : "inherit" }}>
-                    {result.summary.failed_images}
-                  </div>
+                <div className="bonsai-card-label">Exact Groups</div>
+                <p className="bonsai-card-desc">Identical SHA-256 byte fingerprints</p>
+              </div>
+
+              {/* 6. Very Similar */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke={result.summary.very_similar_pairs > 0 ? "#d97706" : "currentColor"}>
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                <div className="bonsai-card-val" style={{ color: result.summary.very_similar_pairs > 0 ? "#d97706" : "#000000" }}>
+                  {result.summary.very_similar_pairs}
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Comparisons</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{result.summary.total_comparisons}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Exact Groups</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700, color: result.summary.exact_duplicate_groups > 0 ? "var(--green, #48bb78)" : "inherit" }}>
-                    {result.summary.exact_duplicate_groups}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Very Similar</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700, color: result.summary.very_similar_pairs > 0 ? "var(--amber, #ecc94b)" : "inherit" }}>
-                    {result.summary.very_similar_pairs}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>Potential Matches</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{result.summary.potentially_similar_pairs}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textTransform: "uppercase" }}>No Match</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--ink-muted)" }}>{result.summary.no_match_pairs}</div>
-                </div>
+                <div className="bonsai-card-label">Very Similar</div>
+                <p className="bonsai-card-desc">Hamming distance 0 to 5 bits</p>
+              </div>
+
+              {/* 7. Potential Matches */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <div className="bonsai-card-val">{result.summary.potentially_similar_pairs}</div>
+                <div className="bonsai-card-label">Potential Matches</div>
+                <p className="bonsai-card-desc">Hamming distance 6 to 10 bits</p>
+              </div>
+
+              {/* 8. No Matches */}
+              <div className="bonsai-summary-card">
+                <svg className="bonsai-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <div className="bonsai-card-val">{result.summary.no_match_pairs}</div>
+                <div className="bonsai-card-label">No Strong Match</div>
+                <p className="bonsai-card-desc">Hamming distance above 10 bits</p>
               </div>
             </div>
 
             {/* SECTION 1: EXACT DUPLICATES */}
-            <div style={{ marginBottom: "3rem" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem", marginBottom: "1rem" }}>
-                <h3 style={{ fontFamily: "var(--serif)", fontSize: "1.4rem", margin: 0, fontWeight: 400 }}>
-                  Section 1 · Exact Duplicates (SHA-256)
-                </h3>
-                <span style={{ fontFamily: "var(--mono)", fontSize: "0.8rem", color: "var(--ink-muted)" }}>
-                  Byte-for-byte identical files
-                </span>
+            <div className="bonsai-section">
+              <div className="bonsai-section-header">
+                <div>
+                  <h3 className="bonsai-section-title">Exact Duplicates</h3>
+                  <p className="bonsai-section-subtitle">
+                    Identical file bytes confirmed by cryptographic SHA-256 hash comparison.
+                  </p>
+                </div>
+                {result.exact_duplicate_groups.length > 0 && (
+                  <span className="bonsai-badge-success">
+                    {result.summary.exact_duplicate_groups} Group{result.summary.exact_duplicate_groups !== 1 ? "s" : ""} Found
+                  </span>
+                )}
               </div>
 
               {result.exact_duplicate_groups.length === 0 ? (
-                <div
-                  style={{
-                    padding: "1.5rem",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    color: "var(--ink-secondary)",
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  No exact byte-for-byte duplicates were detected in this batch.
+                <div className="bonsai-empty-state">
+                  No byte-for-byte exact duplicate files were detected in this batch.
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                  {result.exact_duplicate_groups.map((group, gIdx) => (
-                    <div
-                      key={group.group_id}
-                      style={{
-                        border: "1px solid var(--border)",
-                        borderRadius: "6px",
-                        padding: "1.25rem",
-                        background: "var(--bg-card, #121212)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "1rem",
-                          borderBottom: "1px solid rgba(255,255,255,0.06)",
-                          paddingBottom: "0.75rem",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                          <span
-                            style={{
-                              background: "rgba(72, 187, 120, 0.15)",
-                              color: "var(--green, #48bb78)",
-                              border: "1px solid rgba(72, 187, 120, 0.4)",
-                              padding: "2px 8px",
-                              borderRadius: "3px",
-                              fontFamily: "var(--mono)",
-                              fontSize: "0.75rem",
-                              fontWeight: 600,
-                            }}
-                          >
-                            Exact Match
-                          </span>
-                          <strong style={{ fontFamily: "var(--mono)", fontSize: "0.9rem" }}>
-                            Group {gIdx + 1} ({group.count} files)
-                          </strong>
-                        </div>
-                        <span
-                          style={{
-                            fontFamily: "var(--mono)",
-                            fontSize: "0.72rem",
-                            color: "var(--ink-muted)",
-                            maxWidth: "320px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={`SHA-256: ${group.sha256}`}
-                        >
-                          SHA-256: {group.sha256}
-                        </span>
+                result.exact_duplicate_groups.map((group, gIdx) => (
+                  <div key={group.group_id} className="bonsai-group-card">
+                    <div className="bonsai-group-header">
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <span className="bonsai-badge-success">✓ Exact Match</span>
+                        <strong style={{ fontSize: "0.9375rem", color: "#111827" }}>
+                          Group {gIdx + 1} ({group.count} files)
+                        </strong>
                       </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                          gap: "1rem",
-                        }}
-                      >
-                        {group.files.map((fname) => {
-                          const thumb = previewMap.get(fname);
-                          return (
-                            <div
-                              key={fname}
-                              style={{
-                                border: "1px solid var(--border)",
-                                borderRadius: "4px",
-                                overflow: "hidden",
-                                background: "#050505",
-                              }}
-                            >
-                              {thumb ? (
-                                <div style={{ height: "100px", width: "100%", overflow: "hidden" }}>
-                                  <img src={thumb} alt={fname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                </div>
-                              ) : (
-                                <div style={{ height: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-muted)" }}>
-                                  Preview unavailable
-                                </div>
-                              )}
-                              <div
-                                style={{
-                                  padding: "0.5rem",
-                                  fontSize: "0.75rem",
-                                  fontFamily: "var(--mono)",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                                title={fname}
-                              >
-                                {fname}
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="bonsai-hash-chip" title={group.sha256}>
+                        SHA-256: {group.sha256}
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "16px" }}>
+                      {group.files.map((fname) => {
+                        const thumb = previewMap.get(fname);
+                        return (
+                          <div
+                            key={fname}
+                            style={{
+                              background: "#ffffff",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "10px",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div style={{ width: "100%", height: "120px", background: "#f3f4f6" }}>
+                              {thumb ? (
+                                <img src={thumb} alt={fname} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : null}
+                            </div>
+                            <div style={{ padding: "10px", fontSize: "0.8125rem", fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={fname}>
+                              {fname}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
             {/* SECTION 2: VISUALLY SIMILAR IMAGES */}
-            <div style={{ marginBottom: "3rem" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem", marginBottom: "0.5rem" }}>
-                <h3 style={{ fontFamily: "var(--serif)", fontSize: "1.4rem", margin: 0, fontWeight: 400 }}>
-                  Section 2 · Visually Similar Images (Perceptual Hash)
-                </h3>
-                <span style={{ fontFamily: "var(--mono)", fontSize: "0.8rem", color: "var(--ink-muted)" }}>
-                  Hamming distance ≤ 10 / 64 bits
-                </span>
+            <div className="bonsai-section">
+              <div className="bonsai-section-header">
+                <div>
+                  <h3 className="bonsai-section-title">Visually Similar Images</h3>
+                  <p className="bonsai-section-subtitle">
+                    Images sharing visual structure evaluated via 64-bit perceptual hashing (pHash).
+                  </p>
+                </div>
+                {result.similar_matches.length > 0 && (
+                  <span className="bonsai-badge-warn">
+                    {result.similar_matches.length} Matched Pair{result.similar_matches.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </div>
-              <p style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", color: "var(--ink-muted)", margin: "0 0 1rem 0" }}>
-                Mathematical hash similarity percentage: (1 - Hamming Distance / 64) * 100. Not forensic proof of authenticity.
-              </p>
 
               {result.similar_matches.length === 0 ? (
-                <div
-                  style={{
-                    padding: "1.5rem",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    color: "var(--ink-secondary)",
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  No visually similar image pairs were detected within the similarity threshold.
+                <div className="bonsai-empty-state">
+                  No visually similar image pairs were detected within the similarity threshold (distance ≤ 10).
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {result.similar_matches.map((match, idx) => {
-                    const thumbA = previewMap.get(match.file_a);
-                    const thumbB = previewMap.get(match.file_b);
-                    const isVerySimilar = match.classification === "very_similar";
+                result.similar_matches.map((match, idx) => {
+                  const thumbA = previewMap.get(match.file_a);
+                  const thumbB = previewMap.get(match.file_b);
+                  const isVerySimilar = match.classification === "very_similar";
 
-                    return (
-                      <div
-                        key={`${match.file_a}-${match.file_b}-${idx}`}
-                        style={{
-                          border: "1px solid var(--border)",
-                          borderRadius: "6px",
-                          padding: "1rem 1.25rem",
-                          background: "var(--bg-card, #121212)",
-                          display: "flex",
-                          flexWrap: "wrap",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "1rem",
-                        }}
-                      >
-                        {/* Side by side image previews */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "110px" }}>
-                            <div style={{ width: "90px", height: "70px", borderRadius: "3px", overflow: "hidden", background: "#050505", border: "1px solid var(--border)" }}>
-                              {thumbA ? (
-                                <img src={thumbA} alt={match.file_a} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : null}
-                            </div>
-                            <span
-                              style={{
-                                fontSize: "0.72rem",
-                                fontFamily: "var(--mono)",
-                                maxWidth: "100px",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                marginTop: "0.25rem",
-                              }}
-                              title={match.file_a}
-                            >
-                              {match.file_a}
-                            </span>
+                  return (
+                    <div key={`${match.file_a}-${match.file_b}-${idx}`} className="bonsai-pair-card">
+                      {/* Left: Previews */}
+                      <div className="bonsai-pair-previews">
+                        <div className="bonsai-pair-item">
+                          <div className="bonsai-pair-img-wrap">
+                            {thumbA && <img src={thumbA} alt={match.file_a} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                           </div>
-
-                          <span style={{ fontFamily: "var(--mono)", fontSize: "0.85rem", color: "var(--ink-muted)" }}>vs</span>
-
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "110px" }}>
-                            <div style={{ width: "90px", height: "70px", borderRadius: "3px", overflow: "hidden", background: "#050505", border: "1px solid var(--border)" }}>
-                              {thumbB ? (
-                                <img src={thumbB} alt={match.file_b} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : null}
-                            </div>
-                            <span
-                              style={{
-                                fontSize: "0.72rem",
-                                fontFamily: "var(--mono)",
-                                maxWidth: "100px",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                marginTop: "0.25rem",
-                              }}
-                              title={match.file_b}
-                            >
-                              {match.file_b}
-                            </span>
-                          </div>
+                          <span className="bonsai-pair-name" title={match.file_a}>{match.file_a}</span>
                         </div>
 
-                        {/* Match metrics */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", fontFamily: "var(--mono)" }}>
-                          <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: "0.75rem", color: "var(--ink-muted)" }}>
-                              Hamming: <strong>{match.hamming_distance}</strong> / 64
-                            </div>
-                            <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
-                              {match.similarity_percent.toFixed(2)}%
-                            </div>
-                          </div>
+                        <span className="bonsai-vs-pill">VS</span>
 
-                          <span
-                            style={{
-                              background: isVerySimilar ? "rgba(236, 201, 75, 0.15)" : "rgba(255, 255, 255, 0.08)",
-                              color: isVerySimilar ? "var(--amber, #ecc94b)" : "var(--ink-secondary)",
-                              border: isVerySimilar ? "1px solid rgba(236, 201, 75, 0.4)" : "1px solid var(--border)",
-                              padding: "4px 10px",
-                              borderRadius: "4px",
-                              fontSize: "0.78rem",
-                              fontWeight: 600,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.05em",
-                            }}
-                          >
-                            {isVerySimilar ? "Very Similar" : "Potentially Similar"}
-                          </span>
+                        <div className="bonsai-pair-item">
+                          <div className="bonsai-pair-img-wrap">
+                            {thumbB && <img src={thumbB} alt={match.file_b} style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                          </div>
+                          <span className="bonsai-pair-name" title={match.file_b}>{match.file_b}</span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {/* Right: Metrics */}
+                      <div className="bonsai-pair-metrics">
+                        <div style={{ textAlign: "right" }}>
+                          <div className="bonsai-sim-val">{match.similarity_percent.toFixed(2)}%</div>
+                          <div style={{ fontSize: "0.8125rem", color: "#6b7280" }}>
+                            Hamming: <strong>{match.hamming_distance}</strong> / 64 bits
+                          </div>
+                        </div>
+
+                        <span className={isVerySimilar ? "bonsai-badge-warn" : "bonsai-badge-neutral"}>
+                          {isVerySimilar ? "Very Similar" : "Potentially Similar"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
               )}
+
+              <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginTop: "16px", marginBottom: 0 }}>
+                * Perceptual similarity measures geometric and frequency distribution. It does not establish common origin or forensic authenticity.
+              </p>
             </div>
 
             {/* SECTION 3: NO STRONG MATCHES */}
-            <div style={{ marginBottom: "3rem" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem", marginBottom: "1rem" }}>
-                <h3 style={{ fontFamily: "var(--serif)", fontSize: "1.4rem", margin: 0, fontWeight: 400 }}>
-                  Section 3 · No Strong Matches
-                </h3>
-                <span style={{ fontFamily: "var(--mono)", fontSize: "0.8rem", color: "var(--ink-muted)" }}>
-                  Hamming distance &gt; 10 / 64 bits
-                </span>
+            <div className="bonsai-section">
+              <div className="bonsai-section-header">
+                <div>
+                  <h3 className="bonsai-section-title">No Strong Matches</h3>
+                  <p className="bonsai-section-subtitle">
+                    Image pairs that did not meet the configured perceptual similarity threshold (distance &gt; 10).
+                  </p>
+                </div>
               </div>
 
               {result.no_strong_matches.length === 0 ? (
-                <div
-                  style={{
-                    padding: "1.5rem",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    color: "var(--ink-secondary)",
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.85rem",
-                  }}
-                >
+                <div className="bonsai-empty-state">
                   No exact duplicates or strong perceptual matches were detected in this batch.
                 </div>
               ) : (
-                <div
-                  style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: "6px",
-                    padding: "1rem",
-                    background: "var(--bg-card, #121212)",
-                    maxHeight: "260px",
-                    overflowY: "auto",
-                  }}
-                >
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--mono)", fontSize: "0.8rem" }}>
+                <div className="bonsai-table-wrap">
+                  <table className="bonsai-table">
                     <thead>
-                      <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--ink-muted)" }}>
-                        <th style={{ padding: "0.5rem" }}>Image Pair</th>
-                        <th style={{ padding: "0.5rem" }}>Hamming Distance</th>
-                        <th style={{ padding: "0.5rem" }}>Similarity</th>
-                        <th style={{ padding: "0.5rem" }}>Status</th>
+                      <tr>
+                        <th>Image Pair</th>
+                        <th>Hamming Distance</th>
+                        <th>Bit Similarity</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {result.no_strong_matches.map((pair, idx) => (
-                        <tr key={`${pair.file_a}-${pair.file_b}-${idx}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                          <td style={{ padding: "0.5rem" }}>
-                            {pair.file_a} <span style={{ color: "var(--ink-muted)" }}>vs</span> {pair.file_b}
+                        <tr key={`${pair.file_a}-${pair.file_b}-${idx}`}>
+                          <td style={{ fontWeight: 600, color: "#111827" }}>
+                            {pair.file_a} <span style={{ color: "#9ca3af", fontWeight: 400 }}>vs</span> {pair.file_b}
                           </td>
-                          <td style={{ padding: "0.5rem" }}>{pair.hamming_distance} / 64</td>
-                          <td style={{ padding: "0.5rem" }}>{pair.similarity_percent.toFixed(2)}%</td>
-                          <td style={{ padding: "0.5rem", color: "var(--ink-muted)" }}>No Strong Match</td>
+                          <td>{pair.hamming_distance} / 64 bits</td>
+                          <td>{pair.similarity_percent.toFixed(2)}%</td>
+                          <td style={{ color: "#6b7280" }}>No Strong Match</td>
                         </tr>
                       ))}
                     </tbody>
@@ -899,14 +659,17 @@ export function DuplicateDetector() {
 
             {/* FAILED FILES (IF ANY) */}
             {result.failed_files.length > 0 && (
-              <div style={{ marginBottom: "3rem" }}>
-                <h3 style={{ fontFamily: "var(--serif)", fontSize: "1.4rem", margin: "0 0 1rem 0", fontWeight: 400, color: "var(--red, #e53e3e)" }}>
+              <div className="bonsai-section" style={{ borderColor: "#fecaca" }}>
+                <h3 className="bonsai-section-title" style={{ color: "#dc2626" }}>
                   Failed Files ({result.failed_files.length})
                 </h3>
-                <div style={{ border: "1px solid var(--red, #e53e3e)", borderRadius: "6px", padding: "1rem", background: "rgba(229, 62, 62, 0.05)" }}>
-                  <ul style={{ margin: 0, paddingLeft: "1.25rem", fontFamily: "var(--mono)", fontSize: "0.85rem" }}>
+                <p className="bonsai-section-subtitle" style={{ marginBottom: "16px" }}>
+                  The following files were excluded from comparison due to validation errors.
+                </p>
+                <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "10px", padding: "16px" }}>
+                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.875rem", color: "#991b1b" }}>
                     {result.failed_files.map((ff, idx) => (
-                      <li key={idx} style={{ marginBottom: "0.25rem" }}>
+                      <li key={idx} style={{ marginBottom: "6px" }}>
                         <strong>{ff.filename}</strong>: {ff.error}
                       </li>
                     ))}
@@ -915,24 +678,19 @@ export function DuplicateDetector() {
               </div>
             )}
 
-            {/* Privacy Explanation */}
-            <div
-              style={{
-                padding: "1rem 1.25rem",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                background: "rgba(255,255,255,0.02)",
-                fontFamily: "var(--mono)",
-                fontSize: "0.78rem",
-                color: "var(--ink-muted)",
-                lineHeight: 1.5,
-              }}
-            >
-              <strong>Privacy Notice:</strong> Images are processed in memory for this comparison only. No persistent image or hash database is used. All temporary buffers are cleared immediately after comparison.
+            {/* Privacy Notice Banner */}
+            <div className="bonsai-privacy-box">
+              <svg className="bonsai-privacy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <p className="bonsai-privacy-text">
+                <strong>Privacy Assurance:</strong> Uploaded images are processed entirely in-memory for this comparison session only. No persistent image files, hashes, or analytical records are stored in any database. All temporary byte buffers are cleared immediately upon request completion.
+              </p>
             </div>
           </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }

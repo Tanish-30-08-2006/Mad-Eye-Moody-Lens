@@ -154,16 +154,24 @@ export default function App() {
         <Nav state={state} />
         <main>
           {view === "duplicate" ? (
-            <div>
-              <div className="container" style={{ paddingTop: "1.5rem" }}>
+            <div style={{ background: "#ffffff", minHeight: "100vh" }}>
+              <div className="container" style={{ paddingTop: "1.5rem", paddingBottom: "0.5rem" }}>
                 <a
                   href="#analyse"
                   onClick={() => setView("main")}
                   style={{
-                    fontFamily: "var(--mono)",
-                    fontSize: "0.85rem",
-                    color: "var(--ink-secondary)",
-                    textDecoration: "underline",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    color: "#111827",
+                    textDecoration: "none",
+                    background: "#f3f4f6",
+                    padding: "6px 16px",
+                    borderRadius: "9999px",
+                    border: "1px solid #e5e7eb",
                     cursor: "pointer",
                   }}
                 >
