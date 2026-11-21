@@ -6,6 +6,7 @@ import { before, beforeEach, test } from "node:test";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { fileURLToPath } from "node:url";
 
 import { installChromeMock } from "./chrome-mock.mjs";
 
@@ -320,10 +321,8 @@ function createMockDom() {
 
 test("Video Banner Dedup Suite", async (t) => {
   const dom = createMockDom();
-  const contentCode = fs.readFileSync(
-    path.resolve(process.cwd(), "Browser_Extension/frontend/content.js"),
-    "utf8"
-  );
+  const contentPath = fileURLToPath(new URL("../../frontend/content.js", import.meta.url));
+  const contentCode = fs.readFileSync(contentPath, "utf8");
   const runtimeListeners = [];
 
   const context = {
