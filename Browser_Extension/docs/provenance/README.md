@@ -1,5 +1,11 @@
 # Image Provenance Check
 
+For a ready-to-upload example, choose
+[Firefly_tabby_cat.jpg](../../backend/tests/fixtures/provenance/Firefly_tabby_cat.jpg)
+from the existing provenance fixtures folder. Expect **Unknown signer**, Adobe
+Firefly and a declared AI origin. [SAMPLE_IMAGES.md](SAMPLE_IMAGES.md) lists public
+original-image links, dated observations and honest coverage of all six states.
+
 This feature reads the selected image's file bytes locally to verify C2PA Content
 Credentials and inspect unsigned generator metadata. It is independent of the
 detector provider, its API key, and its success or failure.
@@ -13,8 +19,8 @@ prove authenticity. Unsigned metadata can be edited or forged.
 
 See [architecture](ARCHITECTURE.md), [result contract](RESULT_CONTRACT.md),
 [security](SECURITY_AND_PRIVACY.md), [testing](TESTING.md), [issues](ISSUES_MAP.md),
-and [future-agent briefing](LLM_CONTEXT.md). Implementation follows the seven
-commits listed in the issue map. Browser checks are explicitly manual.
+and [future-agent briefing](LLM_CONTEXT.md). The implementation and follow-up
+commits are listed in the issue map. Browser checks are explicitly manual.
 
 Implementation and automated Node checks are complete. The user's manual Chrome
 acceptance is pending. [PR_HANDOFF.md](PR_HANDOFF.md) contains a filled repository

@@ -51,6 +51,10 @@ commit generated private keys or add test-root-A.crt to runtime anchors.
 
 ## Manual Chrome checklist — user must run; currently pending
 
+Public original-image links and all six status acceptance cases are listed in
+[SAMPLE_IMAGES.md](SAMPLE_IMAGES.md). Firefly_tabby_cat.jpg is also bundled in the
+existing backend/tests/fixtures/provenance/ folder for a direct local upload.
+
 1. Open chrome://extensions, enable Developer mode, and Load unpacked
    **Browser_Extension/**. Reload after pulling new commits. Open the side panel.
    The lowercase directory is not the extension under test.
@@ -72,6 +76,7 @@ commit generated private keys or add test-root-A.crt to runtime anchors.
    | large-stripped.jpg | No credentials found after SDK read (regression case) |
    | signed.png | Unknown signer; Signer A; declared AI; four recorded actions |
    | untrusted.png | Unknown signer; Signer B; declared AI; four recorded actions |
+   | Firefly_tabby_cat.jpg | Unknown signer; Adobe Firefly C2PA; Adobe_Firefly; declared AI-generated; Created |
    | corrupted-signature.png | Signature invalid; claimSignature.mismatch in SDK codes |
    | binding-mismatch.png | Signature invalid; assertion.dataHash.mismatch in SDK codes |
    | truncated.png | Signature invalid; image preview may itself be undecodable |

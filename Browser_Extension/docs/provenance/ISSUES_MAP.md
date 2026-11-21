@@ -66,3 +66,15 @@ by real WASM, plus safe failure-stage messages and UI tests. The test fails befo
 the adapter fix. No crypto code, vendor hashes, original extension files, provider
 behavior, permissions or backend code change. User-confirmed Chrome success for
 signed.png is recorded; the post-fix ordinary-JPEG retest remains manual.
+
+## User-requested sample/documentation follow-up
+
+docs(provenance): add Firefly sample and public test guide
+
+The user requested the previously downloaded Firefly original inside the repo.
+It now lives in the existing provenance fixtures folder with upstream MIT
+attribution/licence and expected JSON. SAMPLE_IMAGES.md supplies verified public
+links and covers all six states using public originals, deterministic local
+fixtures and an explicit test-root positive case. No unconfirmed public Verified
+badge is claimed. This additional commit is explicitly requested after the prior
+eight commits; their history is preserved. No runtime or provider code changes.

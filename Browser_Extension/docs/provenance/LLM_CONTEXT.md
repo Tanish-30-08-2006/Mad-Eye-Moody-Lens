@@ -1,7 +1,8 @@
 # Future-agent briefing
 
 Purpose: local image-file provenance alongside the independent detector.
-Branch: feature/image-provenance-check. Seven planned commits plus one manual-test fix; do not commit
+Branch: feature/image-provenance-check. Seven planned commits plus manual-test
+and sample-documentation follow-ups; do not commit
 main, force-push, or create/merge a PR. User will open one PR for five issues.
 
 Status: implementation and Node tests complete; Chrome checklist PENDING. Do not
@@ -23,6 +24,13 @@ use Chrome automation. Never claim Node establishes real MV3 CSP/worker behavior
   detector verdict does not produce a disagreement note for a new preview.
 
 ## File map
+
+SAMPLE_IMAGES.md lists dated public original-image links and coverage of all six
+states. Firefly_tabby_cat.jpg is bundled under the existing provenance fixtures,
+with its source, upstream MIT notice (LICENSE-CAI.txt) and expected JSON. Keep
+this imported example separate from the generated CC0 artwork's attribution.
+Its production-anchor badge is Unknown signer with a declared AI origin; do not
+add trust anchors to make it Verified. No confirmed public trusted URL is claimed.
 
 frontend/provenance/: bytes.js (acquisition); metadata-reader.js (pure bounded
 PNG/JPEG/WebP parser); c2pa-verifier.js (injectable lazy SDK adapter); c2pa-worker.js
