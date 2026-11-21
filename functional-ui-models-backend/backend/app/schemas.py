@@ -92,3 +92,60 @@ class Explanation(BaseModel):
 
 class ErrorBody(BaseModel):
     error: str
+
+
+# ------------------------------------------------ duplicate image detection
+class DuplicateGroup(BaseModel):
+    group_id: str
+    sha256: str
+    files: list[str]
+    count: int
+
+
+class SimilarMatch(BaseModel):
+    file_a: str
+    file_b: str
+    hamming_distance: int
+    similarity_percent: float
+    classification: Literal["very_similar", "potentially_similar"]
+
+
+class NoStrongMatch(BaseModel):
+    file_a: str
+    file_b: str
+    hamming_distance: int
+    similarity_percent: float
+
+
+class FailedFile(BaseModel):
+    filename: str
+    error: str
+
+
+class DuplicateSummary(BaseModel):
+    total_images: int
+    valid_images: int
+    failed_images: int
+    total_comparisons: int
+    exact_duplicate_groups: int
+    exact_duplicate_pairs: int
+    very_similar_pairs: int
+    potentially_similar_pairs: int
+    no_match_pairs: int
+
+
+class DuplicateCompareResponse(BaseModel):
+    success: bool
+    total_images: int
+    valid_images: int
+    failed_images: int
+    total_comparisons: int
+    exact_duplicate_groups: list[DuplicateGroup] = []
+    similar_matches: list[SimilarMatch] = []
+    no_strong_matches: list[NoStrongMatch] = []
+    failed_files: list[FailedFile] = []
+    summary: DuplicateSummary
+    disclaimer: str = (
+        "Perceptual hash similarity and SHA-256 byte fingerprints are mathematical "
+        "comparisons, not forensic proof of common origin or image authenticity."
+    )
