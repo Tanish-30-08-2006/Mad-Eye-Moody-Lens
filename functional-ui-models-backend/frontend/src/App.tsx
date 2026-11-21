@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { analyzeAudio, analyzeImage, AnalysisResult, MediaType, startVideoJob } from "./api/client";
 import { Analyser, Phase } from "./components/Analyser";
 import { Footer, GridBackground, Nav } from "./components/Chrome";
+import { DuplicateDetector } from "./components/DuplicateDetector/DuplicateDetector";
 import { ExternalProviderModal } from "./components/ExternalProviderModal";
 import { ExternalResultCard } from "./components/ExternalResultCard";
 import { Hero } from "./components/Hero";
@@ -35,6 +36,37 @@ export default function App() {
   const [resultFile, setResultFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const resultRef = useRef<HTMLDivElement | null>(null);
+
+  const [view, setView] = useState<"main" | "duplicate">(() => {
+    if (typeof window !== "undefined") {
+      if (
+        window.location.pathname === "/duplicate-detection" ||
+        window.location.hash === "#duplicate-detection"
+      ) {
+        return "duplicate";
+      }
+    }
+    return "main";
+  });
+
+  useEffect(() => {
+    const checkHash = () => {
+      if (
+        window.location.pathname === "/duplicate-detection" ||
+        window.location.hash === "#duplicate-detection"
+      ) {
+        setView("duplicate");
+      } else {
+        setView("main");
+      }
+    };
+    window.addEventListener("hashchange", checkHash);
+    window.addEventListener("popstate", checkHash);
+    return () => {
+      window.removeEventListener("hashchange", checkHash);
+      window.removeEventListener("popstate", checkHash);
+    };
+  }, []);
 
   const job = useJobPolling(jobId);
 
@@ -121,45 +153,68 @@ export default function App() {
       <div className="app">
         <Nav state={state} />
         <main>
-          <Hero state={state} models={models} />
-          <ModelStats byKey={byKey} />
-          <Analyser
-            phase={phase}
-            error={error}
-            byKey={byKey}
-            onSubmit={submit}
-            externalConfig={externalProvider.config}
-            isExternalConfigured={externalProvider.isConfigured}
-            onExternalSubmit={submitExternal}
-            onOpenExternalSettings={openSettings}
-            isExternalBusy={externalBusy}
-          >
-            <div ref={resultRef} style={{ scrollMarginTop: 96 }}>
-              {result && <ResultCard result={result} fileName={fileName} file={resultFile} />}
-              {externalResult && (
-                <ExternalResultCard
-                  result={externalResult}
-                  fileName={fileName}
-                  onAnalyseNative={() => resultFile && submit("image", resultFile)}
-                />
-              )}
+          {view === "duplicate" ? (
+            <div>
+              <div className="container" style={{ paddingTop: "1.5rem" }}>
+                <a
+                  href="#analyse"
+                  onClick={() => setView("main")}
+                  style={{
+                    fontFamily: "var(--mono)",
+                    fontSize: "0.85rem",
+                    color: "var(--ink-secondary)",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Back to Deepfake Analyser
+                </a>
+              </div>
+              <DuplicateDetector />
             </div>
-          </Analyser>
-          <TextReveal />
-          <Workflow />
-          <History
-            entries={history.entries}
-            onClear={history.clear}
-            onOpen={(e) => {
-              setError(null);
-              setFileName(e.fileName);
-              setResultFile(null); // History keeps results only, never media
-              setExternalResult(null);
-              setResult(e.result);
-              requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-            }}
-          />
-          <Limitations byKey={byKey} />
+          ) : (
+            <>
+              <Hero state={state} models={models} />
+              <ModelStats byKey={byKey} />
+              <Analyser
+                phase={phase}
+                error={error}
+                byKey={byKey}
+                onSubmit={submit}
+                externalConfig={externalProvider.config}
+                isExternalConfigured={externalProvider.isConfigured}
+                onExternalSubmit={submitExternal}
+                onOpenExternalSettings={openSettings}
+                isExternalBusy={externalBusy}
+              >
+                <div ref={resultRef} style={{ scrollMarginTop: 96 }}>
+                  {result && <ResultCard result={result} fileName={fileName} file={resultFile} />}
+                  {externalResult && (
+                    <ExternalResultCard
+                      result={externalResult}
+                      fileName={fileName}
+                      onAnalyseNative={() => resultFile && submit("image", resultFile)}
+                    />
+                  )}
+                </div>
+              </Analyser>
+              <TextReveal />
+              <Workflow />
+              <History
+                entries={history.entries}
+                onClear={history.clear}
+                onOpen={(e) => {
+                  setError(null);
+                  setFileName(e.fileName);
+                  setResultFile(null); // History keeps results only, never media
+                  setExternalResult(null);
+                  setResult(e.result);
+                  requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                }}
+              />
+              <Limitations byKey={byKey} />
+            </>
+          )}
         </main>
         <Footer />
       </div>

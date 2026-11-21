@@ -29,6 +29,7 @@ export function StatusDot({ state }: { state: BackendState }) {
 
 const LINKS = [
   ["Analyse", "#analyse"],
+  ["Duplicate Image Detector", "#duplicate-detection"],
   ["Models", "#models"],
   ["How it works", "#how"],
   ["History", "#history"],

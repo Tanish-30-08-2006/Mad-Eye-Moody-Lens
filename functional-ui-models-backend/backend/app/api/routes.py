@@ -24,8 +24,15 @@ from app.core.redis import get_redis
 from app.core.storage import get_storage
 from app.core.uploads import save_upload
 from app.db.session import db_healthy
-from app.schemas import AnalysisResult, ErrorBody, Explanation, JobStatus, ModelInfo
-from app.services import dispatch, heartbeat, jobs, results
+from app.schemas import (
+    AnalysisResult,
+    DuplicateCompareResponse,
+    ErrorBody,
+    Explanation,
+    JobStatus,
+    ModelInfo,
+)
+from app.services import dispatch, duplicate_detector, heartbeat, jobs, results
 
 router = APIRouter(prefix="/api/v1")
 
@@ -143,3 +150,18 @@ def get_explanation(analysis_id: str, request: Request) -> Explanation:
     """Grad-CAM heatmaps for the face model: attention + face boxes, never pixels."""
     check_rate_limit(request, "poll")
     return results.get_explanation(analysis_id, settings.face_model_id)
+
+
+# ------------------------------------------------ duplicate detection
+@router.post(
+    "/duplicate-detection/compare",
+    response_model=DuplicateCompareResponse,
+    tags=["duplicate-detection"],
+    responses=ERRORS,
+)
+async def compare_duplicates(
+    request: Request,
+    files: list[UploadFile] = File(...),
+) -> DuplicateCompareResponse:
+    """Compare a batch of 2-20 images for exact byte duplicates (SHA-256) and perceptual similarity (pHash)."""
+    return await run_in_threadpool(duplicate_detector.compare_batch, files)

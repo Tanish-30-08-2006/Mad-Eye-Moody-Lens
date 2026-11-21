@@ -21,6 +21,7 @@ redis>=6.1.0
 
 # --- media and models (workers)
 pillow>=10.4
+imagehash>=4.3.0,<5
 numpy>=1.26,<3
 soundfile>=0.12
 librosa>=0.10.2
