@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import init, { WasmReader } from '../../frontend/provenance/vendor/c2pa/wasm-bindings.js';
+import { Context } from '../../frontend/provenance/vendor/c2pa/sdk.js';
 import { verifyC2pa, VERIFY_SETTINGS, sdkReadError } from '../../frontend/provenance/c2pa-verifier.js';
 import { checkProvenance, classifyC2pa } from '../../frontend/provenance/provenance-core.js';
 
@@ -12,6 +13,21 @@ const json = async name => JSON.parse(await fixture(name));
 const vendor = new URL('../../frontend/provenance/vendor/c2pa/', import.meta.url);
 const codes = store => Object.fromEntries(['success', 'failure', 'informational'].map(k => [k, [...new Set((store.validation_results?.activeManifest?.[k] || []).map(x => x.code))].sort()]));
 await init({ module_or_path: await readFile(new URL('c2pa_bg.wasm', vendor)) });
+
+test('real SDK Context serializes offline production anchors and never trusts the test signer', async () => {
+  const anchors = await readFile(new URL('C2PA-TRUST-LIST.pem', vendor), 'utf8');
+  const tsa = await readFile(new URL('C2PA-TSA-TRUST-LIST.pem', vendor), 'utf8');
+  const fetchBefore = globalThis.fetch;
+  globalThis.fetch = () => assert.fail('offline Context must not fetch any trust resources');
+  let reader;
+  try {
+    const serialized = await new Context({ verify: { ...VERIFY_SETTINGS }, trust: { trustAnchors: anchors }, tsaTrust: { trustAnchors: tsa } }).toJson();
+    const settings = JSON.parse(serialized);
+    assert.equal(settings.verify.remote_manifest_fetch, false); assert.equal(settings.verify.ocsp_fetch, false);
+    reader = await WasmReader.fromBytes('image/png', await fixture('signed.png'), serialized);
+    assert.equal(classifyC2pa({ kind: 'manifest', store: reader.manifestStore() }).status, 'untrusted_signer');
+  } finally { reader?.free(); globalThis.fetch = fetchBefore; }
+});
 
 test('vendor hashes and the complete one-line same-extension worker patch are reproducible', async () => {
   const hashes = JSON.parse(await readFile(new URL('SHA256SUMS.json', vendor), 'utf8'));

@@ -1,5 +1,33 @@
 # Architecture and decisions
 
+Container magic is checked as binary bytes plus ASCII. In particular, PNG's
+0x89 signature byte must not depend on Latin-1/Windows-1252 decoder alias behavior;
+a cross-runtime decoder test protects that browser boundary.
+
+At most 12 compressed-text inflations are attempted per file (64 KiB output per
+attempt). Failed compression bombs consume this work budget too, preventing a
+file with thousands of hostile chunks from repeatedly inflating on the UI thread.
+
+## UI attachment and races
+
+The single HTML integration adds one scoped stylesheet, one container below the
+detector card, and one module tag alongside the unchanged classic script.
+MutationObserver watches preview src and verdict class. Generation checks plus
+AbortController prevent old byte/SDK results from rendering after switch, clear,
+or teardown. No provider configuration is read or required. Re-check repeats the
+same source without caching or persisting file-derived data.
+
+The detector DOM exposes no image ID. After a new preview selection, a previous
+verdict is ignored for disagreement notes until a new observed empty->verdict
+cycle. A detector request that was already running before the selection cannot
+create a note. This conservative behavior can suppress a note if mutations are
+coalesced; it never changes the detector to invent an association. DOM-double
+tests cover the observer contract; real page behavior remains on the manual list.
+
+Rendering uses only createElement, textContent and replaceChildren. Static
+classes come from enumerated statuses. No file-derived URL becomes a link or
+image request. Cautions remain visible in empty, checking and completed states.
+
 ## Verified repository facts
 
 The active extension is `Browser_Extension/`; the lowercase copy is excluded.

@@ -4,7 +4,7 @@ This feature reads the selected image's file bytes locally to verify C2PA Conten
 Credentials and inspect unsigned generator metadata. It is independent of the
 detector provider, its API key, and its success or failure.
 
-Planned use: select/upload an image in the side panel and read **Provenance (file
+Select/upload an image in the side panel and read **Provenance (file
 credentials)** below the detector. Re-check repeats the local check. URLs may need
 existing site access; upload the original file when downloading fails.
 
@@ -15,3 +15,8 @@ See [architecture](ARCHITECTURE.md), [result contract](RESULT_CONTRACT.md),
 [security](SECURITY_AND_PRIVACY.md), [testing](TESTING.md), [issues](ISSUES_MAP.md),
 and [future-agent briefing](LLM_CONTEXT.md). Implementation follows the seven
 commits listed in the issue map. Browser checks are explicitly manual.
+
+The existing Copy Report action is unchanged and does not export provenance.
+Nothing from this feature is saved to history or chrome.storage. Supported file
+containers are JPEG, PNG and WebP, up to 8 MiB. GIF and other formats receive
+Unsupported format. A remote manifest link is reported but never downloaded.

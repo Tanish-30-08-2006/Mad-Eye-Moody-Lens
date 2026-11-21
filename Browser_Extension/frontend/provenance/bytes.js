@@ -36,19 +36,20 @@ export function decodeDataImage(source) {
       if (raw.length > MAX_BYTES) throw new Error();
       bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
     } else {
-      const out = [];
+      const out = new Uint8Array(Math.min(encoded.length, MAX_BYTES));
+      let size = 0;
       for (let i = 0; i < encoded.length; i++) {
-        if (out.length >= MAX_BYTES) throw new Error();
+        if (size >= MAX_BYTES) throw new Error();
         if (encoded[i] === '%') {
           const hex = encoded.slice(i + 1, i + 3);
           if (!/^[a-f0-9]{2}$/i.test(hex)) throw new Error();
-          out.push(parseInt(hex, 16)); i += 2;
+          out[size++] = parseInt(hex, 16); i += 2;
         } else {
           if (encoded.charCodeAt(i) > 127) throw new Error();
-          out.push(encoded.charCodeAt(i));
+          out[size++] = encoded.charCodeAt(i);
         }
       }
-      bytes = Uint8Array.from(out);
+      bytes = out.subarray(0, size);
     }
   } catch { throw new AcquisitionError(uploadMessage); }
   if (!bytes.length) throw new AcquisitionError(uploadMessage);

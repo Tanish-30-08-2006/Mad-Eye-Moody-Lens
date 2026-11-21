@@ -1,5 +1,11 @@
 # Testing and manual acceptance
 
+Panel tests use a small DOM double whose innerHTML setter fails. They verify all
+six badges, literal malicious text, field limits, generation/abort races, clear,
+stale detector disagreement suppression, no-provider/error independence, Re-check,
+focus restoration, teardown and the classic-script/module HTML hooks. They do
+not establish browser layout, actual MutationObserver scheduling or host access.
+
 Declaration tests cover the actual signed fixture, exact AI/capture URIs,
 active-manifest isolation, claimed signing time, unknown/malicious actions,
 truncation and contradictory source statements. They never infer an edit history.

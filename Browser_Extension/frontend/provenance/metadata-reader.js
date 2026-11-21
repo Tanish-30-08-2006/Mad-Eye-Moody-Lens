@@ -1,5 +1,5 @@
 // Pure, bounded container inspection. It never validates a signature or fetches a URL.
-export const LIMITS = Object.freeze({ file: 8 * 1024 * 1024, chunk: 65536, totalText: 262144, chunks: 4096, hints: 12, text: 240 });
+export const LIMITS = Object.freeze({ file: 8 * 1024 * 1024, chunk: 65536, totalText: 262144, chunks: 4096, hints: 12, text: 240, inflations: 12 });
 const decoder = new TextDecoder();
 const latin = new TextDecoder('latin1');
 const tools = /stable\s*diffusion|automatic1111|comfyui|midjourney|dall[ -]?e|firefly|invokeai|novelai|fooocus|adobe photoshop|generative/i;
@@ -29,6 +29,8 @@ async function inflate(bytes) {
 export async function readMetadata(input) {
   const result = { format: null, marker: 'unknown', metadataHints: [], remoteManifestNotFetched: false, warnings: [] };
   let budget = LIMITS.totalText;
+  let inflations = 0;
+  const boundedInflate = bytes => ++inflations <= LIMITS.inflations && budget > 0 ? inflate(bytes) : null;
   function hint(label, value) {
     if (result.metadataHints.length >= LIMITS.hints || !value) return;
     result.metadataHints.push({ label: capText(label, 80), value: capText(value), unsigned: true });
@@ -41,7 +43,7 @@ export async function readMetadata(input) {
   function inspectText(value, label = 'Software') {
     if (tools.test(value)) hint(label, value);
     // Only record existence; never expose or dereference this attacker-controlled link.
-    if (/(?:dcterms:provenance|c2pa:manifest|c2pa:provenance)[^\r\n]{0,512}https?:/i.test(value)) result.remoteManifestNotFetched = true;
+    if (/(?:dcterms:provenance|c2pa:manifest|c2pa:provenance)[\s\S]{0,512}?https?:/i.test(value)) result.remoteManifestNotFetched = true;
     for (const match of value.matchAll(/(?:<[^>]*(?:CreatorTool|Software)[^>]*>([^<]{1,1024})|(?:CreatorTool|Software)\s*=\s*["']([^"']{1,1024}))/gi)) {
       const tool = match[1] || match[2];
       if (tools.test(tool)) hint('Software / XMP', tool);
@@ -79,7 +81,7 @@ export async function readMetadata(input) {
     if (!bytes.length || bytes.length > LIMITS.file) return result;
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const ascii = (offset, size) => latin.decode(bytes.subarray(offset, offset + size));
-    if (bytes.length >= 8 && ascii(0, 8) === '\x89PNG\r\n\x1a\n') {
+    if (bytes.length >= 8 && bytes[0] === 0x89 && ascii(1, 7) === 'PNG\r\n\x1a\n') {
       result.format = 'image/png';
       let offset = 8;
       for (let count = 0; count < LIMITS.chunks && offset + 12 <= bytes.length; count++) {
@@ -92,12 +94,12 @@ export async function readMetadata(input) {
           if (zero > 0 && zero <= 79) {
             const key = ascii(offset + 8, zero);
             let body = data.subarray(zero + 1);
-            if (type === 'zTXt') body = body[0] === 0 ? await inflate(body.subarray(1)) : null;
+            if (type === 'zTXt') body = body[0] === 0 ? await boundedInflate(body.subarray(1)) : null;
             if (type === 'iTXt') {
               const compressed = body[0], method = body[1];
               let pos = body.indexOf(0, 2);
               pos = pos < 0 ? -1 : body.indexOf(0, pos + 1);
-              body = pos < 0 || method !== 0 || compressed > 1 ? null : compressed ? await inflate(body.subarray(pos + 1)) : body.subarray(pos + 1);
+              body = pos < 0 || method !== 0 || compressed > 1 ? null : compressed ? await boundedInflate(body.subarray(pos + 1)) : body.subarray(pos + 1);
             }
             if (body) {
               const value = text(body, type === 'tEXt' ? latin : decoder);

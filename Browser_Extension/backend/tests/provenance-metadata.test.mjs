@@ -42,6 +42,19 @@ test('JPEG EXIF Software and XMP are unsigned hints; remote manifest is flagged 
   assert.ok(result.metadataHints.some(h => h.value === 'ComfyUI'));
 });
 
+test('PNG signature recognition is independent of browser Latin-1/Windows-1252 aliases', async () => {
+  const NativeDecoder = globalThis.TextDecoder;
+  globalThis.TextDecoder = class {
+    constructor(label) { this.native = new NativeDecoder(label); this.latin = label === 'latin1'; }
+    decode(bytes) { const text = this.native.decode(bytes); return this.latin ? text.replace(/\x89/g, '\u2030') : text; }
+  };
+  try {
+    const { readMetadata: browserReader } = await import('../../frontend/provenance/metadata-reader.js?encoding-alias-check');
+    assert.equal((await browserReader(await fixture('signed.png'))).marker, 'present');
+    assert.equal((await browserReader(await fixture('stable-diffusion.png'))).format, 'image/png');
+  } finally { globalThis.TextDecoder = NativeDecoder; }
+});
+
 test('WebP EXIF, XMP and C2PA chunks are bounded', async () => {
   function riffChunk(type, bytes) { const out = Buffer.alloc(8 + bytes.length + (bytes.length & 1)); out.write(type); out.writeUInt32LE(bytes.length, 4); bytes.copy(out, 8); return out; }
   const chunks = Buffer.concat([riffChunk('EXIF', exif('ComfyUI')), riffChunk('XMP ', Buffer.from('<xmp Software="Stable Diffusion"/>')), riffChunk('C2PA', Buffer.from('test'))]);
@@ -71,4 +84,15 @@ test('deterministic fuzz and all truncations never throw or falsely establish ve
     const bytes = await fixture(name);
     for (let i = 0; i < bytes.length; i++) await readMetadata(bytes.subarray(0, i));
   }
+});
+
+test('many compressed bombs cannot cause unbounded inflation work', async () => {
+  const NativeStream = globalThis.DecompressionStream;
+  let attempts = 0;
+  globalThis.DecompressionStream = class { constructor(format) { attempts++; return new NativeStream(format); } };
+  try {
+    const bomb = chunk('zTXt', Buffer.concat([Buffer.from('Software\0\0'), deflateSync(Buffer.alloc(LIMITS.chunk * 2, 65))]));
+    const result = await readMetadata(png(...Array(100).fill(bomb)));
+    assert.equal(attempts, LIMITS.inflations); assert.equal(result.metadataHints.length, 0);
+  } finally { globalThis.DecompressionStream = NativeStream; }
 });
