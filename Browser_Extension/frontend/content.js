@@ -53,7 +53,7 @@
     lastError: "",
     lastScanAt: 0,
     sample: "",
-    rejectReasons: { renderedTooSmall: 0, sourceTooSmall: 0, aspectRatio: 0, hidden: 0, noGeometry: 0 }
+    rejectReasons: { renderedTooSmall: 0, sourceTooSmall: 0, aspectRatio: 0, hidden: 0, noGeometry: 0, imageNotReady: 0 }
   };
 
   const preset = () => PRESETS[thresholdName] || PRESETS.standard;
@@ -165,8 +165,13 @@
       return { ok: false, reason: 'renderedTooSmall', detail: `rendered ${Math.round(r.width)}×${Math.round(r.height)}` };
     }
     const child = candidate instanceof HTMLImageElement ? candidate : getImageChild(candidate);
-    if (child && child.naturalWidth > 0 && child.naturalHeight > 0 &&
-        Math.min(child.naturalWidth, child.naturalHeight) < p.minNatural) {
+    // A CSS-sized placeholder can look large even while its underlying image is
+    // still loading (or has failed). Do not send those zero-dimension sources to
+    // an API; the registered load handler will queue the candidate after decode.
+    if (child && (!child.complete || child.naturalWidth <= 0 || child.naturalHeight <= 0)) {
+      return { ok: false, reason: 'imageNotReady', detail: `image not loaded (${child.naturalWidth}×${child.naturalHeight})` };
+    }
+    if (child && Math.min(child.naturalWidth, child.naturalHeight) < p.minNatural) {
       return { ok: false, reason: 'sourceTooSmall', detail: `source ${child.naturalWidth}×${child.naturalHeight}` };
     }
     const ratio = r.width / r.height;
@@ -377,7 +382,23 @@
     stats.submitted++;
     reportStats();
     try {
-      const result = await chrome.runtime.sendMessage({ type: 'ANALYZE_IMAGE', image: job.url, source: isX ? 'automatic X/Twitter media scan' : 'automatic webpage scan' });
+      let result = await chrome.runtime.sendMessage({ type: 'ANALYZE_IMAGE', image: job.url, source: isX ? 'automatic X/Twitter media scan' : 'automatic webpage scan' });
+      if (!result?.ok && targets.length > 0) {
+        const candidate = targets[0];
+        if (candidate instanceof HTMLImageElement && candidate.naturalWidth > 0 && candidate.complete) {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.min(candidate.naturalWidth, 1280);
+            canvas.height = Math.round(((candidate.naturalHeight || 1) / (candidate.naturalWidth || 1)) * canvas.width);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(candidate, 0, 0, canvas.width, canvas.height);
+            const dataUri = canvas.toDataURL('image/jpeg', 0.9);
+            result = await chrome.runtime.sendMessage({ type: 'ANALYZE_IMAGE', image: dataUri, source: isX ? 'automatic X/Twitter media scan' : 'automatic webpage scan' });
+          } catch (canvasErr) {
+            // Tainted canvas or draw failure - keep original error
+          }
+        }
+      }
       if (!result?.ok) throw new Error(result?.error || 'Detection request failed.');
       job.result = result;
       job.status = 'done';

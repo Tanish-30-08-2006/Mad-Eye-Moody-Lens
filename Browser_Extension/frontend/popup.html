@@ -9,163 +9,269 @@
 <body>
   <header class="app-header">
     <div class="brand-row">
-      <div class="brand-mark">M</div>
+      <div class="brand-mark" aria-hidden="true">M</div>
       <div>
         <h1 class="brand-title">Mad-Eye Moody Lens</h1>
-        <p class="brand-subtitle">Media Authenticity &amp; Deepfake Analysis</p>
+        <p class="brand-subtitle">Media Authenticity &amp; Deepfake Detection</p>
       </div>
     </div>
-    <button id="openReview" class="header-action-btn" title="Open Forensic Inspection Side Panel">
-      Side Panel ↗
+    <button id="openReview" class="header-action-btn" title="Open Side Panel for detailed forensic analysis">
+      Side Panel &#x2197;
     </button>
   </header>
 
-  <nav class="tab-nav">
-    <button class="tab-btn active" data-target="tabScan">Image Scanner</button>
-    <button class="tab-btn" data-target="tabAudio">Tab Audio</button>
-    <button class="tab-btn" data-target="tabConfig">Providers</button>
+  <!-- TOP-LEVEL NAVIGATION -->
+  <nav class="tab-nav main-tabs" role="tablist" aria-label="Main navigation">
+    <button class="tab-btn active" data-target="tabAnalyse" role="tab" aria-selected="true" aria-controls="tabAnalyse">Analyse</button>
+    <button class="tab-btn" data-target="tabHistory" role="tab" aria-selected="false" aria-controls="tabHistory">History</button>
+    <button class="tab-btn" data-target="tabSettings" role="tab" aria-selected="false" aria-controls="tabSettings">Settings</button>
   </nav>
 
   <main class="tab-viewport">
-    <!-- TAB 1: IMAGE SCANNER -->
-    <div id="tabScan" class="tab-pane active">
-      <section class="card">
-        <div class="card-header">
-          <h2 class="card-title">Quick Actions</h2>
-          <span id="providerState" class="pill muted">Not configured</span>
-        </div>
-        <p class="help">Inspect media on the active tab or launch deep inspection in the side panel.</p>
-        <div class="actions" style="margin-top: 10px;">
-          <button id="scanNow" class="primary">Scan Active Tab Now</button>
-        </div>
-      </section>
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 1. ANALYSE SECTION                                          -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="tabAnalyse" class="tab-pane active" role="tabpanel">
+      <!-- Modality Sub-Navigation -->
+      <nav class="sub-nav" role="tablist" aria-label="Analysis type">
+        <button class="sub-tab-btn active" data-sub="subImage" role="tab" aria-selected="true" aria-controls="subImage">Image</button>
+        <button class="sub-tab-btn" data-sub="subAudio" role="tab" aria-selected="false" aria-controls="subAudio">Audio</button>
+        <button class="sub-tab-btn" data-sub="subVideo" role="tab" aria-selected="false" aria-controls="subVideo">Video</button>
+      </nav>
 
-      <section class="card">
-        <div class="card-header">
-          <h2 class="card-title">Automated Webpage Scanning</h2>
-          <span id="scanState" class="pill muted">Off</span>
-        </div>
-        <p class="help">Scans substantially visible images on browse. Small icons, avatars, and UI navigation items are filtered out.</p>
+      <!-- SUB-PANE: IMAGE DETECTION -->
+      <div id="subImage" class="sub-pane active" role="tabpanel">
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Quick Scan</h2>
+            <span id="providerState" class="pill muted">Not configured</span>
+          </div>
+          <p class="help">Scan visible images on the active browser tab.</p>
+          <div class="actions" style="margin-top: 8px;">
+            <button id="scanNow" class="primary full">Scan Active Tab</button>
+          </div>
+        </section>
 
-        <label for="thresholdSelect">Minimum image size</label>
-        <select id="thresholdSelect">
-          <option value="standard">Standard · 220 × 140 px</option>
-          <option value="large">Large only · 320 × 200 px</option>
-          <option value="xlarge">Extra large · 480 × 300 px</option>
-        </select>
-        <p class="micro">Images smaller than this threshold are not submitted for remote verification.</p>
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Detection Provider &amp; Model</h2>
+          </div>
+          <label for="providerSelect">Detection Provider</label>
+          <select id="providerSelect">
+            <option value="bitmind">BitMind Oracle</option>
+            <option value="zerotrue">ZeroTrue Cloud AI</option>
+            <option value="moodylens">Mad-Eye Moody Lens Server</option>
+            <option value="custom">Custom REST API</option>
+          </select>
 
-        <button id="toggleScan" class="secondary full" style="margin-top: 10px;">Enable scanning on websites</button>
-        <p class="notice">Automated scanning sends image URLs to the active detection provider. Duplicate public URLs utilize a 24-hour local cache.</p>
-      </section>
+          <div class="field-row" style="margin-top: 8px;">
+            <span class="field-label">Model Selection:</span>
+            <span id="imageModelBadge" class="model-badge">Managed by provider</span>
+          </div>
+          <div id="providerNotice" class="provider-notice" style="display: none;"></div>
+        </section>
 
-      <section class="card">
-        <div class="card-header">
-          <h2 class="card-title">Tab Scanner Diagnostics</h2>
-        </div>
-        <div class="diagnostics" id="diagnostics">No scan report from this tab yet.</div>
-      </section>
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Automated Webpage Scanning</h2>
+            <span id="scanState" class="pill muted">Off</span>
+          </div>
+          <p class="help">Scans images as you browse. Small icons, avatars, and UI navigation items are filtered out.</p>
+
+          <label for="thresholdSelect">Minimum image size</label>
+          <select id="thresholdSelect">
+            <option value="standard">Standard &mdash; 220 &times; 140 px</option>
+            <option value="large">Large &mdash; 320 &times; 200 px</option>
+            <option value="xlarge">Extra large &mdash; 480 &times; 300 px</option>
+          </select>
+
+          <button id="toggleScan" class="secondary full" style="margin-top: 8px;">Enable auto-scan</button>
+          <p class="notice">Auto-scan submits public image URLs to the active provider. Cached locally for 24h.</p>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Diagnostics</h2>
+          </div>
+          <div class="diagnostics" id="diagnostics">No scan report yet for this tab.</div>
+        </section>
+      </div>
+
+      <!-- SUB-PANE: AUDIO DETECTION -->
+      <div id="subAudio" class="sub-pane" role="tabpanel">
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Tab Audio Analysis</h2>
+            <span id="audioMonitoringState" class="pill muted">Idle</span>
+          </div>
+          <p class="help">Capture and analyze live tab playback audio for synthetic speech (up to 30 seconds).</p>
+
+          <div class="audio-status-grid">
+            <div class="audio-stat-box">
+              <span class="audio-stat-label">Model</span>
+              <span id="audioModelName" class="audio-stat-value">SSL Anti-Spoofing</span>
+            </div>
+            <div class="audio-stat-box">
+              <span class="audio-stat-label">Status</span>
+              <span id="audioModelStatus" class="audio-stat-value muted">Checking&hellip;</span>
+            </div>
+            <div class="audio-stat-box">
+              <span class="audio-stat-label">Engine</span>
+              <span id="audioDeviceStatus" class="audio-stat-value good">LOCAL (CUDA)</span>
+            </div>
+            <div class="audio-stat-box">
+              <span class="audio-stat-label">Mode</span>
+              <span id="audioEngineModeBadge" class="audio-stat-value good">Auto</span>
+            </div>
+          </div>
+
+          <button id="btnPlaybackCapture" class="primary full" style="margin-top: 8px;">
+            Capture &amp; Analyze Tab Audio (30s)
+          </button>
+
+          <div id="audioCurrentStatus" class="audio-current-status"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Audio Provider Configuration</h2>
+          </div>
+          <p class="help">Configure your Audio Engine mode and ZeroTrue API key in Settings &gt; Providers.</p>
+          <button class="secondary full" id="goToAudioSettings" style="margin-top: 6px;">Manage Audio Providers &#x2192;</button>
+        </section>
+      </div>
+
+      <!-- SUB-PANE: VIDEO DETECTION -->
+      <div id="subVideo" class="sub-pane" role="tabpanel">
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Video Deepfake Detection</h2>
+            <span id="videoProviderState" class="pill muted">Checking&hellip;</span>
+          </div>
+          <p class="help">Scans video elements on the page or inspects video frames via BitMind or Moody Lens Server.</p>
+
+          <label for="videoProviderSelect">Active Video Provider</label>
+          <select id="videoProviderSelect">
+            <option value="bitmind">BitMind detect-video</option>
+            <option value="zerotrue">ZeroTrue Video AI</option>
+            <option value="moodylens">Moody Lens Server (Frame analysis)</option>
+            <option value="custom">Custom Video REST API</option>
+          </select>
+
+          <div class="field-row" style="margin-top: 8px;">
+            <span class="field-label">Model:</span>
+            <span class="model-badge">Managed by video engine</span>
+          </div>
+
+          <div class="actions" style="margin-top: 10px;">
+            <button id="btnOpenVideoSidepanel" class="primary full">Open Video Inspector in Side Panel</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Video Context Menu</h2>
+          </div>
+          <p class="help">Right-click any HTML5 video or video link on a page and choose <strong>"Analyze video with Mad Eye Moody Lens"</strong>.</p>
+        </section>
+      </div>
     </div>
 
-    <!-- TAB 2: TAB AUDIO DEEPFAKE DETECTION -->
-    <div id="tabAudio" class="tab-pane">
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 2. HISTORY SECTION                                          -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="tabHistory" class="tab-pane" role="tabpanel">
       <section class="card">
         <div class="card-header">
-          <h2 class="card-title">Tab Audio Analysis</h2>
-          <span id="audioMonitoringState" class="pill muted">Idle</span>
+          <h2 class="card-title">Recent Detections</h2>
+          <button id="refreshHistory" class="text-button">Refresh</button>
         </div>
-        <p class="help">
-          Captures tab audio in real-time or up to 30 seconds to run acoustic feature verification for synthesized voice.
-        </p>
-
-        <div class="audio-status-grid">
-          <div class="audio-stat-box">
-            <span class="audio-stat-label">Model</span>
-            <span id="audioModelName" class="audio-stat-value">SSL Anti-Spoofing</span>
-          </div>
-          <div class="audio-stat-box">
-            <span class="audio-stat-label">Status</span>
-            <span id="audioModelStatus" class="audio-stat-value muted">Checking…</span>
-          </div>
-          <div class="audio-stat-box">
-            <span class="audio-stat-label">Engine</span>
-            <span id="audioDeviceStatus" class="audio-stat-value good">LOCAL (CUDA)</span>
-          </div>
-          <div class="audio-stat-box">
-            <span class="audio-stat-label">Mode</span>
-            <span id="audioEngineModeBadge" class="audio-stat-value good">Auto (Local/Cloud)</span>
-          </div>
-        </div>
-
-        <button id="btnPlaybackCapture" class="primary full" style="margin-top: 6px;">
-          Capture &amp; Analyze Tab Audio (30s)
-        </button>
-
-        <div id="audioCurrentStatus" class="audio-current-status"></div>
-        <div class="audio-service-hint" id="audioServiceHint"></div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2 class="card-title">Audio Model Configuration</h2>
-        </div>
-        <label for="audioEngineSelect">Engine Mode</label>
-        <select id="audioEngineSelect">
-          <option value="auto">Auto (Local GPU Model + ZeroTrue Cloud Fallback)</option>
-          <option value="zerotrue">ZeroTrue Online API (https://zerotrue.app)</option>
-          <option value="local">Local Model Only (127.0.0.1:8765)</option>
-        </select>
-
-        <div id="zeroTrueConfigBox" style="margin-top: 10px; padding: 10px; background: var(--bg-subtle); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <strong style="font-size: 11px; color: #a5b4fc;">ZeroTrue Cloud API</strong>
-            <a href="https://zerotrue.app" target="_blank" style="font-size: 10px; color: #60a5fa; text-decoration: none;">Get key at zerotrue.app ↗</a>
-          </div>
-          <p class="micro">For systems without local CUDA/GPU models. Runs anti-spoofing analysis via cloud.</p>
-          <input id="zeroTrueKeyInput" type="password" placeholder="Paste ZeroTrue API key (zt_...)" autocomplete="off" style="margin-top: 6px;">
-          <div class="actions">
-            <button id="btnSaveZeroTrueKey" class="primary">Save Key</button>
-            <button id="btnTestZeroTrueKey" class="secondary">Test Key</button>
-          </div>
-          <div id="zeroTrueKeyMsg" style="font-size: 10px; margin-top: 6px; line-height: 1.4; display: none;"></div>
+        <div id="popupHistoryList" class="history-list">Loading detections&hellip;</div>
+        <div class="actions" style="margin-top: 8px;">
+          <button id="clearHistory" class="secondary full">Clear History</button>
         </div>
       </section>
+      <p class="privacy">Local history records metadata only. Raw image and audio data are not persisted.</p>
     </div>
 
-    <!-- TAB 3: PROVIDERS & CREDENTIALS -->
-    <div id="tabConfig" class="tab-pane">
-      <section class="card">
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 3. SETTINGS SECTION (Settings > Providers & Preferences)   -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="tabSettings" class="tab-pane" role="tabpanel">
+      <!-- BITMIND CONFIGURATION -->
+      <section class="card" id="bitmindSettingsCard">
         <div class="card-header">
-          <h2 class="card-title">Detection Provider</h2>
-        </div>
-        <label for="providerSelect">Active Image Provider</label>
-        <select id="providerSelect">
-          <option value="bitmind">BitMind Oracle</option>
-          <option value="custom">Custom REST API</option>
-          <option value="moodylens">Mad-Eye Moody Lens Server</option>
-        </select>
-        <p class="help">BitMind is the standard cloud provider. Custom REST API and Moody Lens server can be configured in provider settings.</p>
-        <button id="manageProviders" class="secondary full" style="margin-top: 10px;">Configure Provider Settings ↗</button>
-      </section>
-
-      <section class="card" id="bitmindCard">
-        <div class="card-header">
-          <h2 class="card-title">BitMind API Credentials</h2>
+          <h2 class="card-title">BitMind</h2>
           <span id="keyState" class="pill muted">Not configured</span>
         </div>
+        <p class="help">Cloud provider for image and video deepfake verification.</p>
+        <div class="link-row">
+          <a href="https://app.bitmind.ai/api" target="_blank" class="ext-link" rel="noopener noreferrer">
+            Get API Key at app.bitmind.ai/api &#x2197;
+          </a>
+        </div>
+
         <label for="apiKey">API Key</label>
-        <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
+        <div class="input-with-button">
+          <input id="apiKey" type="password" autocomplete="off" placeholder="Paste your BitMind API key">
+          <button type="button" id="toggleBitmindKeyVisibility" class="icon-toggle-btn" title="Show or hide API key" aria-label="Toggle BitMind API key visibility">Show</button>
+        </div>
+
         <div class="actions">
           <button id="saveKey" class="primary">Save Key</button>
-          <button id="testKey" class="secondary">Test Connection</button>
+          <button id="removeBitmindKey" class="secondary">Remove</button>
+          <button id="testKey" class="secondary">Test</button>
         </div>
         <p id="keyMessage" class="message">API credentials are stored securely in this Chrome profile.</p>
+      </section>
+
+      <!-- ZEROTRUE CONFIGURATION -->
+      <section class="card" id="zeroTrueSettingsCard">
+        <div class="card-header">
+          <h2 class="card-title">ZeroTrue Multi-Modal AI</h2>
+          <span id="zeroTrueState" class="pill muted">Not configured</span>
+        </div>
+        <p class="help">Universal cloud deepfake and AI detection for images, video, audio, and files.</p>
+        <div class="link-row">
+          <a href="https://zerotrue.app" target="_blank" class="ext-link" rel="noopener noreferrer">
+            Get API Key at zerotrue.app &#x2197;
+          </a>
+        </div>
+
+        <label for="audioEngineSelect">Engine Mode</label>
+        <select id="audioEngineSelect">
+          <option value="auto">Auto &mdash; Local GPU with ZeroTrue fallback</option>
+          <option value="zerotrue">ZeroTrue Cloud API only</option>
+          <option value="local">Local model only (127.0.0.1:8765)</option>
+        </select>
+
+        <label for="zeroTrueKeyInput">API Key</label>
+        <div class="input-with-button">
+          <input id="zeroTrueKeyInput" type="password" placeholder="Paste ZeroTrue API key (zt_...)" autocomplete="off">
+          <button type="button" id="toggleZeroTrueKeyVisibility" class="icon-toggle-btn" title="Show or hide API key" aria-label="Toggle ZeroTrue API key visibility">Show</button>
+        </div>
+
+        <div class="actions">
+          <button id="btnSaveZeroTrueKey" class="primary">Save Key</button>
+          <button id="btnRemoveZeroTrueKey" class="secondary">Remove</button>
+          <button id="btnTestZeroTrueKey" class="secondary">Test</button>
+        </div>
+        <div id="zeroTrueKeyMsg" class="message" style="display: none;"></div>
+      </section>
+
+      <!-- OTHER PROVIDERS -->
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Advanced Providers</h2>
+        </div>
+        <p class="help">Configure the Mad-Eye Moody Lens Official Server or a Custom REST API connector with custom response mappings.</p>
+        <button id="manageProviders" class="secondary full" style="margin-top: 8px;">Open Full Provider Settings &#x2197;</button>
       </section>
     </div>
   </main>
 
   <footer class="app-footer">
-    Right-click any image on the web &rarr; Analyze with Mad-Eye Moody Lens
+    Right-click any image or video &rarr; Analyze with Mad-Eye Moody Lens
   </footer>
 
   <script src="popup.js"></script>

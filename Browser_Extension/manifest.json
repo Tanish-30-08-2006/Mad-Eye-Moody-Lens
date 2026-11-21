@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Mad Eye Moody Lens",
-  "version": "2.0.0",
-  "description": "Real-time image and audio deepfake detection with configurable image providers, local AI audio analysis, and ZeroTrue online API.",
+  "version": "2.0.2",
+  "description": "Real-time image, video, and audio deepfake detection with configurable cloud and local AI providers.",
   "permissions": [
     "storage",
     "contextMenus",
@@ -19,7 +19,8 @@
   "host_permissions": [
     "https://api.bitmind.ai/*",
     "https://*.zerotrue.app/*",
-    "https://zerotrue.app/*"
+    "https://zerotrue.app/*",
+    "https://applications-temp-videos-us-east-1.s3.us-east-1.amazonaws.com/*"
   ],
   "background": {
     "service_worker": "backend/background.js",
