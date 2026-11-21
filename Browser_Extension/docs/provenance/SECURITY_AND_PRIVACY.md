@@ -11,6 +11,14 @@ copy in bytes.js. Omit credentials, disable cache, set time/size limits, and do 
 request any permission. Failed URL reads suggest uploading the original file.
 Browser code cannot resolve DNS safely in advance: this limitation must be stated.
 
+bytes.js rejects redirects entirely (including public-to-private redirects),
+userinfo URLs, encoded private IP forms normalized by URL, local hostnames,
+private/link-local/multicast/documentation IP ranges, and single-label names.
+It never requests host permissions. A public DNS name can still resolve to a
+private address; this browser-only limitation cannot be eliminated without a
+trusted DNS/network boundary. Timeouts cover both headers and body reads, and
+the stream is cancelled as soon as the 8 MiB cap is exceeded.
+
 No images, metadata, prompts, hashes, or manifests are persisted, logged, exported,
 or written to chrome.storage. Hashes, if used, are only ephemeral cache keys.
 File-derived text is rendered with textContent, never innerHTML. Bound input,

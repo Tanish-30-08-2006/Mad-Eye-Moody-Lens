@@ -17,6 +17,12 @@ Both signed fixtures show **Unknown signer** with production trust anchors;
 **Verified credentials** is tested only with the explicit test-root-A injection.
 Never add that test root to the production trust list.
 
+Byte tests compare SHA-256 input/output equality for all six required fixtures
+through base64 data URIs and mocked multi-part streamed fetches. They also cover
+raw percent bytes, unsafe hosts/redirect policy, declared and streamed oversize,
+fetch/body timeouts, cancellation and HTTP failures. Hashes are test assertions;
+runtime acquisition does not calculate, display, export or persist hashes.
+
 ## Manual Chrome checklist (user runs; not automated)
 
 - Load `Browser_Extension/` unpacked at chrome://extensions and open its side panel.
