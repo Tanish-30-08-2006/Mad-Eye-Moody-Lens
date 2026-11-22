@@ -9,12 +9,7 @@ from __future__ import annotations
 import base64
 import io
 import uuid
-from datetime import datetime, timedelta, timezone
-
-try:
-    from datetime import UTC
-except ImportError:
-    UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from PIL import Image

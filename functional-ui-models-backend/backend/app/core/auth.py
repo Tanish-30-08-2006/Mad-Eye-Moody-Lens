@@ -14,14 +14,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
-import time
-import uuid
-from datetime import datetime, timedelta, timezone
-from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from typing import Any
 
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -34,21 +32,21 @@ log = get_logger(__name__)
 # Roles, Tiers & Permissions
 # -----------------------------------------------------------------------------
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     PUBLIC = "public"
     JOURNALIST = "journalist"
     ENTERPRISE_ADMIN = "enterprise_admin"
     GOVT_OFFICER = "govt_officer"
 
 
-class SubscriptionTier(str, Enum):
+class SubscriptionTier(StrEnum):
     COMMUNITY = "community"                  # Free / Public good
     JOURNALIST_PRO = "journalist_pro"        # Media License (heatmaps + dossier)
     ENTERPRISE_SUITE = "enterprise_suite"    # B2B SaaS (Meta, Reddit: telemetry + warning)
     SOVEREIGN_GOVTECH = "sovereign_govtech"  # Institutional (law enforcement + case tracking)
 
 
-ROLE_TIER_MAPPING: Dict[UserRole, SubscriptionTier] = {
+ROLE_TIER_MAPPING: dict[UserRole, SubscriptionTier] = {
     UserRole.PUBLIC: SubscriptionTier.COMMUNITY,
     UserRole.JOURNALIST: SubscriptionTier.JOURNALIST_PRO,
     UserRole.ENTERPRISE_ADMIN: SubscriptionTier.ENTERPRISE_SUITE,
@@ -56,7 +54,7 @@ ROLE_TIER_MAPPING: Dict[UserRole, SubscriptionTier] = {
 }
 
 # Granular permissions assigned per role
-ROLE_PERMISSIONS: Dict[UserRole, Set[str]] = {
+ROLE_PERMISSIONS: dict[UserRole, set[str]] = {
     UserRole.PUBLIC: {
         "analyze:basic",
         "compare:duplicate",
@@ -125,12 +123,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # -----------------------------------------------------------------------------
 
 class UserContext(BaseModel):
-    user_id: Optional[str] = None
+    user_id: str | None = None
     email: str
     role: UserRole
-    org_name: Optional[str] = None
+    org_name: str | None = None
     subscription_tier: SubscriptionTier
-    permissions: List[str] = Field(default_factory=list)
+    permissions: list[str] = Field(default_factory=list)
     is_anonymous: bool = False
 
     def has_permission(self, perm: str) -> bool:
@@ -142,13 +140,13 @@ class UserRecord(BaseModel):
     email: str
     password_hash: str
     role: UserRole
-    org_name: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    org_name: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     is_active: bool = True
 
 
 # Pre-seeded stakeholder accounts for instant evaluation and demo workflows
-PRESEEDED_USERS: Dict[str, UserRecord] = {
+PRESEEDED_USERS: dict[str, UserRecord] = {
     "public@moodylens.local": UserRecord(
         user_id="usr-public-00000000-0001",
         email="public@moodylens.local",
@@ -180,7 +178,7 @@ PRESEEDED_USERS: Dict[str, UserRecord] = {
 }
 
 # Dynamic in-memory user registry extending preseeded users
-USER_REGISTRY: Dict[str, UserRecord] = dict(PRESEEDED_USERS)
+USER_REGISTRY: dict[str, UserRecord] = dict(PRESEEDED_USERS)
 
 
 # -----------------------------------------------------------------------------
@@ -189,9 +187,9 @@ USER_REGISTRY: Dict[str, UserRecord] = dict(PRESEEDED_USERS)
 
 def create_access_token(
     user: UserRecord,
-    expires_delta: Optional[timedelta] = None,
+    expires_delta: timedelta | None = None,
 ) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     role_perms = sorted(list(ROLE_PERMISSIONS.get(user.role, set())))
     tier = ROLE_TIER_MAPPING.get(user.role, SubscriptionTier.COMMUNITY)
@@ -212,9 +210,9 @@ def create_access_token(
 
 def create_refresh_token(
     user: UserRecord,
-    expires_delta: Optional[timedelta] = None,
+    expires_delta: timedelta | None = None,
 ) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
     payload = {
         "sub": user.email,
@@ -226,7 +224,7 @@ def create_refresh_token(
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def decode_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
+def decode_token(token: str, expected_type: str = "access") -> dict[str, Any]:
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         if payload.get("type") != expected_type:
@@ -239,12 +237,12 @@ def decode_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired. Please refresh your session.",
-        )
+        ) from None
     except jwt.InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid authentication token: {e}",
-        )
+        ) from e
 
 
 # -----------------------------------------------------------------------------
@@ -255,7 +253,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> UserContext:
     """
     Core RBAC Dependency with Zero-Login Anonymous Fallback:

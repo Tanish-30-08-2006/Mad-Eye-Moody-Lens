@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
-    PRESEEDED_USERS,
     ROLE_PERMISSIONS,
     ROLE_TIER_MAPPING,
     USER_REGISTRY,
@@ -21,7 +19,6 @@ from app.core.auth import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    get_current_user,
     get_optional_user,
     hash_password,
     require_role,
@@ -119,7 +116,7 @@ def register(req: RegisterRequest) -> TokenResponse:
         password_hash=hash_password(req.password),
         role=role,
         org_name=req.org_name or ("Independent" if role == UserRole.JOURNALIST else None),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         is_active=True,
     )
     USER_REGISTRY[email_clean] = new_user
@@ -181,10 +178,10 @@ def logout(user: UserContext = Depends(get_optional_user)) -> dict:
 
 @auth_router.get(
     "/demo-accounts",
-    response_model=List[DemoAccountInfo],
+    response_model=list[DemoAccountInfo],
     summary="List pre-seeded demo accounts for all stakeholders",
 )
-def list_demo_accounts() -> List[DemoAccountInfo]:
+def list_demo_accounts() -> list[DemoAccountInfo]:
     """Returns the pre-configured accounts for testing each stakeholder persona."""
     return [
         DemoAccountInfo(
@@ -250,10 +247,10 @@ def list_demo_accounts() -> List[DemoAccountInfo]:
 
 @auth_router.get(
     "/oauth/providers",
-    response_model=List[OAuthProviderInfo],
+    response_model=list[OAuthProviderInfo],
     summary="List supported OAuth 2.0 Identity Providers",
 )
-def list_oauth_providers() -> List[OAuthProviderInfo]:
+def list_oauth_providers() -> list[OAuthProviderInfo]:
     """Returns supported OAuth 2.0 providers (Google, GitHub, GovID SSO)."""
     return [
         OAuthProviderInfo(
@@ -302,7 +299,7 @@ def oauth_callback(payload: OAuthCallbackRequest) -> TokenResponse:
             password_hash=hash_password(uuid.uuid4().hex),
             role=role,
             org_name=f"OAuth ({payload.provider.title()} SSO)",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             is_active=True,
         )
         USER_REGISTRY[email] = user_record

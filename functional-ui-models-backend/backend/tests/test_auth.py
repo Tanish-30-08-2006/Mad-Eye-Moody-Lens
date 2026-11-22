@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import io
-from PIL import Image
-import pytest
+
 from fastapi.testclient import TestClient
+from PIL import Image
 
 
 def test_anonymous_public_fallback(client: TestClient):

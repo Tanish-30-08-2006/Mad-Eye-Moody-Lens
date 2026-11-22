@@ -115,7 +115,7 @@ class EfficientNetFaceDetector(Detector):
         if not found:
             return []
         probs = self.score_crops([crop for _, crop in found])
-        return [FaceScore(box=box, fake_probability=p, crop=crop) for (box, crop), p in zip(found, probs)]
+        return [FaceScore(box=box, fake_probability=p, crop=crop) for (box, crop), p in zip(found, probs, strict=True)]
 
     # -------------------------------------------------------------- Grad-CAM
     def explain(self, faces: list[FaceScore]) -> list[Any]:
