@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/externalProvider.test.mjs tests/duplicateDetector.test.mjs tests/forensicReport.test.mjs",
-    "preview": "vite preview"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "preview": "vite preview",
+    "vendor:provenance": "node scripts/vendor-provenance.mjs"
   },
   "dependencies": {
     "@contentauth/c2pa-web": "0.16.0",

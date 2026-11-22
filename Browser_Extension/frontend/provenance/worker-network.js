@@ -12,3 +12,15 @@ export function neutralizeWorkerNetwork(scope) {
   Object.defineProperty(scope.navigator, 'sendBeacon', { value: deny('sendBeacon'), writable: false, configurable: false });
   return attempts;
 }
+
+// Keep SDK init messages while its packaged module loads asynchronously.
+export function loadWorkerSdk(scope, load) {
+  const queued = [];
+  const buffer = event => { event.stopImmediatePropagation(); queued.push(event.data); };
+  scope.addEventListener('message', buffer);
+  return load().then(() => {
+    scope.removeEventListener('message', buffer);
+    for (const data of queued) scope.dispatchEvent(new MessageEvent('message', { data }));
+    queued.length = 0;
+  });
+}

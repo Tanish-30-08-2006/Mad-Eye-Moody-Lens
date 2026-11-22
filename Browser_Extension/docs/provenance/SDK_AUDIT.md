@@ -137,3 +137,15 @@ URLs and add separate native tsa anchors because utilities 0.4.0 lacks that
 convenience mapping. No invented SDK fetch flags are claimed. Website tests and
 native browser acceptance remain pending. Detector suites and byte acquisition
 regressions remain required at every commit. No local real originals were found.
+
+## Website achieved approach
+
+Website uses the same neutralized-worker fallback. It fetches its own pinned
+WASM asset during setup and compiles it inside the worker, preserving the existing
+site CSP. Its reader-only transport reuses the official SDK's highgain protocol
+and public Reader/Context; no website SDK URL patch is needed. Init messages are
+queued until the packaged SDK is ready. Five parent/worker failing-spy checks
+and forbidden main-thread WASM compilation pass over all three privacy fixtures.
+Exact logic-copy and JSON parity checks pass. This remains defence in depth,
+not a CSP guarantee or claimed native browser enforcement. Existing CSP values
+are unchanged. Bundled licenses and vendor/VERSION.json record the artifact pin.

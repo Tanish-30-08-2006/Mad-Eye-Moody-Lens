@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  worker: { format: "es" },
   server: {
     port: 5173,
     // Local dev mirrors production: the browser calls relative /api/v1/... paths

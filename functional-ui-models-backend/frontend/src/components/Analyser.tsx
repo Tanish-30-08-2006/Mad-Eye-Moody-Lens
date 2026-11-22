@@ -1,9 +1,11 @@
-import { DragEvent, KeyboardEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { DragEvent, KeyboardEvent, ReactNode, lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { JobStatus, MediaType, ModelInfo } from "../api/client";
 import { MEDIA, MODELS, VIDEO_FRAMES } from "../config/models";
 import type { ExternalProviderConfig } from "../services/externalProvider";
 import { MEDIA_ICON } from "./Icons";
 import { ScanLine } from "./ScanLine";
+
+const OriginCheckCard = lazy(() => import('../provenance/OriginCheckCard').catch(() => ({ default: () => <aside className="result"><p className="note">Origin check unavailable. Reload to try again.</p></aside> })));
 
 export type Phase =
   | { stage: "idle" }
@@ -21,6 +23,7 @@ interface Props {
   onExternalSubmit?: (file: File) => void;
   onOpenExternalSettings?: (invitation?: string) => void;
   isExternalBusy?: boolean;
+  hasDetectorResult?: boolean;
   /** Result card, rendered under the analyser. */
   children?: ReactNode;
 }
@@ -29,7 +32,7 @@ const TYPES: MediaType[] = ["image", "audio", "video"];
 
 const fmtSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`);
 
-/** Client-side mirror of the backend limits — instant feedback only; the server still enforces them. */
+/** Client-side mirror of the backend limits â€” instant feedback only; the server still enforces them. */
 function validate(type: MediaType, f: File): string | null {
   const spec = MEDIA[type];
   if (f.size > spec.maxMb * 1024 * 1024) {
@@ -46,20 +49,20 @@ function validate(type: MediaType, f: File): string | null {
 function statusText(phase: Phase, type: MediaType): string {
   switch (phase.stage) {
     case "uploading":
-      return `Uploading · ${Math.round(phase.fraction * 100)}%`;
+      return `Uploading Â· ${Math.round(phase.fraction * 100)}%`;
     case "analysing":
       return type === "image"
         ? "Running SDXL detector and face check"
         : "Scoring 4-second windows with the speech model";
     case "job": {
       const j = phase.job;
-      if (!j || j.status === "queued") return "Queued · waiting for a worker";
+      if (!j || j.status === "queued") return "Queued Â· waiting for a worker";
       if (j.status === "running" && j.progress < 1) {
         const frames = Math.round(j.progress * VIDEO_FRAMES);
-        return `Scoring frames · ${frames}/${VIDEO_FRAMES}`;
+        return `Scoring frames Â· ${frames}/${VIDEO_FRAMES}`;
       }
-      if (j.status === "running" && j.stage === "finalising") return "Frames done · building Grad-CAM heatmaps";
-      if (j.status === "running") return "Frames done · checking the audio track";
+      if (j.status === "running" && j.stage === "finalising") return "Frames done Â· building Grad-CAM heatmaps";
+      if (j.status === "running") return "Frames done Â· checking the audio track";
       return j.status === "done" ? "Done" : "Failed";
     }
     default:
@@ -77,6 +80,7 @@ export function Analyser({
   onExternalSubmit,
   onOpenExternalSettings,
   isExternalBusy = false,
+  hasDetectorResult = false,
   children,
 }: Props) {
   const [type, setType] = useState<MediaType>("image");
@@ -198,7 +202,7 @@ export function Analyser({
                   {file ? "Replace file" : `Drop ${type === "image" ? "an" : "a"} ${type} here`}
                 </span>
                 <span className="label">
-                  or click to browse · {spec.formatsLabel} · max {spec.maxMb} MB
+                  or click to browse Â· {spec.formatsLabel} Â· max {spec.maxMb} MB
                 </span>
               </label>
 
@@ -245,7 +249,7 @@ export function Analyser({
                     className="provider-pill__btn"
                     onClick={() => onOpenExternalSettings?.()}
                   >
-                    {isExternalConfigured ? "Settings ⚙" : "Configure Provider ⚙"}
+                    {isExternalConfigured ? "Settings âš™" : "Configure Provider âš™"}
                   </button>
                 </div>
               )}
@@ -343,7 +347,10 @@ export function Analyser({
           </div>
         </div>
 
-        {children}
+        <div className="origin-results" data-has-detector={type === "image" && file && hasDetectorResult ? "true" : "false"}>
+          {children}
+          {type === "image" && file && <Suspense fallback={<aside className="result"><p className="note">Loading local origin check…</p></aside>}><OriginCheckCard file={file} /></Suspense>}
+        </div>
       </div>
     </section>
   );

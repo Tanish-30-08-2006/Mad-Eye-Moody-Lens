@@ -1,0 +1,9 @@
+{
+  "version": "0.16.0",
+  "integrity": "sha512-FEvdoYxejhSMtQ0Z0EwUM2S+6StjAWGcLHMi8eqFvzkXIKwW/2f/A+N8HRsTno8RPj8oNx1g5GFBjPw3uSQPzQ==",
+  "upstreamChunkSha256": "0f11d6d2e81f5c7242088022ba772268328ab668db26570ee215a744c435c404",
+  "sdkSha256": "c7815ef30e35f1de4c0601d26ec418cafe68be227dba87adf5f2926874a356cc",
+  "workerSha256": "e6874ae8682ed57d9e375d43e583afcf23afef7c92ed281556a2474ab71bdfa8",
+  "workerUrlPatch": null,
+  "isolation": "neutralized worker; defence in depth, not CSP"
+}

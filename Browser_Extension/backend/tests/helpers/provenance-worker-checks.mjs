@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 
-export async function offlineWorkerCheck({ sdk, createOfflineContext, entry, vendor }) {
+export async function offlineWorkerCheck({ sdk, createOfflineContext, entry, vendor, compileInWorker = false }) {
   const fixture = name => readFile(new URL(`../fixtures/provenance/${name}`, import.meta.url));
-  const module = await WebAssembly.compile(await readFile(new URL('c2pa_bg.wasm', vendor)));
+  const wasm = await readFile(new URL('c2pa_bg.wasm', vendor));
+  let module = compileInWorker ? null : await WebAssembly.compile(wasm);
   const anchors = await readFile(new URL('C2PA-TRUST-LIST.pem', vendor), 'utf8');
   const tsa = await readFile(new URL('C2PA-TSA-TRUST-LIST.pem', vendor), 'utf8');
   const bytes = await Promise.all(['remote-manifest.jpg', 'signed.png', 'expired-chatgpt.png'].map(fixture));
@@ -14,6 +15,7 @@ export async function offlineWorkerCheck({ sdk, createOfflineContext, entry, ven
   for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts']) replace(globalThis, name, spy(name));
   if (!globalThis.navigator) replace(globalThis, 'navigator', {});
   replace(navigator, 'sendBeacon', spy('sendBeacon'));
+  if (compileInWorker) { replace(WebAssembly, 'compile', spy('main WASM compile')); replace(WebAssembly, 'compileStreaming', spy('main WASM streaming compile')); }
   const worker = new Worker(new URL('./provenance-worker-bootstrap.mjs', import.meta.url), { workerData: { entry: entry.href } });
   let id = 0;
   const pending = new Map();
@@ -30,6 +32,10 @@ export async function offlineWorkerCheck({ sdk, createOfflineContext, entry, ven
     await wait('ready');
     const probe = await control('probe');
     assert.deepEqual(Object.values(probe.counts), [1, 1, 1, 1, 1], 'each failing worker spy must be installed');
+    if (compileInWorker) {
+      const response = wait('compiled-wasm'); worker.postMessage({ control: 'compile-wasm', bytes: wasm });
+      const compiled = await response; assert.ok(!compiled.error); module = compiled.module;
+    }
     await tx.initWorker(module);
     const context = createOfflineContext(sdk, anchors, tsa);
     assert.deepEqual(context.networkPolicy, { trustListFetch: false, timestampTrustFetch: false, remoteManifestFetch: false, ocspFetch: false });

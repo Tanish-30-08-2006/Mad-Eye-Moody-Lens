@@ -5,6 +5,17 @@ import * as sdk from '../../frontend/provenance/vendor/c2pa/sdk.js';
 import { createOfflineContext } from '../../frontend/provenance/offline-settings.js';
 import { classifyC2pa } from '../../frontend/provenance/provenance-core.js';
 import { offlineWorkerCheck } from './helpers/provenance-worker-checks.mjs';
+import { loadWorkerSdk } from '../../frontend/provenance/worker-network.js';
+
+test('SDK initialization messages are queued until packaged module loading completes', async () => {
+  const scope = new EventTarget(), received = [];
+  let finish;
+  const ready = loadWorkerSdk(scope, () => new Promise(resolve => { finish = () => { scope.addEventListener('message', event => received.push(event.data)); resolve(); }; }));
+  scope.dispatchEvent(new MessageEvent('message', { data: 'init' }));
+  assert.deepEqual(received, []); finish(); await ready;
+  scope.dispatchEvent(new MessageEvent('message', { data: 'read' }));
+  assert.deepEqual(received, ['init', 'read']);
+});
 
 test('extension: actual hardened worker and effective SDK settings make zero verification network calls', async () => {
   const stores = await offlineWorkerCheck({ sdk, createOfflineContext, entry: new URL('../../frontend/provenance/c2pa-worker.js', import.meta.url), vendor: new URL('../../frontend/provenance/vendor/c2pa/', import.meta.url) });

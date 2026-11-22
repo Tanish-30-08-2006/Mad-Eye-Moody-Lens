@@ -1,0 +1,24 @@
+// Rebuild from the exact locked official SDK; never run at page runtime.
+import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const vendor = root + 'src/provenance/vendor/';
+await mkdir(vendor, { recursive: true });
+const pkg = JSON.parse(await readFile(root + 'node_modules/@contentauth/c2pa-web/package.json', 'utf8'));
+const locked = JSON.parse(await readFile(root + 'package-lock.json', 'utf8')).packages['node_modules/@contentauth/c2pa-web'];
+const integrity = 'sha512-FEvdoYxejhSMtQ0Z0EwUM2S+6StjAWGcLHMi8eqFvzkXIKwW/2f/A+N8HRsTno8RPj8oNx1g5GFBjPw3uSQPzQ==';
+if (pkg.version !== '0.16.0' || locked.version !== pkg.version || locked.integrity !== integrity) throw new Error('SDK pin/integrity changed.');
+const chunk = root + 'node_modules/@contentauth/c2pa-web/dist/c2pa-CqMzdYCb.js';
+const original = await readFile(chunk, 'utf8');
+const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+if (sha(original) !== '0f11d6d2e81f5c7242088022ba772268328ab668db26570ee215a744c435c404') throw new Error('Official SDK chunk changed.');
+const extension = root + '../../Browser_Extension/frontend/provenance/vendor/c2pa/';
+const licenses = await Promise.all(['LICENSE', 'LICENSE-wasm', 'LICENSE-utilities', 'LICENSE-highgain', 'LICENSE-deepmerge'].map(name => readFile(extension + name, 'utf8')));
+await writeFile(vendor + 'LICENSES.txt', licenses.join('\n\n'));
+await build({ absWorkingDir: root, entryPoints: ['node_modules/@contentauth/c2pa-web/dist/index.js'], bundle: true, format: 'esm', platform: 'browser', target: 'chrome120', outfile: vendor + 'sdk.js', banner: { js: '/*!\n' + licenses.join('\n\n') + '\n*/' } });
+await copyFile(root + 'node_modules/@contentauth/c2pa-web/dist/c2pa_worker.js', vendor + 'c2pa_worker.js');
+for (const name of ['C2PA-TRUST-LIST.pem', 'C2PA-TSA-TRUST-LIST.pem', 'LICENSE-trust-list']) await copyFile(extension + name, vendor + name);
+await writeFile(vendor + 'VERSION.json', JSON.stringify({ version: pkg.version, integrity, upstreamChunkSha256: sha(original), sdkSha256: sha(await readFile(vendor + 'sdk.js')), workerSha256: sha(await readFile(vendor + 'c2pa_worker.js')), workerUrlPatch: null, isolation: 'neutralized worker; defence in depth, not CSP' }, null, 2) + '\n');
+console.log('Rebuilt website SDK 0.16.0 from the locked official package.');

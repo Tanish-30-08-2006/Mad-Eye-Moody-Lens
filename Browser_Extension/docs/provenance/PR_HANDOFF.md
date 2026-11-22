@@ -177,3 +177,9 @@ fallback with zero-network verification tests. A Node browser-API bridge runs
 the actual SDK worker/WASM, not a cryptographic mock. This is defence in depth,
 not a CSP guarantee or a native Chrome pass. Website repetition and card remain
 pending. No manifest edit/conflict has been introduced by this approach.
+
+Commit 5 achieved: lazy native-theme website Origin check, original bytes, safe
+text, switching cancellation, same 0.16.0 pin, Vite worker/WASM URLs and JSON
+parity. No manifest or site-wide CSP edits. Website compiles WASM in its guarded
+worker; its setup downloads only its own WASM asset. Worker fallback is defence
+in depth, not a CSP guarantee. Native Chrome/manual acceptance remains pending.

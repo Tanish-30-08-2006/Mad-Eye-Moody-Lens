@@ -194,6 +194,7 @@ export default function App() {
                 onExternalSubmit={submitExternal}
                 onOpenExternalSettings={openSettings}
                 isExternalBusy={externalBusy}
+                hasDetectorResult={Boolean(result || externalResult)}
               >
                 <div ref={resultRef} style={{ scrollMarginTop: 96 }}>
                   {result && <ResultCard result={result} fileName={fileName} file={resultFile} />}

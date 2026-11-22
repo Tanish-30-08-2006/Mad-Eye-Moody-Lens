@@ -177,3 +177,13 @@ providers 13 passed; website 39 passed, build and typecheck passed.
 
 Pre-commit-4: extension 115 total / 110 passed / 5 skipped / 0 failed;
 providers 13 passed; website 39 passed, build/typecheck passed.
+
+Pre-commit-5: extension 116 total / 111 passed / 5 skipped / 0 failed;
+providers 13 passed; website 63 passed, build/typecheck passed. All seven pure
+logic copies and fixture JSON agree. Main JS grew about 0.79 kB for mounting;
+SDK, 9.06 MB WASM, worker and feature CSS are separate lazy assets. No site-wide
+CSP change or native Chrome run is claimed.
+
+Pre-commit-5 HTTP-only preview smoke: HTML and six lazy JS/WASM resources returned
+200; WASM served as application/wasm. Initial sandbox localhost access was denied;
+the approved local-network retry passed and stopped its helper. No browser used.

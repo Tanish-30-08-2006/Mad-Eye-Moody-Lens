@@ -53,3 +53,16 @@ absence. Links transfer no image automatically and explain vendor-side uploads.
 
 Pre-commit-4: extension 115 total / 110 passed / 5 skipped / 0 failed;
 providers 13 passed; website 39 passed, build/typecheck passed.
+
+Commit 5: website Origin check card is integrated beside the detector via a lazy
+import and uses original File bytes. Both clients use the approved 0.16.0 pin.
+Website state/escaping, original bytes, races, effective offline worker settings
+and JSON parity tests pass (63 website tests total). SDK/WASM/worker/CSS stay in
+lazy assets. No CSP values changed; WASM compilation occurs in the guarded
+website worker. See frontend/PROVENANCE.md for the copy/asset contract.
+
+Pre-commit-5: extension 116 total / 111 passed / 5 skipped / 0 failed;
+providers 13 passed; website 63 passed, build/typecheck passed. All seven pure
+logic copies and fixture JSON agree. Main JS grew about 0.79 kB for mounting;
+SDK, 9.06 MB WASM, worker and feature CSS are separate lazy assets. No site-wide
+CSP change or native Chrome run is claimed.

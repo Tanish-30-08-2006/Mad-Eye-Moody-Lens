@@ -13,14 +13,17 @@ Blob.prototype.slice = function (start = 0, end = this.size, type) {
 globalThis.FileReaderSync = class {
   readAsArrayBuffer(blob) { const bytes = buffers.get(blob); if (!bytes) throw new Error('Unprepared test Blob'); return bytes.slice(0); }
 };
-globalThis.addEventListener = (name, callback) => {
-  if (name === 'message') parentPort.on('message', async data => {
-    for (const value of data.args || []) if (value instanceof Blob) buffers.set(value, await value.arrayBuffer());
-    callback({ data });
-  });
-};
+const events = new EventTarget();
+globalThis.addEventListener = events.addEventListener.bind(events);
+globalThis.removeEventListener = events.removeEventListener.bind(events);
+globalThis.dispatchEvent = events.dispatchEvent.bind(events);
+parentPort.on('message', async data => {
+  for (const value of data.args || []) if (value instanceof Blob) buffers.set(value, await value.arrayBuffer());
+  events.dispatchEvent(new MessageEvent('message', { data }));
+});
 globalThis.postMessage = (message, options) => parentPort.postMessage(message, options?.transfer || []);
-const { networkAttempts } = await import(workerData.entry);
+const { networkAttempts, ready } = await import(workerData.entry);
+await ready;
 parentPort.on('message', data => {
   if (data.control === 'counts') parentPort.postMessage({ control: 'counts', counts: { ...networkAttempts } });
   if (data.control === 'probe') {
