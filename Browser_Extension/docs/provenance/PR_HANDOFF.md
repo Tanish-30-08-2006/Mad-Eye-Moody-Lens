@@ -1,5 +1,8 @@
 # PR handoff (user performs these steps)
 
+The original handoff below describes the already merged v1 feature. For the
+v2 continuation, see the final section and [SDK_AUDIT.md](SDK_AUDIT.md).
+
 ## Open one PR
 
 After the manual checks in TESTING.md pass, open the repository on GitHub, choose
@@ -121,3 +124,49 @@ and corrects null-reader handling for unsigned JPEGs, adds safe failure diagnost
 and avoids presenting uninspected fields as absent. User reported the signed
 fixture succeeds in Chrome; the unsigned-JPEG fix still needs the listed manual
 retest. Use a merge commit to preserve this follow-up in the viva history too.
+
+## V2 continuation: approved design (2026-11-22)
+
+Branch feature/provenance-v2-website is based on main c8131d1; the earlier
+provenance feature is already merged. Commit 1 records design/audit only.
+The target SDK is 0.16.0 in both clients; the 0.17.1 age exception is withdrawn.
+The trust-fetch change in utilities 0.5.2 is retained in SDK_AUDIT.md as the
+reason. Do not claim the installed runtime has already been repinned.
+
+The user scoped the network ban to provenance. Do not change existing CSP
+values or detector connections. The allowed dedicated-worker fallback disables
+fetch, XMLHttpRequest, WebSocket, importScripts and navigator.sendBeacon before
+SDK load. It is defence in depth, not a CSP guarantee. The sandbox approach is
+not claimed achieved. Resource startup and worker boundaries require explicit
+regression tests; Node does not establish Chrome's enforcement or layout.
+
+Remaining gates: official 0.16.0 re-vendor with minimal worker URL patch and new
+hashes; website exact dependency+integrity; effective offline settings; real
+WASM/c2patool and C2PA 2.x regression checks; failing-spy tests with remote,
+unknown and expired files in both clients; preserved detector/image requests;
+optional local originals (currently absent). Stop and report any breakage.
+
+Before commit 1: extension 90 pass / 5 skip, providers 13 pass, website 39 pass,
+website build/typecheck and backend/frontend parity pass. Tests use Node's
+--experimental-strip-types flag. Website lint, Ruff and Mypy are not run.
+The prior isolated backend dependency attempt timed out, then requirements
+installation failed downloading ast-serialize metadata. One pytest attempt with
+a 60-second cap exited with No module named pytest; leave backend testing to CI.
+
+## Planned v2 pull request
+
+Title: feat(provenance): real-world AI origin hints and website origin check
+
+Use ISSUE-A through ISSUE-G until the seven real issue numbers are supplied.
+Only add one Closes #NN line per issue after its acceptance is actually met.
+Components: Chrome Browser Extension and Website; mark implementation/testing
+checkboxes only after they pass. Reviewers: team lead for trust/privacy, Ruturaj
+for declarations/integration. Merge with a merge commit. If main moves, merge
+origin/main into this branch; do not rebase or force-push. No PR is opened here.
+
+Likely conflicts: provenance docs/vendor files, website Analyser/package files,
+and manifest.json if a sandbox declaration is ultimately needed. Vedant edits
+the extension manifest/side panel; preserve his changes and list any additive
+manifest edit explicitly. No manifest change is planned for the worker fallback.
+
+See V2_DESIGN.md, SDK_AUDIT.md and STATUS.md for the current scope and gates.

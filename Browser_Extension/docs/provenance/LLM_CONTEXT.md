@@ -84,3 +84,13 @@ throws JumbfNotFound. Exactly null now becomes no_credentials. Large-stripped.jp
 forces this SDK path. Results additionally include fixed diagnosticCode and
 metadataInspected; unavailable UI hides uninspected credential fields. No raw
 error messages or image URLs are exposed. Post-fix Chrome retest is pending.
+
+## V2 continuation overrides (2026-11-22)
+
+Active branch: feature/provenance-v2-website, based on main c8131d1. V1 above is
+already merged. Current v2 status/design: STATUS.md / V2_DESIGN.md. Target SDK is
+0.16.0 in both clients; the 0.17.1 age exception is withdrawn. Re-vendor/test before
+claiming the installed runtime has changed. Keep the 0.17.1 trust-fetch finding
+in SDK_AUDIT.md. Preserve existing CSP values; the user approved a provenance-only
+network ban with the hardened-worker fallback (not a CSP guarantee). No Chrome
+control. Six commits, no backend/detector edits, stop and report any breakage.

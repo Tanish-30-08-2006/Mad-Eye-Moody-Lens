@@ -68,3 +68,40 @@ is bundled here. Snapshot updates require an explicit code review and new hashes
 | C2PA-TRUST-LIST.pem | `859f422cf4744a45de6f073b258d76381c91a9624c10aaa40543c19c1f124e13` |
 | C2PA-TSA-TRUST-LIST.pem | `eca8347ee71e31d226e00c85b15aca356116fefe6c26ed8c0ee1f954115b1990` |
 | LICENSE-trust-list | `9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94` |
+
+## Approved v2 repin (2026-11-22; implementation pending)
+
+The approved target for BOTH clients is @contentauth/c2pa-web 0.16.0 (MIT),
+utilities 0.4.0, WASM 0.14.0 and types 0.7.8. The runtime and hashes above still
+refer to the currently installed 0.17.1; update them only after re-vendoring and
+real-WASM/c2patool checks pass. No website SDK is integrated yet.
+
+The age exception for 0.17.1 is WITHDRAWN. 0.16.0 was published on
+2026-11-04 at 22:14:21.918 UTC, more than two weeks before this audit.
+Official 0.16.0 archive integrity, independently matched against npm metadata:
+
+`sha512-FEvdoYxejhSMtQ0Z0EwUM2S+6StjAWGcLHMi8eqFvzkXIKwW/2f/A+N8HRsTno8RPj8oNx1g5GFBjPw3uSQPzQ==`
+
+Source: https://registry.npmjs.org/@contentauth/c2pa-web/-/c2pa-web-0.16.0.tgz
+
+Reason for repin: utilities 0.5.2 (used by web 0.17.1) adds fetchTrustSetting
+(settings.js:270) and executeTrustFetch (:295), plus timestamp trust-anchor URL
+resolution. These wrappers/branch are absent from utilities 0.4.0 (web 0.16.0).
+0.16.0 still has resolveTrustSettings -> fetchWithRetry URL fetching. See the
+[SDK audit](../../../../docs/provenance/SDK_AUDIT.md) for the exact comparison,
+publisher/provenance findings and historical 0.17.1 registry integrity.
+
+Network ban scope: provenance verification only. The user explicitly prohibits
+changing existing CSP values or detector connections. Preferred sandbox startup
+would require fetching WASM despite connect-src 'none', or a different resource
+bootstrap protocol. The permitted fallback is a dedicated worker which disables
+fetch, XMLHttpRequest, WebSocket, importScripts and navigator.sendBeacon BEFORE
+loading the SDK. This is defence in depth, not a CSP guarantee. Both clients must
+have effective offline settings and failing-spy tests over remote-manifest,
+unknown-signer and expired-certificate files. Preserve detector/image acquisition
+requests and test that separation. No browser execution has been claimed.
+
+Repin, minimal worker URL adjustment, effective-settings tests, C2PA 2.x parsing,
+real-WASM/c2patool agreement and website exact-version lock integrity are pending.
+Real ChatGPT/Gemini local-original compatibility is unverified: the optional
+real-world fixtures directory was absent at this audit.

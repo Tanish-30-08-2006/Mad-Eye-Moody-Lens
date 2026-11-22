@@ -78,3 +78,18 @@ links and covers all six states using public originals, deterministic local
 fixtures and an explicit test-root positive case. No unconfirmed public Verified
 badge is claimed. This additional commit is explicitly requested after the prior
 eight commits; their history is preserved. No runtime or provider code changes.
+
+## Planned v2 issues (not yet closed)
+
+| Placeholder | Scope |
+| --- | --- |
+| ISSUE-A | Reason classification and offline trust snapshot |
+| ISSUE-B | Bounded unsigned generator hints |
+| ISSUE-C | Deterministic absence explanation and evidence strip |
+| ISSUE-D | Contextual vendor link-outs |
+| ISSUE-E | Website Origin check card |
+| ISSUE-F | Exact SDK pin, lazy assets, offline worker and parity |
+| ISSUE-G | Fixture matrix, tests and documentation |
+
+The real seven issue numbers have not been supplied. Do not invent them or mark
+these issues resolved. Six planned commits are listed in V2_DESIGN.md.

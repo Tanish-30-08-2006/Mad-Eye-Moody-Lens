@@ -36,3 +36,9 @@ Unavailable means a read/startup/verification failure, with a specific safe mess
 it must not be interpreted as no metadata. If a web URL is blocked, upload its
 original downloaded file. The browser SDK's null-reader absence result is handled
 explicitly, including larger unsigned JPEGs that require an SDK read.
+
+## V2 work in progress
+
+The approved [v2 design](V2_DESIGN.md) adds origin hints and a website card in six
+commits. [STATUS.md](STATUS.md) separates implemented work from pending gates.
+The approved SDK target is 0.16.0; the installed runtime has not yet been repinned.

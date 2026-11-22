@@ -146,3 +146,23 @@ Retest signed.png (Unknown signer) and corrupted-signature.png (Signature invali
 A blocked website URL may legitimately remain Unavailable and should now explain
 that the original bytes could not be read. This post-fix Chrome retest, network
 privacy checks, and the remaining manual items are still pending user confirmation.
+
+## V2 baseline and pre-commit-1 verification (2026-11-22)
+
+Re-run before commit 1: extension npm test 95 total / 90 passed / 5 live-server
+skips / 0 failures; provider CJS suite 13 passed; website tests 39 passed using
+node --experimental-strip-types --test with the three existing test files;
+website build and typecheck passed; backend/frontend parity passed. Existing
+large-main-chunk build warning remains. No baseline tests were removed.
+These results use the installed 0.17.1 extension SDK, not a completed 0.16.0 repin.
+
+The earlier isolated backend CPU install timed out at 360 seconds. An attempt
+with requirements.txt and requirements-dev.txt failed downloading ast-serialize
+metadata (15-second network read timeout). The one subsequent pytest invocation,
+bounded to 60 seconds, exited 1: No module named pytest. No tests executed there;
+leave backend validation to CI. Website lint, Ruff and Mypy are not run as
+accepted by the user. No Chrome automation/manual Chrome run is claimed.
+
+Repin cryptographic agreement, effective-settings, parent/worker failing-spy
+privacy tests and real-world local-original tests remain pending. The optional
+real-world directory did not exist; do not claim ChatGPT/Gemini compatibility.

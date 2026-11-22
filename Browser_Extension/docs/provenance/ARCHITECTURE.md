@@ -138,3 +138,11 @@ entries per IFD and depth 3, 12 hints of 240 characters. Ambiguous/truncated
 containers return marker unknown, so the SDK will decide. No parsing exception
 escapes to the caller. Generated fixtures use disposable test credentials; test
 root injection is confined to tests and cannot influence runtime trust.
+
+## V2 design approved 2026-11-22 (pending implementation)
+
+See V2_DESIGN.md and SDK_AUDIT.md. The target SDK is 0.16.0 in both clients.
+The user explicitly scoped the no-network requirement to provenance and forbids
+changing existing CSP values or detector connections. A dedicated worker must
+neutralize network APIs before SDK load; this is not a CSP guarantee. Pure
+website logic will be a documented copy protected by JSON fixture parity.
