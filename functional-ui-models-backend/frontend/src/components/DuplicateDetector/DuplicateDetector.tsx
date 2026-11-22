@@ -4,6 +4,10 @@ import {
   compareDuplicates,
   DuplicateCompareResponse,
 } from "../../api/client";
+import {
+  downloadForensicReport,
+  ImageDimension,
+} from "./reportGenerator";
 import "./DuplicateDetector.css";
 
 interface SelectedImage {
@@ -40,6 +44,9 @@ export function DuplicateDetector() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DuplicateCompareResponse | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [dimensionsMap, setDimensionsMap] = useState<Map<string, ImageDimension>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
 
@@ -103,6 +110,20 @@ export function DuplicateDetector() {
       });
     }
 
+    for (const item of newItems) {
+      if (!item.error && typeof Image !== "undefined") {
+        const img = new Image();
+        img.onload = () => {
+          setDimensionsMap((prev) => {
+            const next = new Map(prev);
+            next.set(item.file.name, { width: img.naturalWidth, height: img.naturalHeight });
+            return next;
+          });
+        };
+        img.src = item.previewUrl;
+      }
+    }
+
     setSelectedImages((prev) => {
       const combined = [...prev, ...newItems];
       if (combined.length > MAX_FILES) {
@@ -127,7 +148,28 @@ export function DuplicateDetector() {
     setResult(null);
     setError(null);
     setProgress(null);
+    setReportError(null);
+    setIsGeneratingReport(false);
+    setDimensionsMap(new Map());
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDownloadReport = async () => {
+    if (!result || isGeneratingReport) return;
+    setIsGeneratingReport(true);
+    setReportError(null);
+
+    try {
+      await downloadForensicReport({
+        result,
+        selectedImages,
+        dimensionsMap,
+      });
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : "Failed to generate forensic PDF report.");
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   const startComparison = async () => {
@@ -355,12 +397,14 @@ export function DuplicateDetector() {
         {/* Results Container */}
         {result && (
           <div style={{ marginTop: "48px" }}>
-            {/* Header with Clear button */}
+            {/* Header with Download Report & Clear buttons */}
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "baseline",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "12px",
                 marginBottom: "20px",
               }}
             >
@@ -372,14 +416,48 @@ export function DuplicateDetector() {
                   Real-time batch forensic report derived from {result.summary.total_images} uploaded files.
                 </p>
               </div>
-              <button
-                type="button"
-                className="bonsai-btn-secondary"
-                onClick={() => setResult(null)}
-              >
-                Clear Results
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <button
+                  type="button"
+                  id="download-forensic-report-btn"
+                  className="bonsai-btn-primary"
+                  onClick={handleDownloadReport}
+                  disabled={isGeneratingReport}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "8px 18px" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  {isGeneratingReport ? "Generating Report..." : "Download Forensic Report"}
+                </button>
+                <button
+                  type="button"
+                  className="bonsai-btn-secondary"
+                  onClick={() => setResult(null)}
+                >
+                  Clear Results
+                </button>
+              </div>
             </div>
+
+            {/* Report Generation Error Banner */}
+            {reportError && (
+              <div className="bonsai-error-banner" style={{ marginBottom: "20px" }}>
+                <div>
+                  <strong>Report Error:</strong> {reportError}
+                </div>
+                <button
+                  type="button"
+                  className="bonsai-btn-secondary"
+                  onClick={handleDownloadReport}
+                  style={{ padding: "4px 14px", fontSize: "0.8125rem" }}
+                >
+                  Retry Download
+                </button>
+              </div>
+            )}
 
             {/* 8 Clean Metric Cards (Reference 2 Styling) */}
             <div className="bonsai-summary-grid">
