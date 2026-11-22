@@ -8,6 +8,7 @@ gunicorn>=22,<24
 python-multipart>=0.0.9
 pydantic>=2.7,<3
 pydantic-settings>=2.4,<3
+pyjwt>=2.8.0,<3
 structlog>=24.1
 prometheus-client>=0.20
 filetype>=1.2

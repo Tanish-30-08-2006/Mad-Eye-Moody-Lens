@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app import __version__
+from app.api.auth_routes import auth_router
 from app.api.routes import router
 from app.core.config import settings
 from app.core.errors import INTERNAL_ERROR_MESSAGE, AnalysisError
@@ -124,6 +125,7 @@ def create_app() -> FastAPI:
     # routes.get_job), so it must own those two operations.
     sources = [ext_router, router] if ext_router is not None else [router]
     app.include_router(_merge_routers(sources))
+    app.include_router(auth_router)
     return app
 
 

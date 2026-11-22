@@ -149,3 +149,65 @@ class DuplicateCompareResponse(BaseModel):
         "Perceptual hash similarity and SHA-256 byte fingerprints are mathematical "
         "comparisons, not forensic proof of common origin or image authenticity."
     )
+
+
+# ------------------------------------------------ multi-stakeholder auth & RBAC
+UserRoleType = Literal["public", "journalist", "enterprise_admin", "govt_officer"]
+SubscriptionTierType = Literal["community", "journalist_pro", "enterprise_suite", "sovereign_govtech"]
+
+
+class UserProfile(BaseModel):
+    user_id: str | None = None
+    email: str
+    role: UserRoleType
+    org_name: str | None = None
+    subscription_tier: SubscriptionTierType
+    permissions: list[str] = []
+    is_anonymous: bool = False
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+    user: UserProfile
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    role: UserRoleType = "public"
+    org_name: str | None = None
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class DemoAccountInfo(BaseModel):
+    stakeholder_name: str
+    role: UserRoleType
+    tier: SubscriptionTierType
+    email: str
+    password: str
+    description: str
+    unlocked_features: list[str]
+
+
+class OAuthProviderInfo(BaseModel):
+    provider_id: str
+    name: str
+    auth_url: str
+    enabled: bool = True
+
+
+class OAuthCallbackRequest(BaseModel):
+    provider: str
+    code: str
+    role: UserRoleType | None = None
