@@ -269,6 +269,42 @@ nav.sub-nav {
   color: #fde68a;
 }
 
+.provider-notice.info {
+  background: #101c2e;
+  border-color: #1e3a6a;
+  color: #bfdbfe;
+}
+
+.provider-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  background: #2a1612;
+  border: 1px solid #993b2a;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: #fecaca;
+  line-height: 1.4;
+}
+
+.provider-warning-banner .warning-icon {
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.provider-warning-banner .warning-link {
+  color: #93c5fd;
+  text-decoration: underline;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  margin-left: auto;
+}
+
 .link-row {
   margin: 4px 0 8px;
 }

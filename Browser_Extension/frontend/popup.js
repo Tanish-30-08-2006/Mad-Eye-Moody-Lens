@@ -105,6 +105,21 @@ function updateModelBadge(provider) {
   }
 }
 
+const readinessPills = {
+  verified: { text: "Verified", cls: "good" },
+  unverified: { text: "Configured, not verified", cls: "warn" },
+  invalid: { text: "Invalid credentials", cls: "bad" },
+  not_configured: { text: "Not configured", cls: "muted" }
+};
+
+$("imageGoToSettings")?.addEventListener("click", () => {
+  switchToMainTab("tabSettings");
+});
+
+$("videoGoToSettings")?.addEventListener("click", () => {
+  switchToMainTab("tabSettings");
+});
+
 async function refresh() {
   const status = await send({ type: "GET_PUBLIC_STATUS" });
   if (status?.error) throw new Error(status.error);
@@ -115,23 +130,66 @@ async function refresh() {
     updateModelBadge(active);
   }
 
-  const providerLabel = active === "custom"
-    ? (status.customProviderName || "Custom REST ready")
-    : (active === "moodylens" ? "Moody Lens Server ready" : (active === "zerotrue" ? "ZeroTrue Cloud AI ready" : "BitMind ready"));
+  const providerNames = {
+    bitmind: "BitMind",
+    zerotrue: "ZeroTrue",
+    custom: "Custom REST",
+    moodylens: "Moody Lens"
+  };
+  const providerLabel = providerNames[active] || active;
 
-  $("providerState").textContent = status.activeProviderConfigured
-    ? providerLabel
-    : "Needs configuration";
-  $("providerState").className = `pill ${status.activeProviderConfigured ? "good" : "muted"}`;
+  // Image provider readiness & warning banner
+  const imgReadiness = status.imageReadiness || { state: status.activeProviderConfigured ? "unverified" : "not_configured" };
+  const imgPill = readinessPills[imgReadiness.state] || readinessPills.not_configured;
+  if ($("providerState")) {
+    $("providerState").textContent = imgPill.text;
+    $("providerState").className = `pill ${imgPill.cls}`;
+  }
 
-  $("keyState").textContent = status.bitmindConfigured ? "Configured" : "Not configured";
-  $("keyState").className = `pill ${status.bitmindConfigured ? "good" : "muted"}`;
+  const imgWarnEl = $("imageProviderWarning");
+  const imgWarnText = $("imageProviderWarningText");
+  if (imgWarnEl && imgWarnText) {
+    if (imgReadiness.state === "not_configured") {
+      imgWarnEl.style.display = "flex";
+      imgWarnText.textContent = `${providerLabel} is not configured. Add your API key in Settings → Providers to enable detection.`;
+    } else if (imgReadiness.state === "invalid") {
+      imgWarnEl.style.display = "flex";
+      imgWarnText.textContent = `${providerLabel} credentials are invalid. Update your API key in Settings → Providers.`;
+    } else {
+      imgWarnEl.style.display = "none";
+    }
+  }
+
+  // Settings pills for BitMind & ZeroTrue
+  const bmState = status.bitmindReadiness?.state || (status.bitmindConfigured ? "unverified" : "not_configured");
+  const bmPill = readinessPills[bmState] || readinessPills.not_configured;
+  if ($("keyState")) {
+    $("keyState").textContent = bmPill.text;
+    $("keyState").className = `pill ${bmPill.cls}`;
+  }
+
+  const ztState = status.zeroTrueReadiness?.state || (status.zeroTrueConfigured ? "unverified" : "not_configured");
+  const ztPill = readinessPills[ztState] || readinessPills.not_configured;
+  if ($("zeroTrueState")) {
+    $("zeroTrueState").textContent = ztPill.text;
+    $("zeroTrueState").className = `pill ${ztPill.cls}`;
+  }
 
   $("scanState").textContent = status.scanEnabled ? "On" : "Off";
   $("scanState").className = `pill ${status.scanEnabled ? "good" : "muted"}`;
-  $("toggleScan").textContent = status.scanEnabled ? "Disable auto-scan" : "Enable auto-scan";
+  $("toggleScan").textContent = status.scanEnabled ? "Disable image auto-scan" : "Enable image auto-scan";
   $("toggleScan").className = status.scanEnabled ? "secondary full" : "primary full";
   $("thresholdSelect").value = status.scanThreshold || "standard";
+
+  const vidScanActive = status.videoScanEnabled !== false;
+  if ($("videoScanState")) {
+    $("videoScanState").textContent = vidScanActive ? "On" : "Off";
+    $("videoScanState").className = `pill ${vidScanActive ? "good" : "muted"}`;
+  }
+  if ($("toggleVideoScan")) {
+    $("toggleVideoScan").textContent = vidScanActive ? "Disable video auto-scan" : "Enable video auto-scan";
+    $("toggleVideoScan").className = vidScanActive ? "secondary full" : "primary full";
+  }
 
   const tab = await activeTab();
   if (tab?.id) {
@@ -141,18 +199,38 @@ async function refresh() {
     } catch { renderDiagnostics(null); }
   }
 
-  // Check Video status
-  try {
-    const videoStatus = await send({ type: "VIDEO_CHECK_PROVIDER_CONFIG" });
-    if (videoStatus?.ok && videoStatus.data) {
-      const vData = videoStatus.data;
-      if ($("videoProviderSelect")) $("videoProviderSelect").value = vData.activeProvider || "bitmind";
-      if ($("videoProviderState")) {
-        $("videoProviderState").textContent = vData.isConfigured ? "Ready" : "Needs setup";
-        $("videoProviderState").className = `pill ${vData.isConfigured ? "good" : "muted"}`;
-      }
+  // Check Video status, platform notice, and warning banner
+  const activeVidProvider = $("videoProviderSelect")?.value || status.videoActiveProvider || "bitmind";
+  const vidProviderLabel = providerNames[activeVidProvider] || activeVidProvider;
+  const vidReadiness = status.videoReadiness || { state: status.videoProviderConfigured ? "unverified" : "not_configured" };
+  const vidPill = readinessPills[vidReadiness.state] || readinessPills.not_configured;
+
+  if ($("videoProviderSelect") && status.videoActiveProvider) {
+    $("videoProviderSelect").value = status.videoActiveProvider;
+  }
+  if ($("videoProviderState")) {
+    $("videoProviderState").textContent = vidPill.text;
+    $("videoProviderState").className = `pill ${vidPill.cls}`;
+  }
+
+  const bitmindNotice = $("bitmindVideoNotice");
+  if (bitmindNotice) {
+    bitmindNotice.style.display = activeVidProvider === "bitmind" ? "flex" : "none";
+  }
+
+  const vidWarnEl = $("videoProviderWarning");
+  const vidWarnText = $("videoProviderWarningText");
+  if (vidWarnEl && vidWarnText) {
+    if (vidReadiness.state === "not_configured") {
+      vidWarnEl.style.display = "flex";
+      vidWarnText.textContent = `${vidProviderLabel} is not configured. Add your API key in Settings → Providers to enable video detection.`;
+    } else if (vidReadiness.state === "invalid") {
+      vidWarnEl.style.display = "flex";
+      vidWarnText.textContent = `${vidProviderLabel} credentials are invalid. Update your API key in Settings → Providers.`;
+    } else {
+      vidWarnEl.style.display = "none";
     }
-  } catch {}
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,9 +321,11 @@ $("testKey").addEventListener("click", async () => {
     if (!result?.ok) throw new Error(result?.error || "BitMind connection test failed.");
     $("keyMessage").textContent = `BitMind verified! isAI=${result.response.isAI}, confidence=${result.response.confidence ?? "N/A"}.`;
     $("keyMessage").className = "message good";
+    await refresh();
   } catch (error) {
     $("keyMessage").textContent = `Test failed: ${error.message}`;
     $("keyMessage").className = "message error";
+    await refresh();
   } finally {
     $("testKey").disabled = false;
   }
@@ -284,6 +364,34 @@ $("toggleScan").addEventListener("click", async () => {
     $("keyMessage").className = "message error";
   } finally {
     $("toggleScan").disabled = false;
+    await refresh();
+  }
+});
+
+$("toggleVideoScan")?.addEventListener("click", async () => {
+  $("toggleVideoScan").disabled = true;
+  try {
+    const status = await send({ type: "GET_PUBLIC_STATUS" });
+    const isCurrentlyOn = status.videoScanEnabled !== false;
+    if (isCurrentlyOn) {
+      const result = await send({ type: "DISABLE_VIDEO_SCANNING" });
+      if (!result?.ok) throw new Error(result?.error || "Could not disable video scanning.");
+      $("keyMessage").textContent = "Automatic video scanning disabled.";
+    } else {
+      if (!status.videoProviderConfigured) {
+        throw new Error("Configure your video detection provider in Settings > Providers first.");
+      }
+      const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
+      if (!granted) throw new Error("Website permission was not granted.");
+      const result = await send({ type: "ENABLE_VIDEO_SCANNING" });
+      if (!result?.ok) throw new Error(result?.error || "Could not enable video scanning.");
+      $("keyMessage").textContent = "Automatic video scanning enabled.";
+    }
+  } catch (error) {
+    $("keyMessage").textContent = error.message;
+    $("keyMessage").className = "message error";
+  } finally {
+    $("toggleVideoScan").disabled = false;
     await refresh();
   }
 });
@@ -504,6 +612,7 @@ $("btnSaveZeroTrueKey")?.addEventListener("click", async () => {
     $("zeroTrueKeyInput").value = "";
     await initZeroTrueConfig();
     await refreshAudio();
+    await refresh();
   } catch (err) {
     if (msgEl) {
       msgEl.style.display = "block";
@@ -529,6 +638,7 @@ $("btnRemoveZeroTrueKey")?.addEventListener("click", async () => {
     $("zeroTrueKeyInput").value = "";
     await initZeroTrueConfig();
     await refreshAudio();
+    await refresh();
   } catch (err) {
     if (msgEl) {
       msgEl.style.display = "block";
@@ -558,12 +668,14 @@ $("btnTestZeroTrueKey")?.addEventListener("click", async () => {
       msgEl.className = res.ok ? "message good" : "message error";
       msgEl.textContent = res.ok ? "ZeroTrue API connection verified!" : ("Test failed: " + res.error);
     }
+    await refresh();
   } catch (err) {
     if (msgEl) {
       msgEl.style.display = "block";
       msgEl.className = "message error";
       msgEl.textContent = "Test error: " + err.message;
     }
+    await refresh();
   } finally {
     btn.disabled = false;
   }

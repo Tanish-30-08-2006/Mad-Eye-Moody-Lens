@@ -26,7 +26,31 @@
 .ds-real { background: rgba(13,105,68,.96); }
 .ds-ai { background: rgba(158,40,56,.97); }
 .ds-uncertain { background: rgba(148,91,17,.97); }
+.ds-unsupported { background: rgba(88,58,115,.96); border-color: rgba(190,150,240,.35) !important; }
+.ds-not-configured { background: rgba(115,70,25,.96); border-color: rgba(240,170,80,.35) !important; }
 .ds-error { background: rgba(76,83,99,.97); }
+.ds-video-badge {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 145px;
+  min-height: 25px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,.20);
+  border-radius: 7px;
+  color: #fff;
+  font: 750 9px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: .015em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.32);
+  pointer-events: none !important;
+  user-select: none !important;
+  contain: layout style paint;
+  backdrop-filter: blur(5px);
+}
 .ds-spinner {
   width: 9px; height: 9px; border: 2px solid rgba(255,255,255,.32);
   border-top-color: #fff; border-radius: 50%; display: inline-block;

@@ -89,10 +89,12 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Run Extension Service Worker Tests
-        run: |
-          node --test browser-extension/backend/tests/background.test.mjs
-          node --test Browser_Extension/backend/tests/background.test.mjs
+      - name: Run Legacy Extension Tests
+        run: node --test browser-extension/backend/tests/background.test.mjs
+
+      - name: Run Browser Extension Test Suite
+        working-directory: Browser_Extension/backend
+        run: npm test
 
   telegram-bot-ci:
     name: Telegram Bot Unit Tests

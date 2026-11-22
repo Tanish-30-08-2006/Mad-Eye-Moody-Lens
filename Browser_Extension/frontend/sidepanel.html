@@ -73,12 +73,27 @@
             </div>
 
             <div id="spImageProviderNotice" class="provider-notice" style="display: none; margin-top: 8px;"></div>
+            <div id="spImageProviderWarning" class="provider-warning-banner" style="display: none;">
+              <span class="warning-icon">&#9888;</span>
+              <span id="spImageProviderWarningText">ZeroTrue is not configured. Add your API key in Settings &rarr; Providers to enable detection.</span>
+              <a href="#" id="spImageGoToSettings" class="warning-link">Settings &rarr; Providers</a>
+            </div>
 
             <div class="actions" style="margin-top: 10px;">
               <button id="analyze" class="primary">Analyze Image</button>
               <button id="clear" class="secondary">Clear</button>
             </div>
             <p class="hint" style="margin-top: 6px;">Supports JPEG, PNG, WebP and GIF (up to 8 MB).</p>
+          </div>
+
+          <div class="card" style="margin-bottom: 12px;">
+            <div class="result-heading">
+              <h2>Automated Image Scanning</h2>
+              <span id="spImageScanState" class="pill muted">Off</span>
+            </div>
+            <p class="hint">Scans images on web pages as you browse. Results appear as badges directly on media.</p>
+            <button id="spToggleImageScan" class="secondary full" style="margin-top: 8px;">Enable Image Auto-Scan</button>
+            <div id="spImageScanMsg" class="message error" style="display: none; margin-top: 8px;"></div>
           </div>
 
           <div class="card">
@@ -240,10 +255,29 @@
               </div>
             </div>
 
+            <div id="spBitmindVideoNotice" class="provider-notice info" style="display: none; margin-top: 8px;">
+              <strong>BitMind Video Scope:</strong> BitMind video detection currently supports X/Twitter, TikTok, Facebook video URLs, and uploaded video files. Other video URLs may not be supported.
+            </div>
+            <div id="spVideoProviderWarning" class="provider-warning-banner" style="display: none;">
+              <span class="warning-icon">&#9888;</span>
+              <span id="spVideoProviderWarningText">ZeroTrue is not configured. Add your API key in Settings &rarr; Providers to enable detection.</span>
+              <a href="#" id="spVideoGoToSettings" class="warning-link">Settings &rarr; Providers</a>
+            </div>
+
             <div class="actions" style="margin-top: 10px;">
               <button id="btnAnalyzeVideo" class="primary">Analyze Video</button>
               <button id="btnClearVideo" class="secondary">Clear</button>
             </div>
+          </div>
+
+          <div class="card" style="margin-top: 10px; margin-bottom: 12px;">
+            <div class="result-heading">
+              <h2>Automated Video Scanning</h2>
+              <span id="spVideoScanState" class="pill muted">Off</span>
+            </div>
+            <p class="hint">Automatically scans video streams and HTML5 videos on web pages as you browse. Status badges appear on videos.</p>
+            <button id="spToggleVideoScan" class="secondary full" style="margin-top: 8px;">Enable Video Auto-Scan</button>
+            <div id="spVideoScanMsg" class="message error" style="display: none; margin-top: 8px;"></div>
           </div>
 
           <div id="videoResultCard" class="card" style="display: none;">
