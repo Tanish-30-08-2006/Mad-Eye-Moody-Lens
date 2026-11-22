@@ -93,3 +93,19 @@ eight commits; their history is preserved. No runtime or provider code changes.
 
 The real seven issue numbers have not been supplied. Do not invent them or mark
 these issues resolved. Six planned commits are listed in V2_DESIGN.md.
+
+## V2 resolution map
+
+| Placeholder | Implementation commits / evidence |
+| --- | --- |
+| ISSUE-A | 8d11a52; trust/expiry/malformed reasons, injected root, C2PA 2.4, self-signed matrix |
+| ISSUE-B | e5842cd; bounded unsigned IPTC/tool hints, no prompt retention |
+| ISSUE-C | 374438f; categorical evidence and deterministic absence |
+| ISSUE-D | 374438f; fixed OpenAI/Google link-outs, no automatic upload |
+| ISSUE-E | f3ae317; lazy native website card, original bytes, races/escaping |
+| ISSUE-F | 8d11a52 + f3ae317; exact SDK, Vite assets, offline workers and JSON parity |
+| ISSUE-G | final test/docs commit; full matrix, optional-original skip and handoff |
+
+Real issue numbers are not supplied. Manual Chrome/CI acceptance is still pending;
+no issue is claimed closed and no PR was opened. SDK certificate type for arbitrary
+files and local-original compatibility are explicitly not established.

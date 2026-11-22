@@ -1,5 +1,11 @@
 # Architecture and decisions
 
+Current v2: both clients use SDK 0.16.0; the worker fallback is defence in depth,
+not a CSP guarantee. Existing CSP/detector connections are unchanged. Website
+WASM compiles in its guarded worker; pure logic is copied with JSON/byte parity.
+See frontend/PROVENANCE.md and SDK_AUDIT.md for the current resource boundary.
+The historical v1 audit sections below explain the original integration.
+
 ## Browser SDK absence handling (manual-test follow-up)
 
 The raw WasmReader throws C2pa(JumbfNotFound) for unsigned files. The public
@@ -103,7 +109,7 @@ and bounded. The SDK remains the only signature and asset-binding authority.
 
 ## SDK decision
 
-Use `@contentauth/c2pa-web@0.17.1`, the maintained browser package from
+V1 originally used `@contentauth/c2pa-web@0.17.1`, the maintained browser package from
 [c2pa-js](https://opensource.contentauthenticity.org/docs/c2pa-js/packages/c2pa-web/).
 `createC2pa({wasmSrc, workerSrc})` supports a packaged worker, but this version's
 worker validation accepts only HTTPS. Preserve its pristine built file and apply

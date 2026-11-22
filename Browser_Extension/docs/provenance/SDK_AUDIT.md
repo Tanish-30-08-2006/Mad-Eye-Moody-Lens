@@ -1,5 +1,10 @@
 # SDK audit gate: 0.16.0 versus 0.17.1
 
+Current outcome: both clients are repinned to official 0.16.0 with exact integrity.
+The 0.17.1 age exception is withdrawn. The comparison below preserves why it was
+rejected. Current runtime checks and limitations are in the final sections.
+The dedicated-worker fallback is achieved in both clients; no CSP values changed.
+
 Audit date: 2026-11-22 (Asia/Calcutta). Result: 0.17.1 rejected for v2; repin to 0.16.0 approved.
 The user required an audit before relying on 0.17.1 and explicitly required a
 stop if any check failed. This report does not authorize bypassing that gate.
@@ -88,7 +93,7 @@ is the basis for the stop.
 The user approved repinning both clients to 0.16.0. Its official tarball matches
 registry integrity `sha512-FEvdoYxejhSMtQ0Z0EwUM2S+6StjAWGcLHMi8eqFvzkXIKwW/2f/A+N8HRsTno8RPj8oNx1g5GFBjPw3uSQPzQ==`.
 It was published 2026-11-04 22:14:21.918 UTC; no age exception is required.
-Re-vendoring, exact website pin/integrity and compatibility checks remain pending.
+At that audit stage re-vendoring and website integration had not run; they are now complete as recorded below.
 
 ## Approved isolation scope
 
@@ -149,3 +154,22 @@ and forbidden main-thread WASM compilation pass over all three privacy fixtures.
 Exact logic-copy and JSON parity checks pass. This remains defence in depth,
 not a CSP guarantee or claimed native browser enforcement. Existing CSP values
 are unchanged. Bundled licenses and vendor/VERSION.json record the artifact pin.
+
+## Final repin verification
+
+Fresh checksum-verified c2patool 0.29.0 and repinned WASM agree in all 12 signed
+fixture/trust-mode combinations, including self-signed and expired. C2PA 2.4.0
+parsing is confirmed. Both clients' actual worker tests cover remote-only,
+unknown-signer and expired files with zero verification network calls. Parent
+WASM compilation is forbidden in the website test. Website SDK source is bundled
+without a URL patch; native worker startup reuses the SDK's highgain protocol.
+Only the extension's documented same-host chrome-extension URL adjustment remains.
+
+Website build/typecheck, categorical card states/escaping/races, exact copies and
+all fixture JSON parity pass. HTTP-only preview served all lazy resources. Main
+mounting JS grows about 0.79 kB; the 9.06 MB WASM and SDK are lazy. No browser run,
+CSP enforcement guarantee or user-original compatibility is claimed. The
+self-signed fixture's public certificate independently verifies its self-signature;
+the SDK still cannot establish arbitrary-file certificate type, so no issuer-name
+heuristic is used. Tests explicitly preserve detector/image download connections.
+The optional originals folder is empty and its test skips honestly. TC260 omitted.

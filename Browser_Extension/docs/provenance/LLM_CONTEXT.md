@@ -1,5 +1,14 @@
 # Future-agent briefing
 
+CURRENT V2: feature/provenance-v2-website, base c8131d1. Both clients are repinned
+to official SDK 0.16.0 / utilities 0.4.0; the 0.17.1 age exception is withdrawn.
+Keep its trust-fetch finding in SDK_AUDIT. Existing CSP values are unchanged;
+neutralized worker fallback is defence in depth, not a CSP guarantee. Website
+WASM compiles in that worker. Read STATUS, TESTING and PR_HANDOFF first. No Chrome
+automation, backend edits, rebase, force-push or PR creation. Preserve the seven
+pure copies with website JSON parity tests. Optional originals are gitignored
+and absent; compatibility unverified. The v1 notes below are historical.
+
 Purpose: local image-file provenance alongside the independent detector.
 Branch: feature/image-provenance-check. Seven planned commits plus manual-test
 and sample-documentation follow-ups; do not commit
@@ -12,7 +21,7 @@ use Chrome automation. Never claim Node establishes real MV3 CSP/worker behavior
 
 - Preserve original bytes; 8 MiB cap, public HTTP(S), omit credentials, no cache,
   no redirects/permission requests; failed reads suggest original-file upload.
-- SDK-only cryptography: @contentauth/c2pa-web 0.17.1, wasm 0.15.1, all packaged.
+- SDK-only cryptography: @contentauth/c2pa-web 0.16.0, wasm 0.14.0, all packaged.
 - Local official C2PA signer/TSA PEM snapshots dated 2026-11-21; no runtime trust
   updates, remote manifests or OCSP; dedicated worker also rejects network fetch.
 - No persistence/logging/export of images, manifests, prompts, metadata or hashes.

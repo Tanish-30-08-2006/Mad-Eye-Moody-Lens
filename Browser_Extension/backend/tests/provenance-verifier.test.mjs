@@ -44,7 +44,7 @@ test('vendor hashes and the complete one-line same-extension worker patch are re
 });
 
 for (const mode of ['untrusted', 'test-trusted']) {
-  for (const name of ['signed', 'untrusted', 'corrupted-signature', 'binding-mismatch']) {
+  for (const name of ['signed', 'untrusted', 'corrupted-signature', 'binding-mismatch', 'self-signed', 'expired-chatgpt']) {
     test(`real WASM and c2patool agree: ${name}, ${mode}`, async () => {
       const anchors = mode === 'test-trusted' ? await fixture('test-root-A.crt') : null;
       const fetchBefore = globalThis.fetch;

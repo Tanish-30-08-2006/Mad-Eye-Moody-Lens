@@ -17,8 +17,9 @@ export function fileFacts(bytes, metadata, source) {
 
 export function evidenceIndex(result) {
   if (result?.signatureStatus === 'valid') return 0;
-  if (result?.metadataHints?.some(hint => hint.declared) || (result?.aiDeclaration && result.aiDeclaration !== 'not_declared')) return 1;
-  if (result?.metadataHints?.length) return 2;
+  const hints = Array.isArray(result?.metadataHints) ? result.metadataHints.slice(0, 12) : [];
+  if (hints.some(hint => hint.declared) || (result?.aiDeclaration && result.aiDeclaration !== 'not_declared')) return 1;
+  if (hints.length || result?.remoteManifestNotFetched) return 2;
   return result?.status === 'no_credentials' && result.metadataInspected ? 3 : null;
 }
 
@@ -31,7 +32,7 @@ export function absenceExplanation(result) {
 }
 
 export function makerLinks(result) {
-  const families = new Set([familyFor(result?.signer), familyFor(result?.claimGenerator), ...(result?.metadataHints || []).map(hint => hint.family)]);
+  const families = new Set([familyFor(result?.signer), familyFor(result?.claimGenerator), ...(Array.isArray(result?.metadataHints) ? result.metadataHints.slice(0, 12) : []).map(hint => hint.family)]);
   const nothing = evidenceIndex(result) === 3;
   return [
     { family: 'OpenAI', label: 'Check with OpenAI', url: 'https://openai.com/verify' },

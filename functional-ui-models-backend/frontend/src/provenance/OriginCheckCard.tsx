@@ -13,6 +13,7 @@ export function OriginCheckView({ result, checking = false, fileName = '', onRec
   const shown = result || makeResult('unavailable');
   const tone = shown.status === 'verified' ? 'likely_real' : shown.status === 'invalid' ? 'likely_fake' : shown.status === 'untrusted_signer' ? 'uncertain' : 'inconclusive';
   const explanation = absenceExplanation(shown), links = makerLinks(shown);
+  const startupUnavailable = shown.status === 'unavailable' && ['sdk_load_failed', 'trust_anchors_unavailable', 'sdk_initialization_failed'].includes(shown.diagnosticCode || '');
   const hasDeclarations = shown.signer || shown.claimGenerator || shown.claimedSigningTime || shown.actions.length;
   return <aside className="result origin-card" aria-label="Origin check for the selected image" aria-busy={checking}>
     <header className="result__head"><div><h2>Origin check</h2><span className="label">Selected file · {capText(fileName, 120)}</span></div>
@@ -21,7 +22,7 @@ export function OriginCheckView({ result, checking = false, fileName = '', onRec
     <div className="origin-content">
       <p className={`verdict-chip v-${tone}`} role="status" aria-live="polite"><span className="vmark" aria-hidden="true" />{checking ? 'Checking file credentials…' : STATUS_LABELS[shown.status] || STATUS_LABELS.unavailable}</p>
       {checking ? <p className="note">Reading the original file locally…</p> : <>
-        <p>{capText(shown.message, 600)}</p>
+        <p>{startupUnavailable ? 'Local origin check could not start. Re-check or reload this page.' : capText(shown.message, 600)}</p>
         <ol className="origin-evidence" aria-label="Origin evidence; separate from the detector score">{EVIDENCE_LABELS.map((label, index) => <li key={label} className={index === evidenceIndex(shown) ? 'active' : ''} aria-current={index === evidenceIndex(shown) ? 'step' : undefined}><span aria-hidden="true">●</span>{label}</li>)}</ol>
         {explanation && <details><summary>Why nothing was found?</summary><p className="note">{explanation}</p></details>}
         {hasDeclarations ? <>

@@ -1,5 +1,6 @@
 export interface OriginResult {
   status: string; message: string; signatureStatus: string; signerTrust: string;
+  diagnosticCode?: string | null;
   reasonCode?: string | null; reason?: string | null; signer?: string | null;
   claimGenerator?: string | null; claimedSigningTime?: string | null; claimedDigitalSourceType?: string | null;
   aiDeclaration: string; actions: { code?: string; label: string }[]; ingredientCount: number;

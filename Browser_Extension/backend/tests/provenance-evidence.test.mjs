@@ -6,6 +6,7 @@ import { makeResult } from '../../frontend/provenance/provenance-core.js';
 test('four evidence labels never score or treat unavailable as absence', () => {
   assert.equal(EVIDENCE_LABELS.length, 4); assert.ok(!EVIDENCE_LABELS.join('').includes('%'));
   assert.equal(evidenceIndex(makeResult('verified')), 0);
+  assert.equal(evidenceIndex({ ...makeResult('no_credentials'), metadataInspected: true, remoteManifestNotFetched: true }), 2);
   assert.equal(evidenceIndex({ ...makeResult('no_credentials'), metadataHints: [{ declared: true }] }), 1);
   assert.equal(evidenceIndex({ ...makeResult('no_credentials'), metadataHints: [{ declared: false }] }), 2);
   assert.equal(evidenceIndex({ ...makeResult('no_credentials'), metadataInspected: true }), 3);

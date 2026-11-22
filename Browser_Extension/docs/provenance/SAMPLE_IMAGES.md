@@ -1,5 +1,9 @@
 # Sample images and expected results
 
+V2 uses SDK 0.16.0. The public ChatGPT expired-certificate sample now shows
+Unavailable with an expiry reason, not Signature invalid. Malformed truncated.png
+also shows Unavailable. Older dated observations below are historical.
+
 ## Upload the bundled Firefly sample
 
 The original [Firefly_tabby_cat.jpg](../../backend/tests/fixtures/provenance/Firefly_tabby_cat.jpg)

@@ -1,68 +1,37 @@
 # Provenance v2 status
 
-2026-11-22. Branch feature/provenance-v2-website, base c8131d1 (latest main when
-pulled). The v1 provenance feature is already merged. This is not a stacked PR.
+2026-11-22, branch feature/provenance-v2-website, base c8131d1. V1 is already
+merged; this is not a stacked PR. The six planned commits deliver the implementation, fixture matrix and final
+documentation. Final results: extension 121 pass / 6 skip (127 total), providers
+13 pass, website 67 pass; build/typecheck and backend/frontend parity pass. No browser was controlled.
 
-Commit 1: design/audit documentation. No v2 runtime changes or website origin
-card yet. SDK target 0.16.0 is approved; installed extension still uses 0.17.1
-until commit 2. The age exception is withdrawn. Network ban is scoped to the
-provenance verifier; existing CSP values and detector connections stay intact.
+Implemented: cautious six-state classification, separated integrity/certificate/
+malformed reasons, bounded unsigned hints without prompt retention, evidence
+strip, deterministic absence explanation, fixed vendor links, lazy website card,
+original-byte reads, stale-result suppression, SDK repin and offline worker tests.
 
-| Gate before commit 1 | Result |
-| --- | --- |
-| Extension npm test | 95 total: 90 passed, 5 skipped, 0 failed |
-| Provider CJS suite | 13 passed |
-| Website tests with Node TypeScript stripping | 39 passed |
-| Website build and typecheck | Passed; pre-existing large-chunk warning |
-| Backend/frontend contract parity | Passed |
-| Website lint, Ruff, Mypy | Not run; accepted by user |
-| Isolated backend pytest attempt | No tests executed: requirements download timeout, then missing pytest |
-| Manual Chrome | Not run; user will perform it |
-| Local ChatGPT/Gemini originals | Not present; compatibility unverified |
+Both clients use official @contentauth/c2pa-web 0.16.0 / utilities 0.4.0. The
+0.17.1 age exception is withdrawn; its trust-fetch finding remains in SDK_AUDIT.
+Achieved isolation is the approved neutralized-worker fallback, defence in depth,
+not a CSP guarantee. Existing manifest and site CSP values are unchanged.
+Website WASM compiles inside its guarded worker. Only its own resource is fetched
+during startup; no image is sent by provenance. Existing detectors/downloads work
+through their separate unchanged paths and regression suites.
 
-Commits 2-6 remain pending. SDK re-vendor/effective settings, neutralized-worker
-network spies, classification, hints, extension UI, website integration and
-fixture parity are not yet implemented or claimed passed. Stop/report breakage.
+Validation: all 12 fresh CLI/WASM state/code comparisons passed using the
+checksum-verified official c2patool 0.29.0. C2PA 2.4.0 fixtures parse with the older
+SDK. Signed trusted is proven by injected root A only, never a production bypass.
+Website tests exercise all six states, escaping, original bytes and races; pure
+copies and per-fixture JSON must match. Final counts are recorded in TESTING.md.
 
-Commit 2 work: re-vendored official 0.16.0 and pinned website dependency/lock;
-refreshed unchanged official trust snapshots; hardened extension worker; added
-real worker network-spy/effective-settings checks and cautious classifier reasons.
-The network fallback is defence in depth, not CSP isolation. C2PA 2.4.0 parsing
-and eight pre-existing c2patool comparisons passed after the repin. Website card
-and website privacy/parity tests remain pending for commits 5-6.
+Limitations: no native Chrome/layout/CSP enforcement test; no user-supplied
+ChatGPT/Gemini originals (optional test skips). Self-signed fixture is established
+by its recipe and public certificate verification; the SDK cannot reliably
+identify certificate type for arbitrary files, so the UI says not established.
+TC260 key not verified: skipped. Source-host snapshot contains Cloudflare Images
+only. No SynthID reader or generator-confirmation claim.
 
-Pre-commit-2 results: extension 98 total / 93 passed / 5 skipped / 0 failed;
-provenance subset 52 passed; providers 13 passed. Website build/typecheck and
-39 existing website tests passed. Exact 0.16.0 npm audit: 8 signatures and
-4 attestations verified. No new test skips or removed baseline tests.
-
-Commit 3: bounded unsigned hints now cover the four IPTC source types, 2025.1
-AI system/version, CreatorTool/Software, SD/ComfyUI marker presence, NovelAI and
-Midjourney job markers. Fixed family mapping never changes status or detector
-results. Prompt/workflow contents are not retained. Unknown tool scalars are
-truncated. TC260 is skipped because its exact key was not verified.
-
-Pre-commit-3: extension 111 total / 106 passed / 5 skipped / 0 failed;
-providers 13 passed; website 39 passed, build and typecheck passed.
-
-Commit 4: extension evidence dots, unsigned chips, collapsed deterministic
-absence explanation and fixed OpenAI/Google link-outs implemented. Only the
-reviewed exact imagedelivery.net host has an extra processed-variant note;
-website usage suppresses all host facts. Unavailable/unsupported never means
-absence. Links transfer no image automatically and explain vendor-side uploads.
-
-Pre-commit-4: extension 115 total / 110 passed / 5 skipped / 0 failed;
-providers 13 passed; website 39 passed, build/typecheck passed.
-
-Commit 5: website Origin check card is integrated beside the detector via a lazy
-import and uses original File bytes. Both clients use the approved 0.16.0 pin.
-Website state/escaping, original bytes, races, effective offline worker settings
-and JSON parity tests pass (63 website tests total). SDK/WASM/worker/CSS stay in
-lazy assets. No CSP values changed; WASM compilation occurs in the guarded
-website worker. See frontend/PROVENANCE.md for the copy/asset contract.
-
-Pre-commit-5: extension 116 total / 111 passed / 5 skipped / 0 failed;
-providers 13 passed; website 63 passed, build/typecheck passed. All seven pure
-logic copies and fixture JSON agree. Main JS grew about 0.79 kB for mounting;
-SDK, 9.06 MB WASM, worker and feature CSS are separate lazy assets. No site-wide
-CSP change or native Chrome run is claimed.
+Backend pytest did not execute: isolated dependency installation failed after
+CPU-install timeout and a metadata download timeout; the one bounded pytest
+attempt exited No module named pytest. Leave it to CI. Website lint, Ruff and
+Mypy not run, as accepted. No backend/teammate code or .github edits.

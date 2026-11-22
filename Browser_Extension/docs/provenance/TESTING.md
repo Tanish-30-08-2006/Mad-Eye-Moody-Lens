@@ -1,3 +1,117 @@
+# V2 testing and manual acceptance
+
+Recorded 2026-11-22, Windows / Node 22.16.0. No Chrome control or automation.
+Baseline was measured on main c8131d1; all existing tests were retained.
+
+| Check | Baseline | Final |
+| --- | --- | --- |
+| Extension npm test | 90 pass / 5 skip | 121 pass / 6 skip (127 total), 0 failures |
+| Provider CJS suite | 13 pass | 13 pass |
+| Website npm tests | 39 pass with TypeScript flag | 67 pass, 0 skipped/failures |
+| Website build / typecheck | Passed after locked dependency install | Passed |
+| Backend/frontend contract parity | Passed | Passed |
+| Backend pytest | Collection failed: missing imagehash | No tests executed after isolated install failed; CI required |
+| Website lint, Ruff, Mypy | Unavailable | Not run, accepted by user |
+
+Five extension skips require live-server configuration. One additional optional
+originals skip means no local ChatGPT/Gemini files were supplied. It is not a pass
+or a reduced baseline. Empty-folder tests explicitly report compatibility unverified.
+Initial plain website npm test failed on this Node version; its script now includes
+--experimental-strip-types and discovers all existing/new test files.
+
+## Commands
+
+```powershell
+Set-Location 'D:\Darshan\Mad-Eye-Moody-Lens\Browser_Extension\backend'
+npm test
+Set-Location 'D:\Darshan\Mad-Eye-Moody-Lens\Browser_Extension'
+node --test tests/*.cjs
+Set-Location 'D:\Darshan\Mad-Eye-Moody-Lens\functional-ui-models-backend\frontend'
+npm ci
+npm test
+npm run typecheck
+npm run build
+Set-Location 'D:\Darshan\Mad-Eye-Moody-Lens\functional-ui-models-backend\backend'
+python -m scripts.check_parity ../frontend
+```
+
+The isolated backend CPU installation timed out at 360 seconds. Requirements
+installation then failed on a 15-second files.pythonhosted.org read timeout while
+retrieving ast-serialize metadata. The one pytest invocation (60-second cap)
+exited No module named pytest. Do not claim backend pytest/Ruff/Mypy passed.
+
+## Automated fixture matrix
+
+| Case | Fixture/check | Expected |
+| --- | --- | --- |
+| Trusted via injected test root | signed.png / root A | Verified; never install root in production |
+| Unknown signer | signed.png, untrusted.png, Firefly | Unknown signer when intact |
+| Self-signed leaf | self-signed.png + self-signed-test.crt | Unknown signer; recipe/X509 establishes self-signature, SDK type not inferred |
+| Expired | expired-chatgpt.png | Unavailable with expiry reason, separate from mismatch |
+| Malformed | truncated.png | Unavailable / malformed explanation |
+| Tampered signature/hash | corrupted-signature.png, binding-mismatch.png | Signature invalid |
+| Stripped / re-encoded | stripped.jpg, reencoded.jpg, reencoded.webp | No embedded credentials; absence neutral |
+| Remote manifest | remote-manifest.jpg | No automatic fetch; explicit SDK refusal tested directly |
+| Every hint | provenance-hints-v2 + metadata tests | Unsigned, capped; prompt/workflow presence only |
+| Hostile text/chunks | parser fuzz/bombs, panel/React escaping | No HTML execution or unbounded output |
+| Quick switch / clear | panel observer and website runner | Abort/suppress obsolete results |
+| Local originals | fixtures/real-world (gitignored) | Clean skip when empty; status only if supplied |
+
+The checksum-verified official c2patool 0.29.0 was rerun with offline settings for
+signed/untrusted/corrupt/binding/self-signed/expired in two trust modes. All 12
+fresh CLI/WASM states and code sets agree. Older SDK parses C2PA 2.4.0. Production
+worker tests replace fetch/XHR/WebSocket/importScripts/sendBeacon with failing
+spies, independently prove the guards throw, then assert zero verification calls
+for remote-only, unknown and expired files in both clients. Effective settings
+are read back; website parent WASM compilation is forbidden in the test.
+The Node bridge supplies browser transport/FileReaderSync, not cryptography.
+Website JSON parity now covers every bundled image, plus exact pure-copy bytes.
+
+HTTP-only Vite preview smoke served HTML, card, SDK, guarded worker, upstream
+worker and WASM (application/wasm). Main JS has no SDK/WASM logic. Main mounting
+code grew about 0.79 kB; SDK/9.06 MB WASM/CSS/worker are lazy resources. The existing
+large-main-chunk warning remains. Neither HTTP nor Node proves native Chrome CSP.
+
+## Manual Chrome checklist (pending; user performs)
+
+1. Load unpacked D:/Darshan/Mad-Eye-Moody-Lens/Browser_Extension (uppercase).
+   Reload the extension and reopen its side panel. Keep auto scanning off while
+   checking provenance privacy. No build/API key/backend is needed for provenance.
+2. Upload signed.png, untrusted.png, self-signed.png, corrupted-signature.png,
+   binding-mismatch.png, truncated.png, expired-chatgpt.png, stripped.jpg,
+   reencoded.webp, remote-manifest.jpg and a GIF. Compare the matrix above.
+   Re-check and Clear must work. Never add test roots to make a green badge.
+3. Use actual original ChatGPT and Gemini downloads, then a re-saved WebP/JPEG
+   and screenshot. Record results rather than assuming every export has credentials.
+   Missing metadata proves nothing. These originals were not tested by the agent.
+4. Inspect side-panel DevTools and its worker. After packaged resources load,
+   verification must send no image, remote manifest, OCSP or trust-list requests.
+   Image URL acquisition is a separate initial download. Detecting via Analyze
+   separately sends data to the selected provider as before.
+5. Select files rapidly, clear while checking, and switch away. Old results must
+   not overwrite the new image. Stop/unconfigure the detector: provenance must
+   remain visible and independent. Confirm existing provider/API/image downloads.
+6. Website: run npm run dev in functional-ui-models-backend/frontend and open
+   http://localhost:5173. Select an image without submitting it. Origin check
+   appears and finishes independently; with a detector result it sits beside it.
+   Repeat the fixtures, original downloads, detector-down and quick-switch cases.
+   Switch image/audio/video tabs; no old image origin card may remain.
+7. Website Network: only same-origin feature JS/WASM may load before Analyze.
+   Check deployed nginx/Vercel too; no CSP values were changed. WASM compiles in
+   the guarded worker. If worker/WASM is blocked, expect a short Unavailable
+   message, not a crash or an invented origin conclusion.
+8. Check narrow/mobile widths, keyboard focus, live status, collapsed explainer,
+   unsigned chips and four dots. No percentages or detector-score merging.
+   Vendor links open new tabs with no automatic image transfer; upload there
+   separately. Inspect storage: provenance adds no history/storage/log/export.
+9. Record Chrome version, OS, each result, console/CSP/worker errors and network
+   observations in the PR. Full CI, review and these manual checks remain gates.
+
+## Historical v1 testing log
+
+The earlier results below describe the merged v1 implementation and its original
+SDK/classifier. The v2 matrix and results above supersede those expectations.
+
 # Testing and acceptance
 
 Recorded 2026-11-21 on Windows, Node 22.16.0. No Chrome automation was used.

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "format": "image/png",
+  "marker": "present",
+  "hintLabels": [],
+  "status": "unavailable",
+  "reasonCode": "certificate_expired",
+  "diagnosticCode": "validation_incomplete"
+}

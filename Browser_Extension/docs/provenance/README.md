@@ -1,44 +1,35 @@
-# Image Provenance Check
+# Image provenance and website Origin check
 
-For a ready-to-upload example, choose
-[Firefly_tabby_cat.jpg](../../backend/tests/fixtures/provenance/Firefly_tabby_cat.jpg)
-from the existing provenance fixtures folder. Expect **Unknown signer**, Adobe
-Firefly and a declared AI origin. [SAMPLE_IMAGES.md](SAMPLE_IMAGES.md) lists public
-original-image links, dated observations and honest coverage of all six states.
+The extension reads the selected image in **Provenance (file credentials)**; the
+website runs **Origin check** after choosing an image, before detector submission.
+Both read original bytes locally and remain independent of detector/API failure.
+The website card is lazy-loaded and uses the site's existing result/tag styles.
 
-This feature reads the selected image's file bytes locally to verify C2PA Content
-Credentials and inspect unsigned generator metadata. It is independent of the
-detector provider, its API key, and its success or failure.
+Official @contentauth/c2pa-web 0.16.0, offline C2PA signer/TSA snapshots and a
+hardened dedicated worker are used in both clients. Existing CSP values and
+detector connections are unchanged. The worker fallback is defence in depth,
+not a CSP guarantee. No provenance data is stored, logged or exported.
 
-Select/upload an image in the side panel and read **Provenance (file
-credentials)** below the detector. Re-check repeats the local check. URLs may need
-existing site access; upload the original file when downloading fails.
+A valid signature establishes a signed statement/integrity, not truth. Missing
+credentials prove nothing. Unsigned metadata can be forged. Generator families
+are hints, not confirmed authorship. Prompt/workflow contents are not retained;
+SynthID is not read locally. Vendor links open a separate site for your upload.
 
-A valid signature does not prove the content is true. Missing credentials do not
-prove authenticity. Unsigned metadata can be edited or forged.
+Supported credential containers: JPEG, PNG, WebP, up to 8 MiB. Other formats are
+unsupported, not authentic. A remote manifest is never downloaded. Malformed,
+expired and untrusted certificates have explanations separate from tampering.
+Self-signed/test type is not guessed when the SDK cannot establish it.
 
-See [architecture](ARCHITECTURE.md), [result contract](RESULT_CONTRACT.md),
-[security](SECURITY_AND_PRIVACY.md), [testing](TESTING.md), [issues](ISSUES_MAP.md),
-and [future-agent briefing](LLM_CONTEXT.md). The implementation and follow-up
-commits are listed in the issue map. Browser checks are explicitly manual.
+Start with [signed.png](../../backend/tests/fixtures/provenance/signed.png),
+[Firefly sample](../../backend/tests/fixtures/provenance/Firefly_tabby_cat.jpg),
+[expired sample](../../backend/tests/fixtures/provenance/expired-chatgpt.png), or
+re-encoded/stripped examples in that folder. Expect Unknown signer for signed
+test/Firefly files; no production root is added to manufacture a green badge.
 
-Implementation and automated Node checks are complete. The user's manual Chrome
-acceptance is pending. [PR_HANDOFF.md](PR_HANDOFF.md) contains a filled repository
-PR template, issue-number mapping, review/merge steps, CI limits and conflict guide.
-
-The existing Copy Report action is unchanged and does not export provenance.
-Nothing from this feature is saved to history or chrome.storage. Supported file
-containers are JPEG, PNG and WebP, up to 8 MiB. GIF and other formats receive
-Unsupported format. A remote manifest link is reported but never downloaded.
-
-Ordinary supported images without credentials normally show No credentials found.
-Unavailable means a read/startup/verification failure, with a specific safe message;
-it must not be interpreted as no metadata. If a web URL is blocked, upload its
-original downloaded file. The browser SDK's null-reader absence result is handled
-explicitly, including larger unsigned JPEGs that require an SDK read.
-
-## V2 work in progress
-
-The approved [v2 design](V2_DESIGN.md) adds origin hints and a website card in six
-commits. [STATUS.md](STATUS.md) separates implemented work from pending gates.
-The approved SDK target is 0.16.0; the installed runtime has not yet been repinned.
+See [STATUS](STATUS.md), [TESTING](TESTING.md), [SDK_AUDIT](SDK_AUDIT.md),
+[ARCHITECTURE](ARCHITECTURE.md), [RESULT_CONTRACT](RESULT_CONTRACT.md),
+[ISSUES_MAP](ISSUES_MAP.md), [PR_HANDOFF](PR_HANDOFF.md), and
+[website guide](../../../functional-ui-models-backend/frontend/PROVENANCE.md).
+The optional backend/tests/fixtures/real-world folder is gitignored. No local
+ChatGPT/Gemini originals were supplied; their compatibility is unverified.
+Native Chrome acceptance remains manual. No browser automation was used.

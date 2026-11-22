@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import * as extReader from '../../../Browser_Extension/frontend/provenance/metadata-reader.js';
 import * as webReader from '../src/provenance/metadata-reader.js';
 import * as extCore from '../../../Browser_Extension/frontend/provenance/provenance-core.js';
@@ -23,7 +24,10 @@ test('documented pure logic copies are byte-identical and both SDK pins match', 
   const locked = JSON.parse(await readFile(new URL('../package-lock.json', import.meta.url)));
   const version = JSON.parse(await readFile(new URL('vendor/VERSION.json', website)));
   assert.equal(version.version, '0.16.0'); assert.equal(version.integrity, locked.packages['node_modules/@contentauth/c2pa-web'].integrity);
+  assert.equal(version.workerUrlPatch, null);
+  assert.equal(createHash('sha256').update(await readFile(new URL('vendor/sdk.js', website))).digest('hex'), version.sdkSha256);
   assert.deepEqual(await readFile(new URL('vendor/c2pa_worker.js', website)), await readFile(new URL('vendor/c2pa/c2pa_worker.js', extension)));
+  assert.deepEqual(await readFile(new URL('../node_modules/@contentauth/c2pa-web/dist/resources/c2pa_bg.wasm', import.meta.url)), await readFile(new URL('vendor/c2pa/c2pa_bg.wasm', extension)));
 });
 for (const name of (await readdir(fixtures)).filter(name => /\.(png|jpe?g|webp)$/i.test(name))) test(`extension/website JSON parity: ${name}`, async () => {
   const bytes = await readFile(new URL(name, fixtures));

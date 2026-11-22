@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "format": "image/png",
+  "marker": "present",
+  "hintLabels": [],
+  "status": "untrusted_signer",
+  "reasonCode": "signer_not_trusted",
+  "diagnosticCode": null
+}

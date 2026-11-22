@@ -81,3 +81,27 @@ reports signingCredential.expired and untrusted, without affirmative signature
 validation; the cautious result is Unavailable with a certificate-expiry reason,
 not Signature invalid. Gallery labeling does not establish generator identity.
 This public example is separate from absent user-supplied ChatGPT/Gemini originals.
+
+## V2 self-signed/re-encoded matrix and fresh CLI run
+
+Generate only v2 files with generate_v2_fixtures.py and official c2patool 0.29.0.
+self-signed.png uses a disposable self-issued, self-signed non-CA leaf. Its public
+self-signed-test.crt is checked with Node X509Certificate.verify; no private key
+is committed or printed. The runtime SDK does not reliably identify arbitrary
+certificate type, so Unknown signer says self-signed/test type is not established.
+reencoded.webp/jpg are pixel re-exports of generated signed.png, explicitly
+without EXIF/XMP; they lose embedded credentials. Generated artwork remains CC0.
+
+Fresh CLI run date 2026-11-22: 12 combinations (six signed variants, with/without
+injected root A) match real WASM state and code sets after the SDK repin.
+Official Windows archive SHA-256:
+cc36c274a9a2cfc20f356d5d5c7f8b2c01e906e6550a45018d7fca0158cf5b8a
+Source: https://github.com/contentauth/c2patool/releases/tag/v0.29.0
+The release API digest matched the downloaded archive; only the packaged CLI
+executable was extracted. No CLI binary or sample/private keys are committed.
+New self-signed/expired *.c2patool-*.json and *.sdk-*.json are faithful validation-
+only extracts (active label/state/results), not fabricated full manifests.
+
+The optional ../real-world folder ignores all originals. At this run it contained
+no images. Tests skip explicitly; real ChatGPT/Gemini-original compatibility is
+unverified. The public CAI expired example does not substitute for those originals.

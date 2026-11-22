@@ -32,6 +32,11 @@ test('card escapes and caps filename, signer, metadata, actions and SDK codes', 
   assert.ok(!html.includes('<img')); assert.ok(html.includes('&lt;img')); assert.ok(!html.includes('z'.repeat(241)));
   assert.ok(html.includes('rel="noopener noreferrer"')); assert.ok(html.includes('target="_blank"')); assert.ok(html.includes('unsigned'));
 });
+test('WASM startup failure degrades to website-specific advice', () => {
+  const result = { ...makeResult('unavailable'), diagnosticCode: 'sdk_initialization_failed', message: 'Reload the extension; inspect side panel DevTools.' };
+  const html = renderToStaticMarkup(React.createElement(OriginCheckView, { result }));
+  assert.ok(html.includes('reload this page')); assert.ok(!html.includes('Reload the extension'));
+});
 test('website actual worker compiles WASM outside the parent and makes zero verification network calls', async () => {
   await offlineWorkerCheck({ sdk, createOfflineContext, entry: new URL('../src/provenance/c2pa-worker.js', import.meta.url), vendor: new URL('../../../Browser_Extension/frontend/provenance/vendor/c2pa/', import.meta.url), compileInWorker: true });
 });

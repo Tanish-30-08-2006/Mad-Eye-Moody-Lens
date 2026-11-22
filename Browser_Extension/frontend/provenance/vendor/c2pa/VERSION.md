@@ -12,7 +12,7 @@ The former 0.17.1 age exception is WITHDRAWN. The new trust-fetch code found in
 its utilities dependency is the reason for repinning; preserve that finding in
 [SDK_AUDIT.md](../../../../docs/provenance/SDK_AUDIT.md). Never silently return
 to 0.17.1. Both the website package and its lockfile pin exactly 0.16.0 with the
-same registry integrity; the website card is not yet implemented in commit 2.
+same registry integrity; the website card is now implemented and parity-tested.
 
 ## Dependencies and licenses
 
@@ -77,9 +77,9 @@ certificate. The Node test bridge supplies browser message transport and native
 FileReaderSync semantics from original Blob bytes; it does not mock cryptography.
 Parent and worker network API calls during verification: zero. The worker spies
 are separately probed to prove they fail when invoked. Native Chrome remains a
-manual acceptance check, not a claimed result. Website repetition is pending.
+manual acceptance check, not a claimed result. Website repetition also passes; its parent never compiles WASM.
 
-Existing provenance suite and all eight recorded c2patool agreement combinations
+Existing provenance suite and all twelve recorded/fresh c2patool agreement combinations
 passed after repinning; existing fixtures parse as C2PA 2.4.0. No local ChatGPT or
 Gemini originals were present. Their compatibility remains UNVERIFIED. The CAI
 ChatGPT gallery example is only an attributed expired-certificate regression.
@@ -104,3 +104,12 @@ These are vendored-software hashes, never runtime user-image evidence hashes.
 | C2PA-TRUST-LIST.pem | `859f422cf4744a45de6f073b258d76381c91a9624c10aaa40543c19c1f124e13` |
 | C2PA-TSA-TRUST-LIST.pem | `eca8347ee71e31d226e00c85b15aca356116fefe6c26ed8c0ee1f954115b1990` |
 | LICENSE-trust-list | `9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94` |
+
+Website final approach: same 0.16.0 Reader/Context and guarded worker, with WASM
+compiled inside that worker via the SDK's existing highgain protocol. Website SDK
+code is bundled without a URL patch. No manifest/site-wide CSP value was changed.
+Initialization messages are queued while SDK code loads. This is defence in depth,
+not a sandbox/CSP guarantee. Both clients' effective settings and all five failing
+network spies pass over remote-only, unknown and expired fixtures. Final 12 live
+CLI comparisons, copied pure logic and fixture JSON parity pass. The age exception
+remains withdrawn. Local ChatGPT/Gemini originals remain absent/unverified.

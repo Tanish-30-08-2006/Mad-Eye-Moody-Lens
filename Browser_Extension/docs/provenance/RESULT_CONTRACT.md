@@ -29,7 +29,7 @@ contract. All text is untrusted and length-capped before display.
 | --- | --- | --- |
 | verified | Verified credentials | SDK validates signature, asset binding, and signer trust |
 | untrusted_signer | Unknown signer | Valid signature/binding; signer is outside the bundled trust anchors |
-| invalid | Signature invalid | SDK reports invalidity: tampering, mismatched hashes, malformed signature, expired credential |
+| invalid | Signature invalid | SDK reports signature or signed-content hash mismatch; not generic certificate/parser failure |
 | no_credentials | No credentials found | No embedded credentials; neutral, not an authenticity claim |
 | unsupported_format | Unsupported format | Outside JPEG, PNG, WebP support |
 | unavailable | Unavailable | Inaccessible/oversized bytes, SDK load or runtime failure, timeout |
@@ -38,7 +38,7 @@ Verification and AI declaration are separate. A credential can validly declare A
 generation. Untrusted/invalid declarations must be presented with their status,
 never as established facts. Unknown validation evidence fails closed.
 
-## SDK 0.17.1 mapping (WASM 0.15.1)
+## Historical v1 SDK 0.17.1 mapping (superseded by v2 below)
 
 Read `validation_state` plus `validation_results.activeManifest` (success,
 informational, failure). The SDK is authoritative; this code only classifies its
@@ -105,3 +105,27 @@ forgeable; neither changes aiDeclaration, credential status or detector results.
 SD/ComfyUI prompt/workflow values contain presence messages, never prompt text.
 AI system/version keys follow the [IPTC 2025.1 specification](https://www.iptc.org/std/photometadata/specification/IPTC-PhotoMetadata-2025.1.html).
 TC260 keys are not guessed. A family name is a metadata lead, not generator proof.
+
+## Current v2 classifier (SDK 0.16.0 / WASM 0.14.0)
+
+status is still one of the six original states. reasonCode/reason are fixed
+application explanations, separate from bounded raw SDK reasons. certificateType
+is not_established when the SDK does not expose enough detail; never infer
+self-signed/test status from issuer text. format comes from byte inspection;
+reencodedPlatform is a fixed reviewed host label in the extension only.
+
+| Evidence | State / reason |
+| --- | --- |
+| Trusted, affirmative signature/binding/trust, no failures | verified |
+| Affirmative signature/binding + trust-only failures, even SDK Invalid | untrusted_signer |
+| Certificate expiry without affirmative integrity | unavailable / certificate_expired |
+| Unusable/revoked certificate | untrusted_signer if integrity established, otherwise unavailable |
+| Known active signature or hash mismatch | invalid / integrity_mismatch |
+| Malformed container/claim/assertion | unavailable / malformed_manifest |
+| Unknown active failures or incomplete validation | unavailable / validation_incomplete |
+| Clear absent markers / null Reader / JumbfNotFound | no_credentials |
+| Remote-only SDK refusal | unavailable / remote_manifest_not_fetched; no fetch |
+| Clear absent embedded markers plus remote XMP link | no_credentials; remoteManifestNotFetched true |
+
+Evidence strip is categorical. Unsigned declarations/hints never promote a
+credential state. Both parent/worker network spies and JSON parity are required.
