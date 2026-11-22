@@ -146,3 +146,7 @@ The user explicitly scoped the no-network requirement to provenance and forbids
 changing existing CSP values or detector connections. A dedicated worker must
 neutralize network APIs before SDK load; this is not a CSP guarantee. Pure
 website logic will be a documented copy protected by JSON fixture parity.
+
+V2 hint inspection no longer returns a whole XML/JSON payload or prompt chunks.
+It extracts bounded named scalar fields or fixed marker-presence messages and
+small family-table matches. Existing parser byte/chunk/inflation limits remain.

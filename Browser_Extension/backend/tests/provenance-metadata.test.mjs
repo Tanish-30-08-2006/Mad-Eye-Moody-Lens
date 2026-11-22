@@ -67,7 +67,7 @@ test('compressed bombs, truncated iTXt, huge chunks and malicious text are safe'
   const bomb = Buffer.concat([Buffer.from('parameters\0\0'), deflateSync(Buffer.alloc(LIMITS.chunk * 8, 65))]);
   const malicious = '<img src=x onerror=alert(1)>' + 'x'.repeat(1000);
   const result = await readMetadata(png(chunk('zTXt', bomb), chunk('iTXt', Buffer.from('prompt\0\x01')), chunk('tEXt', Buffer.from(`parameters\0${malicious}`))));
-  assert.equal(result.metadataHints.length, 1); assert.equal(result.metadataHints[0].value, malicious.slice(0, 240));
+  assert.equal(result.metadataHints.length, 1); assert.ok(result.metadataHints[0].value.includes('not retained')); assert.ok(!JSON.stringify(result).includes(malicious.slice(0, 30)));
   assert.equal((await readMetadata(png(chunk('tEXt', Buffer.alloc(LIMITS.chunk + 1))))).metadataHints.length, 0);
   assert.equal((await readMetadata(Buffer.alloc(LIMITS.file + 1))).marker, 'unknown');
 });

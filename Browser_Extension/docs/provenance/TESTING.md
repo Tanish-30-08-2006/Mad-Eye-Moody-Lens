@@ -171,3 +171,6 @@ Pre-commit-2 results: extension 98 total / 93 passed / 5 skipped / 0 failed;
 provenance subset 52 passed; providers 13 passed. Website build/typecheck and
 39 existing website tests passed. Exact 0.16.0 npm audit: 8 signatures and
 4 attestations verified. No new test skips or removed baseline tests.
+
+Pre-commit-3: extension 111 total / 106 passed / 5 skipped / 0 failed;
+providers 13 passed; website 39 passed, build and typecheck passed.

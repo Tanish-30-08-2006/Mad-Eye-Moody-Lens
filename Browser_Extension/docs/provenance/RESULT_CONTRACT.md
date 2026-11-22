@@ -96,3 +96,12 @@ the content has never been edited. signature_info.time is reported as claimed
 signing time; action.when is not a signing time. All declarations are shown as
 credential statements, including on invalid/untrusted credentials, with their
 verification status kept visible.
+
+## V2 unsigned hint additions
+
+metadataHints optionally includes family (fixed string or null) and declared
+(boolean for a named unsigned declaration field). Both remain unsigned and
+forgeable; neither changes aiDeclaration, credential status or detector results.
+SD/ComfyUI prompt/workflow values contain presence messages, never prompt text.
+AI system/version keys follow the [IPTC 2025.1 specification](https://www.iptc.org/std/photometadata/specification/IPTC-PhotoMetadata-2025.1.html).
+TC260 keys are not guessed. A family name is a metadata lead, not generator proof.

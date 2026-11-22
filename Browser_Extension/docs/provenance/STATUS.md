@@ -35,3 +35,12 @@ Pre-commit-2 results: extension 98 total / 93 passed / 5 skipped / 0 failed;
 provenance subset 52 passed; providers 13 passed. Website build/typecheck and
 39 existing website tests passed. Exact 0.16.0 npm audit: 8 signatures and
 4 attestations verified. No new test skips or removed baseline tests.
+
+Commit 3: bounded unsigned hints now cover the four IPTC source types, 2025.1
+AI system/version, CreatorTool/Software, SD/ComfyUI marker presence, NovelAI and
+Midjourney job markers. Fixed family mapping never changes status or detector
+results. Prompt/workflow contents are not retained. Unknown tool scalars are
+truncated. TC260 is skipped because its exact key was not verified.
+
+Pre-commit-3: extension 111 total / 106 passed / 5 skipped / 0 failed;
+providers 13 passed; website 39 passed, build and typecheck passed.

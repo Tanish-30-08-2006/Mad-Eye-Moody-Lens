@@ -2,7 +2,14 @@
 export const LIMITS = Object.freeze({ file: 8 * 1024 * 1024, chunk: 65536, totalText: 262144, chunks: 4096, hints: 12, text: 240, inflations: 12 });
 const decoder = new TextDecoder();
 const latin = new TextDecoder('latin1');
-const tools = /stable\s*diffusion|automatic1111|comfyui|midjourney|dall[ -]?e|firefly|invokeai|novelai|fooocus|adobe photoshop|generative/i;
+const families = Object.freeze([
+  ['OpenAI', /\bopenai\b|chatgpt|dall[ -]?e|gpt-image/i], ['Google', /gemini|imagen|nano banana/i],
+  ['ComfyUI', /comfyui/i], ['Stable Diffusion', /stable\s*diffusion|automatic1111|invokeai|fooocus/i],
+  ['NovelAI', /novelai/i], ['Midjourney', /midjourney/i], ['Adobe Firefly', /firefly/i],
+  ['Black Forest Labs', /black forest|\bflux\b/i], ['ByteDance', /bytedance|seedream/i], ['Recraft', /recraft/i]
+]);
+export const familyFor = value => typeof value === 'string' ? families.find(([, pattern]) => pattern.test(value))?.[0] || null : null;
+export const DIGITAL_SOURCE_TYPES = Object.freeze(['trainedAlgorithmicMedia', 'compositeWithTrainedAlgorithmicMedia', 'compositeSynthetic', 'algorithmicMedia']);
 export const capText = (value, max = LIMITS.text) => typeof value === 'string' ? value.slice(0, max) : '';
 
 async function inflate(bytes) {
@@ -31,9 +38,10 @@ export async function readMetadata(input) {
   let budget = LIMITS.totalText;
   let inflations = 0;
   const boundedInflate = bytes => ++inflations <= LIMITS.inflations && budget > 0 ? inflate(bytes) : null;
-  function hint(label, value) {
+  function hint(label, value, family = familyFor(value), declared = false) {
     if (result.metadataHints.length >= LIMITS.hints || !value) return;
-    result.metadataHints.push({ label: capText(label, 80), value: capText(value), unsigned: true });
+    const item = { label: capText(label, 80), value: capText(value), unsigned: true, family, declared };
+    if (!result.metadataHints.some(existing => existing.label === item.label && existing.value === item.value)) result.metadataHints.push(item);
   }
   function text(bytes, encoding = decoder) {
     if (bytes.length > LIMITS.chunk || bytes.length > budget) return '';
@@ -41,12 +49,25 @@ export async function readMetadata(input) {
     return encoding.decode(bytes);
   }
   function inspectText(value, label = 'Software') {
-    if (tools.test(value)) hint(label, value);
-    // Only record existence; never expose or dereference this attacker-controlled link.
+    // Never retain a whole XMP/JSON payload or a prompt. Only named scalar tool
+    // fields, source declarations and fixed marker-presence messages escape.
+    const family = familyFor(value);
+    if (/^(Software|Source|CreatorTool|Generator)$/i.test(label) && !value.includes('<')) hint(label, value);
+    else if (family) hint(label, `${family} marker present (contents not retained)`, family);
     if (/(?:dcterms:provenance|c2pa:manifest|c2pa:provenance)[\s\S]{0,512}?https?:/i.test(value)) result.remoteManifestNotFetched = true;
-    for (const match of value.matchAll(/(?:<[^>]*(?:CreatorTool|Software)[^>]*>([^<]{1,1024})|(?:CreatorTool|Software)\s*=\s*["']([^"']{1,1024}))/gi)) {
-      const tool = match[1] || match[2];
-      if (tools.test(tool)) hint('Software / XMP', tool);
+    const fields = /(?:<(?:[\w-]+:)?(CreatorTool|Software|DigitalSourceType|AISystemUsed|AISystemVersionUsed)\b[^>]*>([^<]{1,1024})|(?:[\w-]+:)?(CreatorTool|Software|DigitalSourceType|AISystemUsed|AISystemVersionUsed)\s*=\s*["']([^"']{1,1024}))/gi;
+    for (const match of value.matchAll(fields)) {
+      const key = match[1] || match[3], scalar = match[2] || match[4];
+      if (/^(CreatorTool|Software)$/i.test(key)) hint('Software / XMP', scalar);
+      else if (/^DigitalSourceType$/i.test(key)) {
+        const base = 'http://cv.iptc.org/newscodes/digitalsourcetype/';
+        if (DIGITAL_SOURCE_TYPES.some(type => scalar === base + type)) hint('IPTC DigitalSourceType', scalar, null, true);
+      } else hint(/^AISystemUsed$/i.test(key) ? 'IPTC AI System Used' : 'IPTC AI System Version Used', scalar, familyFor(scalar), true);
+    }
+    if (/^Software \/ EXIF$/.test(label)) hint(label, value);
+    if (/midjourney/i.test(value)) {
+      const job = value.match(/(?:job[ _-]?(?:id)?)[\s:=\"']{1,12}([a-f0-9]{8}-[a-f0-9-]{27,40})/i);
+      if (job) hint('Midjourney job id', job[1], 'Midjourney');
     }
   }
   function exif(bytes) {
@@ -71,7 +92,7 @@ export async function readMetadata(input) {
         const pos = size <= 4 ? entry + 8 : dv.getUint32(entry + 8, little);
         if (pos + size > dv.byteLength) continue;
         const value = text(bytes.subarray(start + pos, start + pos + size), latin).replace(/\0/g, '');
-        inspectText(value, 'Software / EXIF');
+        inspectText(value, tag === 0x0131 ? 'Software / EXIF' : 'EXIF description / comment');
       }
     }
     ifd(dv.getUint32(4, little), 0);
@@ -103,7 +124,7 @@ export async function readMetadata(input) {
             }
             if (body) {
               const value = text(body, type === 'tEXt' ? latin : decoder);
-              if (/^(parameters|prompt|workflow)$/i.test(key)) hint(key === 'parameters' ? 'Stable Diffusion parameters' : `ComfyUI ${key}`, value);
+              if (/^(parameters|prompt|workflow)$/i.test(key)) hint(key === 'parameters' ? 'Stable Diffusion parameters' : `ComfyUI ${key}`, 'Present (prompt/workflow content not retained)', key === 'parameters' ? 'Stable Diffusion' : 'ComfyUI');
               else inspectText(value, key);
             }
           }
