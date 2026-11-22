@@ -151,6 +151,12 @@ def refresh_token_endpoint(req: RefreshTokenRequest) -> TokenResponse:
     """Rotates tokens given a valid refresh token."""
     payload = decode_token(req.refresh_token, expected_type="refresh")
     email = payload.get("sub")
+    if not isinstance(email, str) or not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token payload: missing subject identifier.",
+        )
+
     user_record = USER_REGISTRY.get(email)
 
     if not user_record or not user_record.is_active:
@@ -284,10 +290,16 @@ def oauth_callback(payload: OAuthCallbackRequest) -> TokenResponse:
     Simulates OAuth 2.0 authorization code exchange.
     Mints a signed JWT token bound to the selected or default stakeholder role.
     """
-    role = payload.role or (
-        UserRole.GOVT_OFFICER if payload.provider == "govid"
-        else UserRole.ENTERPRISE_ADMIN if payload.provider == "github"
-        else UserRole.JOURNALIST
+    role: UserRole = (
+        UserRole(payload.role)
+        if payload.role
+        else (
+            UserRole.GOVT_OFFICER
+            if payload.provider == "govid"
+            else UserRole.ENTERPRISE_ADMIN
+            if payload.provider == "github"
+            else UserRole.JOURNALIST
+        )
     )
     email = f"oauth-{payload.provider}-{payload.code[:6]}@moodylens.auth"
 
