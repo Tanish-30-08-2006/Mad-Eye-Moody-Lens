@@ -1,12 +1,14 @@
 // Thin, injectable adapter. Only the SDK validates cryptography and asset bindings.
+import { createOfflineContext } from './offline-settings.js';
+export { VERIFY_SETTINGS } from './offline-settings.js';
 export const VERIFIER_TIMEOUT_MS = 15000;
-export const VERIFY_SETTINGS = Object.freeze({ verifyTrust: true, verifyAfterReading: true, verifyTimestampTrust: true, remoteManifestFetch: false, ocspFetch: false });
 
 export function sdkReadError(error) {
   const message = typeof error === 'string' ? error : error?.message || '';
   if (/^C2pa\(JumbfNotFound\)/.test(message)) return { kind: 'no_credentials' };
+  if (/^C2pa\(RemoteManifestUrl\(/.test(message)) return { kind: 'unavailable', diagnosticCode: 'remote_manifest_not_fetched' };
   if (/^C2pa\(UnsupportedType\b/.test(message)) return { kind: 'unsupported_format' };
-  if (/^C2pa\((?:InvalidAsset|InvalidClaim|CoseSignature|ClaimDecoding|JumbfParseError)\b/.test(message)) return { kind: 'invalid', reasons: [] };
+  if (/^C2pa\((?:InvalidAsset|InvalidClaim|CoseSignature|ClaimDecoding|JumbfParseError)\b/.test(message)) return { kind: 'unavailable', diagnosticCode: 'malformed_manifest' };
   return { kind: 'unavailable', diagnosticCode: 'verification_failed' };
 }
 
@@ -35,7 +37,7 @@ export async function verifyC2pa(bytes, format, {
     });
     if (abandoned) { instance.dispose(); throw new Error(); }
     stage = 'verification_failed';
-    const context = new sdk.Context({ verify: { ...VERIFY_SETTINGS }, trust: { trustAnchors: anchors }, tsaTrust: { trustAnchors: tsaAnchors } });
+    const context = createOfflineContext(sdk, anchors, tsaAnchors);
     try {
       reader = await sdk.Reader.fromBlob(instance, format, new Blob([bytes], { type: format }), context);
       if (abandoned) return { kind: 'unavailable' };

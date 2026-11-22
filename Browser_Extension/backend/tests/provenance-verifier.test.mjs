@@ -35,8 +35,8 @@ test('vendor hashes and the complete one-line same-extension worker patch are re
   for (const [name, expected] of Object.entries(hashes)) assert.equal(createHash('sha256').update(await readFile(new URL(name, vendor))).digest('hex'), expected, name);
   const original = await readFile(new URL('builder.upstream.js', vendor), 'utf8');
   const patched = await readFile(new URL('builder.patched.js', vendor), 'utf8');
-  assert.equal(patched, original.replace('if (r.protocol !== "https:")', 'if (r.protocol !== "https:" && !(r.protocol === "chrome-extension:" && globalThis.location?.protocol === "chrome-extension:" && r.host === globalThis.location.host))'));
-  const body = patched.match(/function H\(r\) \{[\s\S]*?\n\}/)[0];
+  assert.equal(patched, original.replace('if (n.protocol !== "https:")', 'if (n.protocol !== "https:" && !(n.protocol === "chrome-extension:" && globalThis.location?.protocol === "chrome-extension:" && n.host === globalThis.location.host))'));
+  const body = patched.match(/function ue\(n\) \{[\s\S]*?\n\}/)[0];
   const validate = vm.runInNewContext(`(${body})`, { globalThis: { location: { protocol: 'chrome-extension:', host: 'current' } } });
   assert.equal(validate(new URL('chrome-extension://current/worker.js')), 'chrome-extension://current/worker.js');
   for (const url of ['chrome-extension://other/worker.js', 'http://example.com/w.js', 'blob:https://example.com/w', 'file:///worker.js']) assert.throws(() => validate(new URL(url)));
@@ -69,7 +69,7 @@ for (const mode of ['untrusted', 'test-trusted']) {
 }
 
 test('real WASM rejects malformed file and reports no credentials for a stripped JPEG', async () => {
-  await assert.rejects(WasmReader.fromBytes('image/png', await fixture('truncated.png')), error => { assert.equal(sdkReadError(error).kind, 'invalid'); return true; });
+  await assert.rejects(WasmReader.fromBytes('image/png', await fixture('truncated.png')), error => { assert.equal(sdkReadError(error).diagnosticCode, 'malformed_manifest'); return true; });
   await assert.rejects(WasmReader.fromBytes('image/jpeg', await fixture('stripped.jpg')), error => { assert.equal(sdkReadError(error).kind, 'no_credentials'); return true; });
 });
 
@@ -84,7 +84,7 @@ test('classification requires affirmative crypto, binding and trust evidence; in
     const store = structuredClone(pristine); // synthetic failure branches, not fixture evidence
     store.validation_results.activeManifest.failure.push({ code });
     const result = classifyC2pa({ kind: 'manifest', store });
-    assert.equal(result.status, 'invalid'); assert.ok(result.reasons.includes(code));
+    assert.equal(result.status, ['claimSignature.mismatch', 'assertion.dataHash.mismatch'].includes(code) ? 'invalid' : code === 'future.failure' ? 'unavailable' : 'untrusted_signer'); assert.ok(result.reasons.includes(code));
   }
   assert.equal(classifyC2pa({ kind: 'manifest', store: {} }).status, 'unavailable');
   assert.equal(classifyC2pa({ kind: 'unavailable' }).status, 'unavailable');

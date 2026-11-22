@@ -1,5 +1,5 @@
 --- builder.upstream.js
 +++ builder.patched.js
 @@ -31 +31 @@
--  if (r.protocol !== "https:")
-+  if (r.protocol !== "https:" && !(r.protocol === "chrome-extension:" && globalThis.location?.protocol === "chrome-extension:" && r.host === globalThis.location.host))
+-  if (n.protocol !== "https:")
++  if (n.protocol !== "https:" && !(n.protocol === "chrome-extension:" && globalThis.location?.protocol === "chrome-extension:" && n.host === globalThis.location.host))

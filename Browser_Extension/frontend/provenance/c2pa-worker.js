@@ -1,5 +1,4 @@
-// The upstream worker is packaged. Its readers cannot make any network request.
-import './vendor/c2pa/c2pa_worker.js';
-globalThis.fetch = () => Promise.reject(new Error('Network access is disabled in the provenance verifier.'));
-globalThis.XMLHttpRequest = undefined;
-globalThis.WebSocket = undefined;
+import { neutralizeWorkerNetwork } from './worker-network.js';
+// Dynamic import neutralizes APIs BEFORE SDK execution.
+export const networkAttempts = neutralizeWorkerNetwork(globalThis);
+await import('./vendor/c2pa/c2pa_worker.js');

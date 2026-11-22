@@ -65,3 +65,19 @@ can be invoked independently without regenerating the random signing certificate
 - This external example is not recreated by generate_fixtures.py; obtain it from
   the source link to replace it. Public upstream files and trust decisions may
   change; review any replacement and its expected result before committing it.
+
+## V2 added regression files (2026-11-22)
+
+remote-manifest.jpg adds an XMP dcterms:provenance URL at never.invalid to the
+original generated stripped JPEG. Offline SDK reading explicitly refuses the
+remote-only manifest; no URL is fetched. No downloaded credential is fabricated.
+
+expired-chatgpt.png is the unmodified public CAI ChatGPT_Image.png gallery sample:
+https://contentauth.github.io/example-assets/images/ChatGPT_Image.png
+Downloaded 2026-11-22; 2,130,441 bytes. SHA-256 (test documentation only):
+7cd57b4a33f05e4ce7f63de18751f59f4b3ea8c55c281204e0cd6d1f621e466f.
+Retains the same CAI MIT attribution/license in LICENSE-CAI.txt. The real SDK
+reports signingCredential.expired and untrusted, without affirmative signature
+validation; the cautious result is Unavailable with a certificate-expiry reason,
+not Signature invalid. Gallery labeling does not establish generator identity.
+This public example is separate from absent user-supplied ChatGPT/Gemini originals.

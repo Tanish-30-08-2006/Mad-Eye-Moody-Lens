@@ -23,3 +23,15 @@ provenance verifier; existing CSP values and detector connections stay intact.
 Commits 2-6 remain pending. SDK re-vendor/effective settings, neutralized-worker
 network spies, classification, hints, extension UI, website integration and
 fixture parity are not yet implemented or claimed passed. Stop/report breakage.
+
+Commit 2 work: re-vendored official 0.16.0 and pinned website dependency/lock;
+refreshed unchanged official trust snapshots; hardened extension worker; added
+real worker network-spy/effective-settings checks and cautious classifier reasons.
+The network fallback is defence in depth, not CSP isolation. C2PA 2.4.0 parsing
+and eight pre-existing c2patool comparisons passed after the repin. Website card
+and website privacy/parity tests remain pending for commits 5-6.
+
+Pre-commit-2 results: extension 98 total / 93 passed / 5 skipped / 0 failed;
+provenance subset 52 passed; providers 13 passed. Website build/typecheck and
+39 existing website tests passed. Exact 0.16.0 npm audit: 8 signatures and
+4 attestations verified. No new test skips or removed baseline tests.

@@ -117,3 +117,23 @@ Browser_Extension/backend/tests/fixtures/real-world/ was absent on 2026-11-22.
 No private/local ChatGPT or Gemini originals were inspected. Compatibility with
 those originals remains unverified; automated tests must skip clearly when empty.
 Existing synthetic/CAI samples are separate from user-supplied real originals.
+
+## Commit 2: approved repin and achieved worker checks
+
+Both dependency pins now use 0.16.0 with the official registry integrity in the
+website lockfile and vendor VERSION.md. The minimal same-extension URL patch
+was redone against pristine c2pa-CqMzdYCb.js. Trust snapshots were refetched at
+f61352d703c756f4caa176ce3cbccc41a085c11a; 36 signer/24 TSA certs parsed, bytes
+unchanged. All 49 existing provenance tests and eight c2patool comparisons passed
+after repin before new behavior was added. The older WASM parses C2PA 2.4.0.
+
+Achieved isolation is the approved dedicated-worker fallback, not a CSP guarantee.
+Its five failing API guards run before dynamic SDK import. Actual SDK/WASM worker
+checks cover remote-only manifest refusal, unknown signer and expired CAI sample;
+all parent/worker verification network counts are zero. Node's test-only message
+transport/FileReaderSync bridge preserves original Blob bytes and real crypto.
+Effective settings retain trust checks, disable OCSP/remote fetch, reject trust
+URLs and add separate native tsa anchors because utilities 0.4.0 lacks that
+convenience mapping. No invented SDK fetch flags are claimed. Website tests and
+native browser acceptance remain pending. Detector suites and byte acquisition
+regressions remain required at every commit. No local real originals were found.

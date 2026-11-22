@@ -170,3 +170,10 @@ the extension manifest/side panel; preserve his changes and list any additive
 manifest edit explicitly. No manifest change is planned for the worker fallback.
 
 See V2_DESIGN.md, SDK_AUDIT.md and STATUS.md for the current scope and gates.
+
+Commit 2 achieved: SDK re-vendor and website exact 0.16.0 lock integrity; refreshed
+official offline anchors; unchanged manifest/CSP; approved hardened-worker
+fallback with zero-network verification tests. A Node browser-API bridge runs
+the actual SDK worker/WASM, not a cryptographic mock. This is defence in depth,
+not a CSP guarantee or a native Chrome pass. Website repetition and card remain
+pending. No manifest edit/conflict has been introduced by this approach.

@@ -166,3 +166,8 @@ accepted by the user. No Chrome automation/manual Chrome run is claimed.
 Repin cryptographic agreement, effective-settings, parent/worker failing-spy
 privacy tests and real-world local-original tests remain pending. The optional
 real-world directory did not exist; do not claim ChatGPT/Gemini compatibility.
+
+Pre-commit-2 results: extension 98 total / 93 passed / 5 skipped / 0 failed;
+provenance subset 52 passed; providers 13 passed. Website build/typecheck and
+39 existing website tests passed. Exact 0.16.0 npm audit: 8 signatures and
+4 attestations verified. No new test skips or removed baseline tests.

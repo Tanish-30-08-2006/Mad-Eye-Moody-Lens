@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@contentauth/c2pa-web": "0.16.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "react": "^18.3.1",

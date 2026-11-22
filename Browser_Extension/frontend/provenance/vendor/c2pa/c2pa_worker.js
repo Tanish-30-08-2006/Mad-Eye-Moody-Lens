@@ -767,12 +767,6 @@ var fe = $((ge, C) => {
         __wbg_now_aa4ccb83129e9e55: function() {
           return Date.now();
         },
-        __wbg_now_e7c6795a7f81e10f: function(e) {
-          return e.now();
-        },
-        __wbg_performance_3fcf6e32a7e1ed0a: function(e) {
-          return e.performance;
-        },
         __wbg_process_44c7a14e11e9f69e: function(e) {
           return e.process;
         },
@@ -936,15 +930,15 @@ var fe = $((ge, C) => {
     };
   }
   function Y(r, e) {
-    o.wasm_bindgen_cb414c02e4f83cd6___convert__closures_____invoke_______true_(r, e);
+    o.wasm_bindgen_255200e6d97c625a___convert__closures_____invoke_______true_(r, e);
   }
   function K(r, e, t) {
-    const n = o.wasm_bindgen_cb414c02e4f83cd6___convert__closures_____invoke___wasm_bindgen_cb414c02e4f83cd6___JsValue__core_d941ad8722425d2e___result__Result_____wasm_bindgen_cb414c02e4f83cd6___JsError___true_(r, e, t);
+    const n = o.wasm_bindgen_255200e6d97c625a___convert__closures_____invoke___wasm_bindgen_255200e6d97c625a___JsValue__core_37ee0ce0c4cd57d5___result__Result_____wasm_bindgen_255200e6d97c625a___JsError___true_(r, e, t);
     if (n[1])
       throw d(n[0]);
   }
   function Q(r, e, t, n) {
-    o.wasm_bindgen_cb414c02e4f83cd6___convert__closures_____invoke___js_sys_1746cd361478c686___Function_fn_wasm_bindgen_cb414c02e4f83cd6___JsValue_____wasm_bindgen_cb414c02e4f83cd6___sys__Undefined___js_sys_1746cd361478c686___Function_fn_wasm_bindgen_cb414c02e4f83cd6___JsValue_____wasm_bindgen_cb414c02e4f83cd6___sys__Undefined_______true_(r, e, t, n);
+    o.wasm_bindgen_255200e6d97c625a___convert__closures_____invoke___js_sys_bd80bcec31efc073___Function_fn_wasm_bindgen_255200e6d97c625a___JsValue_____wasm_bindgen_255200e6d97c625a___sys__Undefined___js_sys_bd80bcec31efc073___Function_fn_wasm_bindgen_255200e6d97c625a___JsValue_____wasm_bindgen_255200e6d97c625a___sys__Undefined_______true_(r, e, t, n);
   }
   const Z = ["default", "no-store", "reload", "no-cache", "force-cache", "only-if-cached"], ee = ["omit", "same-origin", "include"], te = ["same-origin", "no-cors", "cors", "navigate"], z = typeof FinalizationRegistry > "u" ? { register: () => {
   }, unregister: () => {

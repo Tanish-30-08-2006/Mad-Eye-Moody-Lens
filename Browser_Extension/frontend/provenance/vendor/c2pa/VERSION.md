@@ -1,107 +1,106 @@
 # Vendored C2PA runtime
 
-Snapshot date: 2026-11-21. Package: **@contentauth/c2pa-web 0.17.1**, MIT.
-Source: https://registry.npmjs.org/@contentauth/c2pa-web/-/c2pa-web-0.17.1.tgz
+Snapshot/re-vendor date: 2026-11-22. Package: **@contentauth/c2pa-web 0.16.0**, MIT.
+Source: https://registry.npmjs.org/@contentauth/c2pa-web/-/c2pa-web-0.16.0.tgz
 Project: https://github.com/contentauth/c2pa-js
-Docs: https://opensource.contentauthenticity.org/docs/c2pa-js/packages/c2pa-web/
 
-Exact bundled dependencies: @contentauth/c2pa-wasm 0.15.1 (MIT),
-@contentauth/c2pa-utilities 0.5.2 (MIT), highgain 0.1.0 (ISC).
-@contentauth/c2pa-types 0.8.0 is types-only. Build tool: esbuild 0.25.12;
-no build tool is shipped as runtime. LICENSE, LICENSE-wasm, LICENSE-utilities
-are upstream licence files. highgain's package declares ISC and Eli Mensch as
-author but omits a licence file; LICENSE-highgain supplies the ISC notice.
+Registry integrity (download independently matched):
+`sha512-FEvdoYxejhSMtQ0Z0EwUM2S+6StjAWGcLHMi8eqFvzkXIKwW/2f/A+N8HRsTno8RPj8oNx1g5GFBjPw3uSQPzQ==`
 
-## Small worker URL patch
+Published 2026-11-04 22:14:21.918 UTC, over two weeks before this re-vendor.
+The former 0.17.1 age exception is WITHDRAWN. The new trust-fetch code found in
+its utilities dependency is the reason for repinning; preserve that finding in
+[SDK_AUDIT.md](../../../../docs/provenance/SDK_AUDIT.md). Never silently return
+to 0.17.1. Both the website package and its lockfile pin exactly 0.16.0 with the
+same registry integrity; the website card is not yet implemented in commit 2.
 
-The published Config exposes wasmSrc (string or WebAssembly.Module) and workerSrc
-(URL). No supported option changes validateWorkerSrc's HTTPS-only rule.
-The exact pristine upstream built file dist/builder-CaTgrAW1.js is preserved as
-builder.upstream.js beside builder.patched.js. worker-url.patch contains the
-complete one-line change. SDK algorithms and all signature validation code are
-unchanged. The application always passes chrome.runtime.getURL() packaged paths.
+## Dependencies and licenses
+
+Runtime: @contentauth/c2pa-wasm 0.14.0 and @contentauth/c2pa-utilities 0.4.0
+(MIT), highgain 0.1.0 and ts-deepmerge 8.0.0 (ISC). Types: c2pa-types 0.7.8.
+Build tool esbuild 0.25.12 is not shipped as runtime. Preserve upstream MIT
+notices. highgain and ts-deepmerge npm packages declare ISC/author but omit
+license files; LICENSE-highgain and LICENSE-deepmerge provide standard ISC
+notices with those author attributions, not claimed verbatim upstream files.
+
+## Minimal same-extension worker URL patch
+
+The official 0.16.0 chunk is dist/c2pa-CqMzdYCb.js; its pristine bytes are saved
+as builder.upstream.js. The one-line patch in builder.patched.js/worker-url.patch
+accepts chrome-extension: only from the same running extension host/context.
+HTTPS behavior remains unchanged. Foreign-extension, HTTP, blob and file URLs
+remain rejected. SDK crypto/parsing algorithms are not patched. vendor.mjs
+checks the exact package version and reproduces the ESM bundle using esbuild.
 
 ```diff
--  if (r.protocol !== "https:")
-+  if (r.protocol !== "https:" && !(r.protocol === "chrome-extension:" && globalThis.location?.protocol === "chrome-extension:" && r.host === globalThis.location.host))
+-  if (n.protocol !== "https:")
++  if (n.protocol !== "https:" && !(n.protocol === "chrome-extension:" && globalThis.location?.protocol === "chrome-extension:" && n.host === globalThis.location.host))
 ```
 
-HTTPS behavior is preserved. The added branch only accepts the running extension's
-host, from an extension context. Foreign-extension, HTTP, blob and file URLs are
-rejected. sdk.js bundles this patched file and dependencies with esbuild (ESM,
-chrome120 target). c2pa_worker.js and c2pa_bg.wasm are unmodified upstream files.
-wasm-bindings.js is unmodified @contentauth/c2pa-wasm/pkg/c2pa.js for real Node
-WASM cross-checks; it is not imported by the panel. Source hashes below and
-SHA256SUMS.json allow verification. These are vendored-software hashes, never
-user-image evidence hashes.
+c2pa_worker.js, c2pa_bg.wasm and wasm-bindings.js are unmodified official files.
+Rebuild in a temporary exact-version install with scripts disabled, supplying
+the two official PEMs and their CC BY 4.0 license, then run vendor.mjs TEMP.
 
-Rebuild: install exact versions in a temporary directory, place the official
-trust PEMs and licence there, then run `node vendor.mjs /absolute/temp`.
-Use a temporary directory; do not modify the extension's package dependencies.
+## Offline trust refresh
 
-## Official trust snapshot
+Refetched 2026-11-22 from official c2pa-org/conformance-public at commit
+f61352d703c756f4caa176ce3cbccc41a085c11a. All 36 signer and 24 timestamp
+certificates parsed. Both snapshots are byte-identical to the prior download.
+These cover that repository's C2PA signer and TSA trust lists, not every signer,
+live revocation, every legacy/private list, or all generators. Attribution: C2PA;
+LICENSE-trust-list retains CC BY 4.0. No test root is installed in runtime trust.
 
-C2PA-managed lists from c2pa-org/conformance-public, CC BY 4.0; attributed to C2PA.
-Downloaded 2026-11-21, unchanged. LICENSE-trust-list preserves the full licence.
+- https://github.com/c2pa-org/conformance-public/tree/f61352d703c756f4caa176ce3cbccc41a085c11a/trust-list
 
-- https://github.com/c2pa-org/conformance-public/tree/main/trust-list
-- https://raw.githubusercontent.com/c2pa-org/conformance-public/main/trust-list/C2PA-TRUST-LIST.pem
-- https://raw.githubusercontent.com/c2pa-org/conformance-public/main/trust-list/C2PA-TSA-TRUST-LIST.pem
+## Offline enforcement and limitations
 
-These are offline PEM trust anchors, not a live revocation service. No test root
-is bundled here. Snapshot updates require an explicit code review and new hashes.
+Existing manifest CSP values and detector connections are unchanged, per the
+user's explicit scope approval. Achieved approach: dedicated hardened worker,
+not a sandbox/CSP guarantee. It replaces fetch, XMLHttpRequest, WebSocket,
+importScripts and navigator.sendBeacon BEFORE dynamically loading SDK code.
+This is defence in depth. All counters retain API names/counts only, never URLs.
+Packaged/same-origin JS/WASM/PEM resource loading precedes file verification.
+
+SDK verify.remote_manifest_fetch and verify.ocsp_fetch are explicitly false.
+Manifest/timestamp trust verification stays true: verification is not fetching.
+There is no separate SDK trust-resource-fetch boolean in utilities 0.4.0.
+createOfflineContext rejects URL inputs and supplies an always-failing fetch
+callback with zero retries. OFFLINE_POLICY explicitly disables trust-list and
+timestamp trust fetching. Utilities 0.4.0 lacks the tsaTrust convenience mapping,
+so the adapter serializes a native trust.anchors entry tagged tsa, separate from
+manifest roots. Actual WASM accepts this shape; effective-settings tests inspect
+all flags and both stores. No trust checks are disabled to manufacture a badge.
+
+Actual production worker+SDK+WASM passed failing-spy checks for a remote-only
+manifest (explicit RemoteManifestUrl refusal), an unknown signer, and an expired
+certificate. The Node test bridge supplies browser message transport and native
+FileReaderSync semantics from original Blob bytes; it does not mock cryptography.
+Parent and worker network API calls during verification: zero. The worker spies
+are separately probed to prove they fail when invoked. Native Chrome remains a
+manual acceptance check, not a claimed result. Website repetition is pending.
+
+Existing provenance suite and all eight recorded c2patool agreement combinations
+passed after repinning; existing fixtures parse as C2PA 2.4.0. No local ChatGPT or
+Gemini originals were present. Their compatibility remains UNVERIFIED. The CAI
+ChatGPT gallery example is only an attributed expired-certificate regression.
 
 ## SHA-256 file hashes
 
+These are vendored-software hashes, never runtime user-image evidence hashes.
+
 | File | SHA-256 |
 | --- | --- |
-| builder.upstream.js | `892c16674f9ffc5f225548b9c47b29781a1072eb7cad8c424ce2efae057f6a7b` |
-| builder.patched.js | `af671bd758fe8c3dbb094f840d2eca07bc3c241b2954e1aab5738bcb327e9a9c` |
-| worker-url.patch | `1e9d9a5f07e09e2a5a44243dd92a394e5d937dce2159d1a3e05ff764ec219b82` |
-| sdk.js | `34843788b6f0ac68f7a68faaa1385e3f038bc3ca03c8e7f564d255c065e5de07` |
-| c2pa_worker.js | `fb4cbff3b4b3df7cdc03328554a38a84de90f9949bc43a7078a37da1bfd82ac7` |
-| c2pa_bg.wasm | `53f29186e4beb70940d34b50e7c92b0c6c8663d39b99667ea6e0aca85dc00460` |
-| wasm-bindings.js | `6197308395e9aed2395edbf04256d467f81360022a760307f90c643a4dc612f8` |
+| builder.upstream.js | `0f11d6d2e81f5c7242088022ba772268328ab668db26570ee215a744c435c404` |
+| builder.patched.js | `9d3b9dc73eacd0359ed077acda9e2905b4398450685329ad8b52def8cf03366d` |
+| worker-url.patch | `dffc0303f951ced2740444d712b82511e4a39a67a226909e049ec68f26cf05cb` |
+| sdk.js | `4c7bea19a33d9904c2262202219afc139168c0056180d945c90f13c0f925f583` |
+| LICENSE-deepmerge | `3d2643fbc36875c6a00263bc8ec6f900d7ccda5a115f4fc4a78233c717ce4a7e` |
+| c2pa_worker.js | `e6874ae8682ed57d9e375d43e583afcf23afef7c92ed281556a2474ab71bdfa8` |
+| c2pa_bg.wasm | `ae2485152c262352f9835b07dc9ad81117a08ee05e29fcd23499479384f1e008` |
+| wasm-bindings.js | `1b591e83fa0470394174736c9eeba2ec9e2624bfc5dde5ade56838154b412c7c` |
 | LICENSE | `5aeea31bc245dd31213e7ff878a40362d6d4d8bc8093e34a0f30ed7639fe93c6` |
 | LICENSE-wasm | `5aeea31bc245dd31213e7ff878a40362d6d4d8bc8093e34a0f30ed7639fe93c6` |
 | LICENSE-utilities | `5aeea31bc245dd31213e7ff878a40362d6d4d8bc8093e34a0f30ed7639fe93c6` |
 | C2PA-TRUST-LIST.pem | `859f422cf4744a45de6f073b258d76381c91a9624c10aaa40543c19c1f124e13` |
 | C2PA-TSA-TRUST-LIST.pem | `eca8347ee71e31d226e00c85b15aca356116fefe6c26ed8c0ee1f954115b1990` |
 | LICENSE-trust-list | `9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94` |
-
-## Approved v2 repin (2026-11-22; implementation pending)
-
-The approved target for BOTH clients is @contentauth/c2pa-web 0.16.0 (MIT),
-utilities 0.4.0, WASM 0.14.0 and types 0.7.8. The runtime and hashes above still
-refer to the currently installed 0.17.1; update them only after re-vendoring and
-real-WASM/c2patool checks pass. No website SDK is integrated yet.
-
-The age exception for 0.17.1 is WITHDRAWN. 0.16.0 was published on
-2026-11-04 at 22:14:21.918 UTC, more than two weeks before this audit.
-Official 0.16.0 archive integrity, independently matched against npm metadata:
-
-`sha512-FEvdoYxejhSMtQ0Z0EwUM2S+6StjAWGcLHMi8eqFvzkXIKwW/2f/A+N8HRsTno8RPj8oNx1g5GFBjPw3uSQPzQ==`
-
-Source: https://registry.npmjs.org/@contentauth/c2pa-web/-/c2pa-web-0.16.0.tgz
-
-Reason for repin: utilities 0.5.2 (used by web 0.17.1) adds fetchTrustSetting
-(settings.js:270) and executeTrustFetch (:295), plus timestamp trust-anchor URL
-resolution. These wrappers/branch are absent from utilities 0.4.0 (web 0.16.0).
-0.16.0 still has resolveTrustSettings -> fetchWithRetry URL fetching. See the
-[SDK audit](../../../../docs/provenance/SDK_AUDIT.md) for the exact comparison,
-publisher/provenance findings and historical 0.17.1 registry integrity.
-
-Network ban scope: provenance verification only. The user explicitly prohibits
-changing existing CSP values or detector connections. Preferred sandbox startup
-would require fetching WASM despite connect-src 'none', or a different resource
-bootstrap protocol. The permitted fallback is a dedicated worker which disables
-fetch, XMLHttpRequest, WebSocket, importScripts and navigator.sendBeacon BEFORE
-loading the SDK. This is defence in depth, not a CSP guarantee. Both clients must
-have effective offline settings and failing-spy tests over remote-manifest,
-unknown-signer and expired-certificate files. Preserve detector/image acquisition
-requests and test that separation. No browser execution has been claimed.
-
-Repin, minimal worker URL adjustment, effective-settings tests, C2PA 2.x parsing,
-real-WASM/c2patool agreement and website exact-version lock integrity are pending.
-Real ChatGPT/Gemini local-original compatibility is unverified: the optional
-real-world fixtures directory was absent at this audit.
