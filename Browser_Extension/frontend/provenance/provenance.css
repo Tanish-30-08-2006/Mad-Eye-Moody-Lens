@@ -16,3 +16,14 @@
 #provenancePanel .provenance-disagreement { border-left: 3px solid #93c5fd; padding: 8px; background: var(--bg-subtle, #162032); }
 #provenancePanel button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
 @media (max-width: 340px) { #provenancePanel dl { grid-template-columns: 1fr; } }
+
+#provenancePanel .provenance-content { font-size: 13px; }
+#provenancePanel .provenance-evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; list-style: none; background: var(--bg-subtle); border: 1px solid var(--border-color); border-radius: 6px; }
+#provenancePanel .provenance-evidence li { display: flex; gap: 5px; color: var(--text-muted); font-size: 11px; }
+#provenancePanel .provenance-evidence li.active { color: var(--primary); font-weight: 700; }
+#provenancePanel .provenance-hint-chip { display: flex; align-items: start; gap: 6px; padding: 6px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 4px; }
+#provenancePanel .provenance-maker-links { display: flex; flex-wrap: wrap; gap: 8px; }
+#provenancePanel .provenance-maker-links a { padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 4px; text-decoration: none; color: inherit; }
+#provenancePanel summary { cursor: pointer; padding: 6px 0; }
+#provenancePanel a:focus-visible, #provenancePanel summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { #provenancePanel *, #provenancePanel *::before, #provenancePanel *::after { animation: none !important; transition: none !important; } }

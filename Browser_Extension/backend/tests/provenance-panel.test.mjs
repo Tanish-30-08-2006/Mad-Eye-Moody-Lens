@@ -38,6 +38,19 @@ function walk(el) { return [el, ...el.childNodes.flatMap(walk)]; }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const declared = () => ({ ...makeResult('verified'), aiDeclaration: 'declared_ai_generated' });
 
+test('evidence dots, unsigned chips, collapsed explainer and safe vendor links render', () => {
+  const { document, root } = setup();
+  renderProvenance(root, { ...makeResult('no_credentials'), metadataInspected: true, format: 'image/webp' }, { document });
+  assert.ok(root.textContent.includes('Signed credentials')); assert.ok(root.textContent.includes('Nothing found'));
+  const links = walk(root).filter(el => el.tagName === 'a'); assert.equal(links.length, 2);
+  for (const link of links) { assert.equal(link.getAttribute('target'), '_blank'); assert.equal(link.getAttribute('rel'), 'noopener noreferrer'); }
+  const explainer = walk(root).find(el => el.tagName === 'details' && el.textContent.includes('Why nothing was found?'));
+  assert.ok(explainer); assert.equal(explainer.getAttribute('open'), null);
+  renderProvenance(root, { ...makeResult('no_credentials'), metadataHints: [{ label: 'Tool', value: '<script>literal</script>', family: 'OpenAI', unsigned: true }] }, { document });
+  assert.ok(root.textContent.includes('unsigned')); assert.ok(root.textContent.includes('<script>literal</script>'));
+  assert.equal(walk(root).some(el => el.tagName === 'script'), false);
+});
+
 test('all badges, cautions and hostile strings render as bounded literal text', () => {
   const { document, root } = setup();
   const malicious = '<img src=x onerror="globalThis.pwned=true">' + 'x'.repeat(2000);

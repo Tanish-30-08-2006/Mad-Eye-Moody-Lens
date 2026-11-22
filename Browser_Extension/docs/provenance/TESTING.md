@@ -174,3 +174,6 @@ provenance subset 52 passed; providers 13 passed. Website build/typecheck and
 
 Pre-commit-3: extension 111 total / 106 passed / 5 skipped / 0 failed;
 providers 13 passed; website 39 passed, build and typecheck passed.
+
+Pre-commit-4: extension 115 total / 110 passed / 5 skipped / 0 failed;
+providers 13 passed; website 39 passed, build/typecheck passed.

@@ -44,3 +44,12 @@ truncated. TC260 is skipped because its exact key was not verified.
 
 Pre-commit-3: extension 111 total / 106 passed / 5 skipped / 0 failed;
 providers 13 passed; website 39 passed, build and typecheck passed.
+
+Commit 4: extension evidence dots, unsigned chips, collapsed deterministic
+absence explanation and fixed OpenAI/Google link-outs implemented. Only the
+reviewed exact imagedelivery.net host has an extra processed-variant note;
+website usage suppresses all host facts. Unavailable/unsupported never means
+absence. Links transfer no image automatically and explain vendor-side uploads.
+
+Pre-commit-4: extension 115 total / 110 passed / 5 skipped / 0 failed;
+providers 13 passed; website 39 passed, build/typecheck passed.

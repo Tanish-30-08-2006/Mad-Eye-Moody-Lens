@@ -2,6 +2,7 @@ import { acquireBytes } from './bytes.js';
 import { readMetadata } from './metadata-reader.js';
 import { verifyC2pa } from './c2pa-verifier.js';
 import { extractDeclarations } from './declarations.js';
+import { fileFacts } from './evidence.js';
 
 export const SCHEMA_VERSION = 1;
 export const STATUS_LABELS = Object.freeze({ verified: 'Verified credentials', untrusted_signer: 'Unknown signer', invalid: 'Signature invalid', no_credentials: 'No credentials found', unsupported_format: 'Unsupported format', unavailable: 'Unavailable' });
@@ -77,7 +78,7 @@ export function classifyC2pa(outcome) {
   return result;
 }
 
-export async function checkProvenance(source, { signal, acquire = acquireBytes, verify = verifyC2pa } = {}) {
+export async function checkProvenance(source, { signal, acquire = acquireBytes, verify = verifyC2pa, sourceHostHints = true } = {}) {
   let stage = 'bytes_unavailable';
   try {
     const { bytes } = await acquire(source, { signal });
@@ -90,6 +91,7 @@ export async function checkProvenance(source, { signal, acquire = acquireBytes, 
     result.metadataHints = metadata.metadataHints;
     result.metadataInspected = true;
     result.remoteManifestNotFetched = metadata.remoteManifestNotFetched;
+    Object.assign(result, fileFacts(bytes, metadata, sourceHostHints ? source : null));
     return result;
   } catch (error) { return unavailableResult(stage === 'bytes_unavailable' ? (Object.hasOwn(diagnostics, error?.code) ? error.code : stage) : stage); }
 }

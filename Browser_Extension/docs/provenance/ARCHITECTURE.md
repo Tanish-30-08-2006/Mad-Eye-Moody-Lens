@@ -150,3 +150,13 @@ website logic will be a documented copy protected by JSON fixture parity.
 V2 hint inspection no longer returns a whole XML/JSON payload or prompt chunks.
 It extracts bounded named scalar fields or fixed marker-presence messages and
 small family-table matches. Existing parser byte/chunk/inflation limits remain.
+
+V2 evidence.js provides pure presentation facts. Evidence is categorical, never
+a percentage and never merged with detector scores. The dated source-host list
+contains only imagedelivery.net (2026-11-22). Cloudflare documents automatic
+transcoding of delivery variants and metadata filtering defaults:
+https://developers.cloudflare.com/images/manage-images/serve-images/serve-uploaded-images/
+https://developers.cloudflare.com/images/transform-images/transform-via-url/
+The host note is a possibility, never a claim that this file was transformed.
+Vendor URLs are fixed constants with noopener/noreferrer, no image/query/hash
+arguments. SynthID is not read locally. Existing extension UI hooks are unchanged.

@@ -1,9 +1,10 @@
 import { checkProvenance, makeResult, STATUS_LABELS } from './provenance-core.js';
 import { AI_LABELS } from './declarations.js';
 import { capText } from './metadata-reader.js';
+import { EVIDENCE_LABELS, evidenceIndex, absenceExplanation, makerLinks } from './evidence.js';
 
 export const CAUTION = 'A valid signature does not prove the content is true. Missing credentials do not prove authenticity.';
-export const HINT_CAUTION = 'Unsigned metadata hint, can be edited or forged.';
+export const HINT_CAUTION = 'Unsigned, can be forged. Metadata is a lead, never proof.';
 
 export function disagreementNote(result, detectorClass) {
   if (result?.signatureStatus !== 'valid') return '';
@@ -34,6 +35,19 @@ export function renderProvenance(root, result, { mode = 'result', hasSource = tr
   else if (mode === 'checking') content.append(element('p', 'Reading file bytes and checking locally…'));
   else {
     content.append(element('p', result?.message || makeResult('unavailable').message));
+    const strip = element('ol', undefined, 'provenance-evidence');
+    strip.setAttribute('aria-label', 'Origin evidence; separate from the detector score');
+    EVIDENCE_LABELS.forEach((label, index) => {
+      const step = element('li', undefined, index === evidenceIndex(result) ? 'active' : '');
+      const dot = element('span', '●', 'provenance-dot'); dot.setAttribute('aria-hidden', 'true');
+      step.setAttribute('aria-current', index === evidenceIndex(result) ? 'step' : 'false');
+      step.append(dot, element('span', label)); strip.append(step);
+    });
+    content.append(strip);
+    const explanation = absenceExplanation(result);
+    if (explanation) {
+      const details = element('details'); details.append(element('summary', 'Why nothing was found?'), element('p', explanation)); content.append(details);
+    }
     if (result?.signer || result?.actions?.length) {
       if (status !== 'verified') content.append(element('p', 'Credential statements below have not been authenticated by a trusted, valid signature.', 'provenance-warning'));
     }
@@ -58,9 +72,21 @@ export function renderProvenance(root, result, { mode = 'result', hasSource = tr
     }
     content.append(element('h3', 'Unsigned metadata hints'), element('p', HINT_CAUTION, 'provenance-warning'));
     const hints = element('ul');
-    for (const hint of (Array.isArray(result?.metadataHints) ? result.metadataHints : []).slice(0, 12)) hints.append(element('li', `${capText(hint?.label, 80)}: ${capText(hint?.value, 240)}`));
+    for (const hint of (Array.isArray(result?.metadataHints) ? result.metadataHints : []).slice(0, 12)) {
+      const chip = element('li', undefined, 'provenance-hint-chip');
+      chip.append(element('span', 'unsigned', 'pill warn'), element('span', `${capText(hint?.label, 80)}: ${capText(hint?.value, 240)}`)); hints.append(chip);
+    }
     if (!hints.childNodes.length) hints.append(element('li', result?.metadataInspected ? 'No supported generator hints found' : 'Metadata has not been inspected.'));
     content.append(hints);
+    const links = makerLinks(result);
+    if (links.length) {
+      const row = element('div', undefined, 'provenance-maker-links');
+      for (const link of links) {
+        const anchor = element('a', link.label, 'secondary');
+        anchor.setAttribute('href', link.url); anchor.setAttribute('target', '_blank'); anchor.setAttribute('rel', 'noopener noreferrer'); anchor.setAttribute('referrerpolicy', 'no-referrer'); anchor.setAttribute('aria-label', `${link.label}; opens the vendor site in a new tab`); row.append(anchor);
+      }
+      content.append(row, element('p', 'You upload on the vendor’s site, not here. Nothing is sent by these links automatically. This check cannot read SynthID.', 'hint'));
+    }
     if (result?.remoteManifestNotFetched) content.append(element('p', 'A remote manifest link exists. It was not fetched to protect your privacy.'));
     const note = disagreementNote(result, detectorClass);
     if (note) content.append(element('p', note, 'provenance-disagreement'));

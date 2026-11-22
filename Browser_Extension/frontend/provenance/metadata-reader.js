@@ -3,7 +3,7 @@ export const LIMITS = Object.freeze({ file: 8 * 1024 * 1024, chunk: 65536, total
 const decoder = new TextDecoder();
 const latin = new TextDecoder('latin1');
 const families = Object.freeze([
-  ['OpenAI', /\bopenai\b|chatgpt|dall[ -]?e|gpt-image/i], ['Google', /gemini|imagen|nano banana/i],
+  ['OpenAI', /\bopenai\b|chatgpt|dall[ -]?e|gpt-image/i], ['Google', /\bgoogle\b|gemini|imagen|nano banana/i],
   ['ComfyUI', /comfyui/i], ['Stable Diffusion', /stable\s*diffusion|automatic1111|invokeai|fooocus/i],
   ['NovelAI', /novelai/i], ['Midjourney', /midjourney/i], ['Adobe Firefly', /firefly/i],
   ['Black Forest Labs', /black forest|\bflux\b/i], ['ByteDance', /bytedance|seedream/i], ['Recraft', /recraft/i]
