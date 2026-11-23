@@ -89,9 +89,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Run Legacy Extension Tests
-        run: node --test browser-extension/backend/tests/background.test.mjs
-
       - name: Run Browser Extension Test Suite
         working-directory: Browser_Extension/backend
         run: npm test
