@@ -3,6 +3,7 @@ import { analyzeAudio, analyzeImage, AnalysisResult, MediaType, startVideoJob } 
 import { Analyser, Phase } from "./components/Analyser";
 import { Footer, GridBackground, Nav } from "./components/Chrome";
 import { DuplicateDetector } from "./components/DuplicateDetector/DuplicateDetector";
+import { Sha256Page } from "./features/forensic-utilities/sha256/components/Sha256Page";
 import { ExternalProviderModal } from "./components/ExternalProviderModal";
 import { ExternalResultCard } from "./components/ExternalResultCard";
 import { Hero } from "./components/Hero";
@@ -37,13 +38,19 @@ export default function App() {
   const [jobId, setJobId] = useState<string | null>(null);
   const resultRef = useRef<HTMLDivElement | null>(null);
 
-  const [view, setView] = useState<"main" | "duplicate">(() => {
+  const [view, setView] = useState<"main" | "duplicate" | "sha256">(() => {
     if (typeof window !== "undefined") {
       if (
         window.location.pathname === "/duplicate-detection" ||
         window.location.hash === "#duplicate-detection"
       ) {
         return "duplicate";
+      }
+      if (
+        window.location.pathname === "/sha256-generator" ||
+        window.location.hash === "#sha256-generator"
+      ) {
+        return "sha256";
       }
     }
     return "main";
@@ -56,6 +63,11 @@ export default function App() {
         window.location.hash === "#duplicate-detection"
       ) {
         setView("duplicate");
+      } else if (
+        window.location.pathname === "/sha256-generator" ||
+        window.location.hash === "#sha256-generator"
+      ) {
+        setView("sha256");
       } else {
         setView("main");
       }
@@ -153,9 +165,9 @@ export default function App() {
       <div className="app">
         <Nav state={state} />
         <main>
-          {view === "duplicate" ? (
+          {view === "sha256" ? (
             <div style={{ background: "#ffffff", minHeight: "100vh" }}>
-              <div className="container" style={{ paddingTop: "1.5rem", paddingBottom: "0.5rem" }}>
+              <div className="container" style={{ paddingTop: "1.5rem", paddingBottom: "0.5rem", display: "flex", gap: "12px", alignItems: "center" }}>
                 <a
                   href="#analyse"
                   onClick={() => setView("main")}
@@ -176,6 +188,78 @@ export default function App() {
                   }}
                 >
                   ← Back to Deepfake Analyser
+                </a>
+                <a
+                  href="#duplicate-detection"
+                  onClick={() => setView("duplicate")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#4b5563",
+                    textDecoration: "none",
+                    background: "#ffffff",
+                    padding: "6px 16px",
+                    borderRadius: "9999px",
+                    border: "1px solid #e5e7eb",
+                    cursor: "pointer",
+                  }}
+                >
+                  Duplicate Image Detector →
+                </a>
+              </div>
+              <Sha256Page
+                onNavigateHome={() => setView("main")}
+                onNavigateDuplicate={() => setView("duplicate")}
+              />
+            </div>
+          ) : view === "duplicate" ? (
+            <div style={{ background: "#ffffff", minHeight: "100vh" }}>
+              <div className="container" style={{ paddingTop: "1.5rem", paddingBottom: "0.5rem", display: "flex", gap: "12px", alignItems: "center" }}>
+                <a
+                  href="#analyse"
+                  onClick={() => setView("main")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    color: "#111827",
+                    textDecoration: "none",
+                    background: "#f3f4f6",
+                    padding: "6px 16px",
+                    borderRadius: "9999px",
+                    border: "1px solid #e5e7eb",
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Back to Deepfake Analyser
+                </a>
+                <a
+                  href="#sha256-generator"
+                  onClick={() => setView("sha256")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#4b5563",
+                    textDecoration: "none",
+                    background: "#ffffff",
+                    padding: "6px 16px",
+                    borderRadius: "9999px",
+                    border: "1px solid #e5e7eb",
+                    cursor: "pointer",
+                  }}
+                >
+                  SHA-256 Generator &amp; Comparator →
                 </a>
               </div>
               <DuplicateDetector />
