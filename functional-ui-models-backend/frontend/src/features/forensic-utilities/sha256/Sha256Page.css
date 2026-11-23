@@ -1,0 +1,884 @@
+/* ==========================================================================
+   Bonsai-Inspired Premium White Theme â€” SHA-256 Generator & Comparator
+   Editorial minimalism, crisp borders, dark typography, and forensic clarity.
+   ========================================================================== */
+
+.sha256-page {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #ffffff;
+  color: #111827;
+  min-height: 100vh;
+  padding: 40px 0 96px 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sha256-container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Header & Breadcrumb */
+.sha256-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sha256-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4b5563;
+  text-decoration: none;
+  background: #f9fafb;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.15s ease;
+}
+
+.sha256-back-link:hover {
+  color: #000000;
+  border-color: #d1d5db;
+  background: #f3f4f6;
+}
+
+.sha256-header {
+  margin-bottom: 32px;
+}
+
+.sha256-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  margin-bottom: 16px;
+}
+
+.sha256-title {
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  font-weight: 800;
+  color: #000000;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  margin: 0 0 16px 0;
+}
+
+.sha256-desc {
+  font-size: 1.125rem;
+  color: #4b5563;
+  line-height: 1.6;
+  max-width: 720px;
+  margin: 0 0 16px 0;
+}
+
+/* Privacy Callout Banner */
+.sha256-privacy-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 36px;
+  font-size: 0.875rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.sha256-privacy-notice__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* Tab Navigation */
+.sha256-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 32px;
+  overflow-x: auto;
+}
+
+.sha256-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 20px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sha256-tab-btn:hover {
+  color: #111827;
+}
+
+.sha256-tab-btn--active {
+  color: #000000;
+  border-bottom-color: #000000;
+}
+
+/* Subtab Navigation (Compare Tab) */
+.sha256-subtab-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.sha256-subtab-btn {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 9999px;
+  padding: 8px 18px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sha256-subtab-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.sha256-subtab-btn--active {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+/* Section Headers */
+.sha256-section-header {
+  margin-bottom: 24px;
+}
+
+.sha256-section-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.sha256-section-desc {
+  font-size: 0.9375rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Dropzone */
+.sha256-dropzone {
+  border: 2px dashed #d1d5db;
+  border-radius: 16px;
+  padding: 48px 24px;
+  text-align: center;
+  background: #fafafa;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 28px;
+}
+
+.sha256-dropzone:hover,
+.sha256-dropzone--active {
+  border-color: #000000;
+  background: #f3f4f6;
+}
+
+.sha256-dropzone--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sha256-dropzone__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  margin-bottom: 16px;
+}
+
+.sha256-dropzone__title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.sha256-dropzone__subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.4;
+}
+
+/* Batch Panel & Actions */
+.sha256-batch-panel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sha256-batch-summary {
+  font-size: 0.9375rem;
+  color: #374151;
+  margin-bottom: 16px;
+}
+
+.sha256-summary-done {
+  color: #059669;
+  font-weight: 600;
+}
+
+.sha256-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.sha256-btn-danger {
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+}
+
+.sha256-btn-danger:hover:not(:disabled) {
+  background: #fef2f2 !important;
+  border-color: #f87171 !important;
+}
+
+/* File Results List */
+.sha256-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sha256-file-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  transition: border-color 0.15s ease;
+}
+
+.sha256-file-card:hover {
+  border-color: #d1d5db;
+}
+
+.sha256-file-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sha256-file-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.sha256-format-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  letter-spacing: 0.02em;
+}
+
+.sha256-filename {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.sha256-filesize {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.sha256-file-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sha256-duration {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.sha256-btn-sm {
+  padding: 6px 14px !important;
+  font-size: 0.8125rem !important;
+}
+
+.sha256-btn-icon {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sha256-btn-icon:hover:not(:disabled) {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+.sha256-btn-text {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sha256-btn-text:hover {
+  color: #111827;
+}
+
+/* Progress Bar */
+.sha256-progress-wrapper {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sha256-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.sha256-progress-bar__fill {
+  height: 100%;
+  background: #000000;
+  transition: width 0.1s linear;
+}
+
+.sha256-progress-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* Hash Display Box */
+.sha256-hash-box {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.sha256-hash-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.8125rem;
+  color: #111827;
+  word-break: break-all;
+  letter-spacing: -0.01em;
+}
+
+.sha256-copy-btn {
+  padding: 4px 12px !important;
+  font-size: 0.75rem !important;
+  flex-shrink: 0;
+}
+
+.sha256-error-badge {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.sha256-warning-badge {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+/* Compare Mode Panels */
+.sha256-compare-panel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sha256-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .sha256-input-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sha256-input-card,
+.sha256-file-target-card {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.sha256-target-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 16px 0;
+}
+
+.sha256-input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.sha256-hash-textarea,
+.sha256-manifest-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  resize: vertical;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.sha256-hash-textarea:focus,
+.sha256-manifest-textarea:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 1px #000000;
+}
+
+.sha256-input-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+.sha256-compare-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.sha256-file-brief {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.sha256-file-brief__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sha256-hash-preview {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  word-break: break-all;
+  margin-bottom: 12px;
+}
+
+/* Comparison Result Banners */
+.sha256-compare-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-top: 24px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.sha256-compare-banner__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.sha256-compare-banner--match {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.sha256-compare-banner--mismatch {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.sha256-compare-banner--invalid {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.sha256-compare-banner__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sha256-compare-banner__desc {
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+  opacity: 0.95;
+}
+
+.sha256-compare-banner__code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  word-break: break-all;
+}
+
+.sha256-compare-banner__diff-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8125rem;
+}
+
+.sha256-compare-label {
+  display: inline-block;
+  width: 70px;
+  font-weight: 600;
+}
+
+/* Manifest Mode Layout */
+.sha256-manifest-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 768px) {
+  .sha256-manifest-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sha256-manifest-step-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sha256-step-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  margin-bottom: 10px;
+}
+
+.sha256-step-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 6px 0;
+}
+
+.sha256-step-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0 0 16px 0;
+  line-height: 1.4;
+}
+
+.sha256-manifest-meta {
+  margin-top: 12px;
+  font-size: 0.8125rem;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.sha256-verify-queue {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.sha256-verify-queue__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  color: #374151;
+  margin-bottom: 16px;
+}
+
+.sha256-verify-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Manifest Verification Stats & Table */
+.sha256-manifest-results {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sha256-manifest-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.sha256-stat-card {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.sha256-stat-card--success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.sha256-stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.sha256-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.sha256-color-green { color: #059669; }
+.sha256-color-orange { color: #d97706; }
+.sha256-color-red { color: #dc2626; }
+.sha256-color-blue { color: #2563eb; }
+
+.sha256-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.sha256-filter-label {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.sha256-filter-pill {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sha256-filter-pill:hover {
+  background: #f3f4f6;
+}
+
+.sha256-filter-pill--active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.sha256-table-container {
+  overflow-x: auto;
+}
+
+.sha256-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.sha256-table th {
+  padding: 10px 14px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 600;
+  color: #4b5563;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sha256-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+  vertical-align: top;
+}
+
+.sha256-table-filename {
+  font-weight: 600;
+  color: #111827;
+}
+
+.sha256-table-hash code {
+  font-size: 0.75rem;
+  background: #f9fafb;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.sha256-table-sub {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.sha256-status-badge {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.sha256-status-badge--matched { background: #dcfce7; color: #15803d; }
+.sha256-status-badge--modified { background: #fef3c7; color: #b45309; }
+.sha256-status-badge--missing { background: #fee2e2; color: #b91c1c; }
+.sha256-status-badge--unexpected { background: #dbeafe; color: #1d4ed8; }
+.sha256-status-badge--invalid { background: #f3e8ff; color: #6b21a8; }
+
+.sha256-table-details {
+  font-size: 0.8125rem;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.sha256-forensic-callout {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 32px;
+}
+
+.sha256-forensic-callout h4 {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+}
+
+.sha256-forensic-callout p {
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
