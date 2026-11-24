@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/externalProvider.test.mjs tests/duplicateDetector.test.mjs tests/forensicReport.test.mjs",
+    "test": "node --test tests/externalProvider.test.mjs tests/duplicateDetector.test.mjs tests/forensicReport.test.mjs tests/sha256.test.mjs tests/comparison.test.mjs tests/manifest.test.mjs tests/exif-gps.test.mjs tests/exif-validation.test.mjs tests/exif-metadata.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
+    "exifr": "^7.1.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "react": "^18.3.1",

@@ -70,7 +70,7 @@ The same API, models and limits serve every client. Nothing else in the reposito
 | Client | Folder | How it connects |
 | --- | --- | --- |
 | Web app | `frontend/` | Same origin through nginx on `127.0.0.1:8080` |
-| Chrome extension (image + audio + video) | `../browser-extension/backend` | Provider "Mad-Eye Moody Lens server", `http://127.0.0.1:8080/api/v1/analyze/*` |
+| Chrome extension (image + audio + video) | `../Browser_Extension/backend` | Provider "Mad-Eye Moody Lens server", `http://127.0.0.1:8080/api/v1/analyze/*` |
 | Reddit extension | `../reddit_extension/backend` | Its router (`/detect`, `/detect/batch`, `/brain/status`, `/verdicts/lookup`, `/feedback`, …) is mounted into this API and runs scans on the same workers (`MML_BRAIN=host`) |
 | Telegram bot | `../telegram-bot` | Optional compose service: `docker compose -f docker-compose.prod.yml --profile telegram up -d` |
 

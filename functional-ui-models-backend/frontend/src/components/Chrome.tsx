@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useScrolled } from "../hooks/useReveal";
 import type { BackendState } from "../hooks/useModels";
 
@@ -28,8 +29,6 @@ export function StatusDot({ state }: { state: BackendState }) {
 }
 
 const LINKS = [
-  ["Analyse", "#analyse"],
-  ["Duplicate Image Detector", "#duplicate-detection"],
   ["Models", "#models"],
   ["How it works", "#how"],
   ["History", "#history"],
@@ -38,6 +37,8 @@ const LINKS = [
 
 export function Nav({ state }: { state: BackendState }) {
   const scrolled = useScrolled();
+  const [utilitiesOpen, setUtilitiesOpen] = useState(false);
+
   return (
     <header className={`nav ${scrolled ? "is-scrolled" : ""}`}>
       <div className="container nav__inner">
@@ -48,6 +49,45 @@ export function Nav({ state }: { state: BackendState }) {
         </a>
         <nav aria-label="Primary">
           <ul className="nav__links">
+            <li>
+              <a href="#analyse">Analyse</a>
+            </li>
+
+            <li
+              className="nav__dropdown"
+              onMouseEnter={() => setUtilitiesOpen(true)}
+              onMouseLeave={() => setUtilitiesOpen(false)}
+            >
+              <button
+                type="button"
+                className="nav__dropdown-btn"
+                onClick={() => setUtilitiesOpen((v) => !v)}
+                aria-expanded={utilitiesOpen}
+                aria-haspopup="true"
+              >
+                Forensic Utilities <span style={{ fontSize: "8px" }} aria-hidden="true">▼</span>
+              </button>
+              {utilitiesOpen && (
+                <ul className="nav__dropdown-menu">
+                  <li className="nav__dropdown-item">
+                    <a href="#duplicate-detection" onClick={() => setUtilitiesOpen(false)}>
+                      Duplicate Image Detector
+                    </a>
+                  </li>
+                  <li className="nav__dropdown-item">
+                    <a href="#sha256-generator" onClick={() => setUtilitiesOpen(false)}>
+                      SHA-256 Generator &amp; Comparator
+                    </a>
+                  </li>
+                  <li className="nav__dropdown-item">
+                    <a href="#exif-viewer" onClick={() => setUtilitiesOpen(false)}>
+                      Image Metadata &amp; EXIF Viewer
+                    </a>
+                  </li>
+                </ul>
+              )}
+            </li>
+
             {LINKS.map(([label, href]) => (
               <li key={href}>
                 <a href={href}>{label}</a>
