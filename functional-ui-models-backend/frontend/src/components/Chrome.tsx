@@ -76,7 +76,12 @@ export function Nav({ state }: { state: BackendState }) {
                   </li>
                   <li className="nav__dropdown-item">
                     <a href="#sha256-generator" onClick={() => setUtilitiesOpen(false)}>
-                      SHA-256 Generator & Comparator
+                      SHA-256 Generator &amp; Comparator
+                    </a>
+                  </li>
+                  <li className="nav__dropdown-item">
+                    <a href="#exif-viewer" onClick={() => setUtilitiesOpen(false)}>
+                      Image Metadata &amp; EXIF Viewer
                     </a>
                   </li>
                 </ul>
