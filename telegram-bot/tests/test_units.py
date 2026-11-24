@@ -108,3 +108,18 @@ def test_pick_media_routes_by_attachment_type():
     doc = SimpleNamespace(mime_type="video/webm")
     assert pick_media(msg(document=doc)) == ("video", doc)
     assert pick_media(msg(document=SimpleNamespace(mime_type="application/pdf"))) is None
+
+
+def test_load_settings_supports_env_aliases_and_port(monkeypatch):
+    from mml_bot.config import load_settings
+
+    for k in ("TELEGRAM_BOT_TOKEN", "BOT_TOKEN", "MML_API_BASE_URL", "BACKEND_URL", "PORT"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("BOT_TOKEN", "123:abc")
+    monkeypatch.setenv("BACKEND_URL", "https://example.onrender.com/")
+    monkeypatch.setenv("PORT", "10000")
+
+    s = load_settings()
+    assert s.token == "123:abc"
+    assert s.api_base_url == "https://example.onrender.com/api/v1"
+    assert s.port == 10000

@@ -11,6 +11,7 @@ dropped; the bot stores nothing and logs no content, file names, chat ids or use
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from html import escape
@@ -215,6 +216,16 @@ async def _run_video(message: Message, context: ContextTypes.DEFAULT_TYPE, data:
     await status.edit_text(format_result(result), parse_mode=ParseMode.HTML)
 
 
+async def on_unsupported(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if message is None:
+        return
+    if not _allowed(update, _settings(context)):
+        await _reply(message, "This bot is private.")
+        return
+    await _reply(message, "Please send a photo, an image, a voice note, an audio file or a video.")
+
+
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Type only: exception text can carry file ids or URLs.
     log.error("handler_error type=%s", type(context.error).__name__, exc_info=context.error)
@@ -225,11 +236,33 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
             pass
 
 
+async def _handle_health(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """Minimal HTTP/1.1 200 OK responder for PaaS health checks (e.g. Render Web Service)."""
+    try:
+        await asyncio.wait_for(reader.read(1024), timeout=2.0)
+        body = b'{"status":"ok"}'
+        writer.write(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Connection: close\r\n"
+            + f"Content-Length: {len(body)}\r\n\r\n".encode()
+            + body
+        )
+        await writer.drain()
+    except Exception:
+        pass
+    finally:
+        writer.close()
+
+
 # ------------------------------------------------------------------- lifecycle
 async def _post_init(app: Application) -> None:
     settings: BotSettings = app.bot_data["settings"]
     app.bot_data["client"] = MoodyLensClient(settings.api_base_url, settings.api_key)
     app.bot_data["limiter"] = UserLimiter(settings.requests_per_min)
+    if settings.port is not None:
+        app.bot_data["health_server"] = await asyncio.start_server(_handle_health, "0.0.0.0", settings.port)
+        log.info("health_server_start port=%s", settings.port)
     await app.bot.set_my_commands(
         [
             BotCommand("start", "What this bot does"),
@@ -241,6 +274,10 @@ async def _post_init(app: Application) -> None:
 
 
 async def _post_shutdown(app: Application) -> None:
+    server: asyncio.Server | None = app.bot_data.get("health_server")
+    if server is not None:
+        server.close()
+        await server.wait_closed()
     client: MoodyLensClient | None = app.bot_data.get("client")
     if client is not None:
         await client.aclose()
@@ -270,6 +307,7 @@ def build_application(settings: BotSettings) -> Application:
         | filters.Document.ALL
     )
     app.add_handler(MessageHandler(media, on_media))
+    app.add_handler(MessageHandler(filters.ALL & ~media, on_unsupported))
     app.add_error_handler(on_error)
     return app
 
