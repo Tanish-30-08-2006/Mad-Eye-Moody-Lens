@@ -523,6 +523,67 @@ button:focus-visible {
 }
 .text-button:hover { text-decoration: underline; }
 
+/* ── Batch image analysis ── */
+.image-batch [hidden] { display: none; }
+
+.image-batch > summary {
+  padding: 2px 0;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.batch-intro, .batch-status {
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.batch-status { color: var(--text-main); }
+.image-batch progress { width: 100%; accent-color: var(--primary); }
+.batch-dropzone { min-height: 0; padding: 12px; gap: 8px; }
+
+.batch-files {
+  list-style: none;
+  margin: 10px 0 0;
+  max-height: 252px;
+  overflow: auto;
+  padding: 0 4px 0 0;
+}
+
+.batch-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.batch-file-name {
+  flex: 1 1 96px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-file .pill { white-space: normal; }
+.batch-file-meta, .batch-file-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.batch-file-error { color: #fca5a5; }
+.batch-remove { margin-left: auto; }
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 /* ── Verdict ── */
 .verdict {
   font-size: 14px;

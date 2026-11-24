@@ -86,6 +86,28 @@
             <p class="hint" style="margin-top: 6px;">Supports JPEG, PNG, WebP and GIF (up to 8 MB).</p>
           </div>
 
+          <details id="imageBatch" class="card image-batch">
+            <summary>Batch image analysis</summary>
+            <p class="batch-intro" id="batchLimits">Up to 20 JPEG, PNG, WebP, or GIF images. 8 MB per file.</p>
+            <div id="batchDropzone" class="dropzone batch-dropzone">
+              <strong>Drop local images here</strong>
+              <button id="batchChoose" type="button" class="secondary" aria-describedby="batchLimits">Choose images</button>
+              <input id="batchInput" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" aria-label="Batch images">
+            </div>
+            <p class="batch-intro">Analyze sends one image at a time to the provider selected above.</p>
+            <p id="batchStatus" class="batch-status" role="status">Add images to begin.</p>
+            <progress id="batchProgress" aria-label="Batch analysis progress" value="0" max="1" hidden></progress>
+            <p id="batchNotice" class="message error" role="alert" hidden></p>
+            <ul id="batchFiles" class="batch-files" aria-label="Batch images" hidden></ul>
+            <div class="batch-actions">
+              <button id="batchStart" type="button" class="primary" disabled>Analyze queued images</button>
+              <button id="batchStop" type="button" class="secondary" hidden>Stop after current</button>
+              <button id="batchRetry" type="button" class="secondary" hidden>Retry failed</button>
+              <button id="batchExport" type="button" class="secondary" disabled>Download CSV</button>
+              <button id="batchClear" type="button" class="text-button" disabled>Clear batch</button>
+            </div>
+          </details>
+
           <div class="card" style="margin-bottom: 12px;">
             <div class="result-heading">
               <h2>Automated Image Scanning</h2>
@@ -400,6 +422,7 @@
   </div>
 
   <script src="sidepanel.js"></script>
+  <script type="module" src="image-batch-panel.mjs"></script>
   <script type="module" src="provenance/provenance-panel.js"></script>
 </body>
 </html>
