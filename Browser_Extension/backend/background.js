@@ -72,6 +72,12 @@ function isExtensionPage(sender) {
 }
 
 const IMAGE_PROVIDERS = ["bitmind", "zerotrue", "custom", MoodyLens.PROVIDER_ID];
+// Image and video share the BitMind and ZeroTrue credential validation state.
+const VIDEO_PROVIDER_DEFAULTS = {
+  videoActiveProvider: "bitmind", videoCustomProviderConfig: null,
+  bitmindVerificationState: "unverified", bitmindVerificationError: null,
+  zeroTrueVerificationState: "unverified", zeroTrueVerificationError: null,
+};
 const MOODYLENS_DEFAULTS = {
   moodyLensServerUrl: MoodyLens.DEFAULT_SERVER_URL, moodyLensApiKey: "", moodyLensUpdatedAt: 0,
 };
@@ -292,7 +298,7 @@ async function restoreScanner() {
   if (!settings.scanEnabled && !settings.videoScanEnabled) return;
   const imageUsable = await providerIsUsable(settings);
   const videoProvider = settings.videoActiveProvider || "bitmind";
-  const videoReadiness = getProviderVerificationState(settings, videoProvider);
+  const videoReadiness = getVideoProviderVerificationState(settings, videoProvider);
   const videoUsable = videoReadiness.state !== "not_configured" && videoReadiness.state !== "invalid";
   if (!imageUsable && !videoUsable) {
     await chrome.storage.local.set({ scanEnabled: false, videoScanEnabled: false });
@@ -332,10 +338,9 @@ async function getStored() {
     apiKey: "", apiKeyUpdatedAt: 0, activeProvider: "bitmind", customProviderConfig: null,
     scanEnabled: false, recentDetections: [], scanThreshold: "standard",
     zeroTrueApiKey: "", zeroTrueUpdatedAt: 0,
-    bitmindVerificationState: "unverified", bitmindVerificationError: null,
-    zeroTrueVerificationState: "unverified", zeroTrueVerificationError: null,
     customVerificationState: "unverified", customVerificationError: null,
-    videoActiveProvider: "bitmind", videoScanEnabled: true,
+    videoScanEnabled: true,
+    ...VIDEO_PROVIDER_DEFAULTS,
     ...MOODYLENS_DEFAULTS,
   });
 }
@@ -681,7 +686,7 @@ async function getProviderPublicStatus(settings) {
   const activeProvider = settings.activeProvider || "bitmind";
   const videoActiveProvider = settings.videoActiveProvider || "bitmind";
   const imageReadiness = getProviderVerificationState(settings, activeProvider);
-  const videoReadiness = getProviderVerificationState(settings, videoActiveProvider);
+  const videoReadiness = getVideoProviderVerificationState(settings, videoActiveProvider);
   const bitmindReadiness = getProviderVerificationState(settings, "bitmind");
   const zeroTrueReadiness = getProviderVerificationState(settings, "zerotrue");
   const customReadiness = getProviderVerificationState(settings, "custom");
@@ -716,7 +721,7 @@ async function getScannerSettings() {
   const activeProvider = settings.activeProvider || "bitmind";
   const videoActiveProvider = settings.videoActiveProvider || "bitmind";
   const imageReadiness = getProviderVerificationState(settings, activeProvider);
-  const videoReadiness = getProviderVerificationState(settings, videoActiveProvider);
+  const videoReadiness = getVideoProviderVerificationState(settings, videoActiveProvider);
   return {
     scanEnabled: Boolean(settings.scanEnabled),
     videoScanEnabled: settings.videoScanEnabled !== false,
@@ -739,6 +744,17 @@ async function broadcastScannerSettings() {
   await Promise.all(tabs.filter(tab => tab.id && /^https?:/.test(tab.url || "")).map(tab =>
     chrome.tabs.sendMessage(tab.id, { type: "DS_SETTINGS_CHANGED", settings: scannerSettings }).catch(() => null)
   ));
+}
+
+// A key test can finish after the user saves a different key.
+async function recordSavedKeyVerification(keyField, testedKey, verification) {
+  const applied = await serializedStorageUpdate(async () => {
+    const saved = await chrome.storage.local.get(keyField);
+    if (String(saved[keyField] || "").trim() !== testedKey) return false;
+    await chrome.storage.local.set(verification);
+    return true;
+  });
+  if (applied) await broadcastScannerSettings();
 }
 
 // ==================================================================
@@ -769,7 +785,7 @@ async function getVideoSettings() {
   return chrome.storage.local.get({
     apiKey: "", apiKeyUpdatedAt: 0,
     zeroTrueApiKey: "", zeroTrueUpdatedAt: 0,
-    videoActiveProvider: "bitmind", videoCustomProviderConfig: null,
+    ...VIDEO_PROVIDER_DEFAULTS,
     hoverScanEnabled: true, autoScanOnHover: true, hoverDelayMs: 400,
     ...MOODYLENS_DEFAULTS,
   });
@@ -782,16 +798,26 @@ function videoProviderVersion(settings, provider) {
   return settings.apiKeyUpdatedAt || 0;
 }
 
+function getVideoProviderVerificationState(settings, provider) {
+  if (provider !== "custom") return getProviderVerificationState(settings, provider);
+  try {
+    VideoProviderEngine.validateCustomConfig(settings.videoCustomProviderConfig);
+    return { state: "unverified", label: "Configured, not verified", error: null };
+  } catch {
+    return { state: "not_configured", label: "Not configured", error: null };
+  }
+}
+
 async function videoProviderIsUsable(settings, provider = settings.videoActiveProvider) {
-  const readiness = getProviderVerificationState(settings, provider);
+  const readiness = getVideoProviderVerificationState(settings, provider);
   if (readiness.state === "not_configured" || readiness.state === "invalid") return false;
   if (provider === "zerotrue") return true;
   if (provider === "bitmind") return true;
   if (provider === MoodyLens.PROVIDER_ID) return MoodyLens.serverIsUsable(moodyLensConfig(settings));
   if (provider === "custom") {
     try {
-      const config = VideoProviderEngine.validateCustomConfig(settings.videoCustomProviderConfig);
-      return await chrome.permissions.contains({ origins: [`${new URL(config.endpoint).origin}/*`] });
+      const endpoint = new URL(settings.videoCustomProviderConfig.endpoint);
+      return await chrome.permissions.contains({ origins: [`${endpoint.origin}/*`] });
     } catch (_) {
       return false;
     }
@@ -800,8 +826,8 @@ async function videoProviderIsUsable(settings, provider = settings.videoActivePr
 }
 
 function videoSetupMessage(provider, settings) {
-  const readiness = settings ? getProviderVerificationState(settings, provider) : null;
-  if (readiness?.state === "invalid") {
+  const readiness = getVideoProviderVerificationState(settings, provider);
+  if (readiness.state === "invalid") {
     const errText = readiness.error ? ` (${readiness.error})` : "";
     if (provider === "zerotrue") return `ZeroTrue API key failed validation${errText}. Update your key in Settings → Providers.`;
     if (provider === "bitmind") return `BitMind API key failed validation${errText}. Update your key in Settings → Providers.`;
@@ -1352,7 +1378,7 @@ async function scanVideo(payload, sender) {
   const provider = (payload?.provider && VIDEO_PROVIDERS.includes(payload.provider))
     ? payload.provider
     : settings.videoActiveProvider;
-  if (!(await videoProviderIsUsable(settings, provider))) throw new Error(videoSetupMessage(provider));
+  if (!(await videoProviderIsUsable(settings, provider))) throw new Error(videoSetupMessage(provider, settings));
 
   const identity = await videoCacheIdentity(payload);
   const cacheKey = identity ? `${provider}:${videoProviderVersion(settings, provider)}:${identity}` : null;
@@ -1497,6 +1523,7 @@ const VIDEO_HANDLERS = {
     const provider = message.provider;
     if (!VIDEO_PROVIDERS.includes(provider)) throw new Error("Choose a supported video detection provider.");
     await chrome.storage.local.set({ videoActiveProvider: provider });
+    await broadcastScannerSettings();
     return { provider };
   },
 
@@ -1569,12 +1596,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!isExtensionPage(sender)) { sendResponse({ ok: false, error: "This action is available only inside the extension." }); return false; }
     const apiKey = String(message.apiKey || "").trim();
     const bitmindVerificationState = apiKey ? "unverified" : "not_configured";
-    getStored().then(settings => chrome.storage.local.set({
-      apiKey,
-      apiKeyUpdatedAt: Math.max(Date.now(), Number(settings.apiKeyUpdatedAt || 0) + 1),
-      bitmindVerificationState,
-      bitmindVerificationError: null
-    }))
+    serializedStorageUpdate(async () => {
+      const { apiKeyUpdatedAt } = await chrome.storage.local.get({ apiKeyUpdatedAt: 0 });
+      await chrome.storage.local.set({
+        apiKey,
+        apiKeyUpdatedAt: Math.max(Date.now(), Number(apiKeyUpdatedAt || 0) + 1),
+        bitmindVerificationState,
+        bitmindVerificationError: null
+      });
+    })
       .then(() => broadcastScannerSettings())
       .then(() => sendResponse({ ok: true, state: bitmindVerificationState })).catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -1672,7 +1702,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       const settings = await getStored();
       const videoProvider = settings.videoActiveProvider || "bitmind";
-      const readiness = getProviderVerificationState(settings, videoProvider);
+      const readiness = getVideoProviderVerificationState(settings, videoProvider);
       if (readiness.state === "not_configured" || readiness.state === "invalid") {
         throw new Error("Configure your video detection provider in Settings > Providers to enable video auto-scan.");
       }
@@ -1712,7 +1742,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (enable) {
         const settings = await getStored();
         const videoProvider = settings.videoActiveProvider || "bitmind";
-        const readiness = getProviderVerificationState(settings, videoProvider);
+        const readiness = getVideoProviderVerificationState(settings, videoProvider);
         if (readiness.state === "not_configured" || readiness.state === "invalid") {
           throw new Error("Configure your video detection provider in Settings > Providers to enable video auto-scan.");
         }
@@ -1758,16 +1788,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const { apiKey: storedKey } = await getStored();
       const apiKey = String(message.apiKey || storedKey || "").trim();
       if (!apiKey) throw new Error("Save or enter your BitMind API key first.");
+      let response;
       try {
-        const response = await callBitMind("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=480", apiKey);
-        await chrome.storage.local.set({ bitmindVerificationState: "verified", bitmindVerificationError: null });
-        await broadcastScannerSettings();
-        return response;
+        response = await callBitMind("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=480", apiKey);
       } catch (err) {
-        await chrome.storage.local.set({ bitmindVerificationState: "invalid", bitmindVerificationError: err.message });
-        await broadcastScannerSettings();
+        await recordSavedKeyVerification("apiKey", apiKey, {
+          bitmindVerificationState: "invalid", bitmindVerificationError: err.message,
+        });
         throw err;
       }
+      await recordSavedKeyVerification("apiKey", apiKey, {
+        bitmindVerificationState: "verified", bitmindVerificationError: null,
+      });
+      return response;
     })().then(response => sendResponse({ ok: true, response, state: "verified" }))
       .catch(error => sendResponse({ ok: false, error: error.message, state: "invalid" }));
     return true;
@@ -1981,7 +2014,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       toSave.zeroTrueVerificationError = null;
     }
     if (message.engineMode) toSave.audioEngineMode = message.engineMode;
-    chrome.storage.local.set(toSave)
+    serializedStorageUpdate(() => chrome.storage.local.set(toSave))
       .then(() => broadcastScannerSettings())
       .then(() => sendResponse({ ok: true, state: zeroTrueVerificationState }))
       .catch(error => sendResponse({ ok: false, error: error.message }));
@@ -1997,16 +2030,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         key = String(stored.zeroTrueApiKey || "").trim();
       }
       if (!key) throw new Error("Please enter or save your ZeroTrue API key first.");
+      let result;
       try {
-        const res = await testZeroTrueApiKey(key);
-        await chrome.storage.local.set({ zeroTrueVerificationState: "verified", zeroTrueVerificationError: null });
-        await broadcastScannerSettings();
-        return res;
+        result = await testZeroTrueApiKey(key);
       } catch (err) {
-        await chrome.storage.local.set({ zeroTrueVerificationState: "invalid", zeroTrueVerificationError: err.message });
-        await broadcastScannerSettings();
+        await recordSavedKeyVerification("zeroTrueApiKey", key, {
+          zeroTrueVerificationState: "invalid", zeroTrueVerificationError: err.message,
+        });
         throw err;
       }
+      await recordSavedKeyVerification("zeroTrueApiKey", key, {
+        zeroTrueVerificationState: "verified", zeroTrueVerificationError: null,
+      });
+      return result;
     })().then(res => sendResponse({ ok: true, ...res, state: "verified" }))
       .catch(error => sendResponse({ ok: false, error: error.message, state: "invalid" }));
     return true;
