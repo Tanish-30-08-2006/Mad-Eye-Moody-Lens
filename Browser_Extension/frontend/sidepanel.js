@@ -1072,13 +1072,16 @@ async function loadHistory() {
 
   try {
     const [imgRes, vidRes] = await Promise.all([
-      send({ type: "GET_HISTORY" }).catch(() => ({ items: [] })),
-      send({ type: "VIDEO_GET_HISTORY" }).catch(() => ({ data: [] }))
+      send({ type: "GET_HISTORY" }).catch(() => null),
+      send({ type: "VIDEO_GET_HISTORY" }).catch(() => null)
     ]);
     if (loadId !== historyLoadId) return;
 
-    const imgItems = (imgRes?.items || []).map(i => ({ ...i, mediaType: "Image", timestamp: i.time }));
-    const vidItems = (Array.isArray(vidRes?.data) ? vidRes.data : []).map(v => ({ ...v, mediaType: "Video", timestamp: v.timestamp }));
+    const imageHistory = !imgRes?.error && Array.isArray(imgRes?.items) ? imgRes.items : null;
+    const videoHistory = vidRes?.ok === true && Array.isArray(vidRes.data) ? vidRes.data : null;
+    const unavailable = [imageHistory === null && "image", videoHistory === null && "video"].filter(Boolean).join(" and ");
+    const imgItems = (imageHistory ?? []).map(i => ({ ...i, mediaType: "Image", timestamp: i?.time }));
+    const vidItems = (videoHistory ?? []).map(v => ({ ...v, mediaType: "Video", timestamp: v?.timestamp }));
 
     const combined = [...imgItems, ...vidItems]
       .filter(x => x && (x.timestamp || x.time))
@@ -1090,15 +1093,23 @@ async function loadHistory() {
     if (toggle) {
       toggle.style.display = hasOlderScans ? "" : "none";
       toggle.setAttribute("aria-expanded", String(showAllHistory));
-      toggle.textContent = showAllHistory ? "Show recent scans" : "Show all " + combined.length + " saved scans";
+      const scanLabel = unavailable ? " available scans" : " saved scans";
+      toggle.textContent = showAllHistory ? "Show recent scans" : "Show all " + combined.length + scanLabel;
     }
 
-    if (!combined.length) {
+    if (!combined.length && !unavailable) {
       el.textContent = "No detections recorded yet.";
       return;
     }
 
     el.replaceChildren();
+    if (unavailable) {
+      const notice = document.createElement("p");
+      notice.className = "message error";
+      notice.setAttribute("role", "status");
+      notice.textContent = "Could not load " + unavailable + " detection history. Select Refresh to try again.";
+      el.appendChild(notice);
+    }
     for (const item of showAllHistory ? combined : combined.slice(0, RECENT_HISTORY_LIMIT)) {
       const row = document.createElement("div");
       row.className = "history-item";
