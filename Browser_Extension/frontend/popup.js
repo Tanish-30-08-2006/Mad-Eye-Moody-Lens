@@ -698,9 +698,12 @@ chrome.runtime.onMessage.addListener(message => {
 // HISTORY (Image & Video History Records)
 // ─────────────────────────────────────────────────────────────────────────────
 
+let historyLoadId = 0;
+
 async function loadHistory() {
   const listEl = $("popupHistoryList");
   if (!listEl) return;
+  const loadId = ++historyLoadId;
   listEl.textContent = "Loading records…";
 
   try {
@@ -708,6 +711,7 @@ async function loadHistory() {
       send({ type: "GET_HISTORY" }).catch(() => ({ items: [] })),
       send({ type: "VIDEO_GET_HISTORY" }).catch(() => ({ data: [] }))
     ]);
+    if (loadId !== historyLoadId) return;
 
     const imgItems = (imgRes?.items || []).map(i => ({ ...i, mediaType: "Image", timestamp: i.time }));
     const vidItems = (Array.isArray(vidRes?.data) ? vidRes.data : []).map(v => ({ ...v, mediaType: "Video", timestamp: v.timestamp }));
@@ -749,16 +753,26 @@ async function loadHistory() {
       listEl.appendChild(row);
     }
   } catch (err) {
-    listEl.textContent = "Could not load history: " + err.message;
+    if (loadId === historyLoadId) listEl.textContent = "Could not load history: " + err.message;
   }
 }
 
 $("refreshHistory")?.addEventListener("click", loadHistory);
 
-$("clearHistory")?.addEventListener("click", async () => {
-  if (confirm("Clear local detection history?")) {
-    await chrome.storage.local.set({ detectionHistory: [], videoDetectionHistory: [] });
+$("clearHistory")?.addEventListener("click", async event => {
+  if (!confirm("Clear saved image and video detection history?")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  ++historyLoadId;
+  try {
+    const response = await send({ type: "CLEAR_DETECTION_HISTORY" });
+    if (!response?.ok) throw new Error(response?.error || "The extension did not confirm the clear.");
     await loadHistory();
+  } catch (error) {
+    const listEl = $("popupHistoryList");
+    if (listEl) listEl.textContent = "Could not clear detection history. " + (error?.message || String(error));
+  } finally {
+    button.disabled = false;
   }
 });
 

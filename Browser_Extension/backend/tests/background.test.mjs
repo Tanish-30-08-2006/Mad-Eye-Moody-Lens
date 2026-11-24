@@ -140,6 +140,68 @@ test("image and video histories stay separate; old video message names still wor
   assert.deepEqual(store.videoDetectionHistory, []);
 });
 
+test("extension panels can clear saved image and video history without changing other storage", async () => {
+  for (const page of ["popup.html", "sidepanel.html"]) {
+    store.recentDetections = [{ time: 1, verdict: "likely_ai" }];
+    store.videoDetectionHistory = [{ id: "video-scan", timestamp: 2 }];
+    const expected = { ...structuredClone(store), recentDetections: [], videoDetectionHistory: [] };
+
+    const response = await send({ type: "CLEAR_DETECTION_HISTORY" }, { url: EXT_URL + "frontend/" + page });
+
+    assert.deepEqual(response, { ok: true });
+    assert.deepEqual(await send({ type: "GET_HISTORY" }), { items: [] });
+    assert.deepEqual((await send({ type: "VIDEO_GET_HISTORY" })).data, []);
+    assert.deepEqual(store, expected);
+  }
+});
+
+test("content scripts cannot clear saved history using the extension ID", async t => {
+  const id = new URL(EXT_URL).hostname;
+  const originalId = runtime.id;
+  runtime.id = id;
+  t.after(() => { runtime.id = originalId; });
+  store.recentDetections = [{ time: 1 }];
+  store.videoDetectionHistory = [{ id: "video-scan", timestamp: 2 }];
+  const before = structuredClone(store);
+
+  const response = await send({ type: "CLEAR_DETECTION_HISTORY" }, { ...CONTENT_SCRIPT, id });
+
+  assert.equal(response?.ok, false);
+  assert.deepEqual(store, before);
+});
+
+test("clearing history waits for an image history write already in progress", async t => {
+  store.activeProvider = "bitmind";
+  store.apiKey = "history-test-key";
+  store.apiKeyUpdatedAt = 1;
+  store.videoDetectionHistory = [{ id: "video-scan", timestamp: 2 }];
+  route("https://api.bitmind.ai/oracle/v1/34/detect-image", () => json({ isAI: true, confidence: 0.9 }));
+
+  let writeStarted;
+  let finishWrite;
+  const started = new Promise(resolve => { writeStarted = resolve; });
+  const pending = new Promise(resolve => { finishWrite = resolve; });
+  const originalSet = chrome.storage.local.set;
+  chrome.storage.local.set = async values => {
+    if (values.recentDetections?.length) {
+      writeStarted();
+      await pending;
+    }
+    return originalSet(values);
+  };
+  t.after(() => { finishWrite(); chrome.storage.local.set = originalSet; });
+
+  const scan = send({ type: "ANALYZE_IMAGE", image: frame("clear-history"), source: "manual" });
+  await Promise.race([started, scan.then(result => assert.fail(result?.error || "Image write did not start"))]);
+  const clearing = send({ type: "CLEAR_DETECTION_HISTORY" });
+  finishWrite();
+
+  assert.equal((await scan).ok, true);
+  assert.deepEqual(await clearing, { ok: true });
+  assert.deepEqual(store.recentDetections, []);
+  assert.deepEqual(store.videoDetectionHistory, []);
+});
+
 test("Moody Lens server provider: image analysis through /api/v1/analyze/image", async () => {
   let form;
   route("http://127.0.0.1:8080/api/v1/analyze/image", async (url, init) => {
