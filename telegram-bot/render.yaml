@@ -1,0 +1,23 @@
+# Render background worker: a long-polling Telegram bot (no HTTP port).
+# Deploy from the repository root; set TELEGRAM_BOT_TOKEN in the Render dashboard.
+#
+# The bot calls https://madeye-moody-backend.onrender.com/api/v1 by default.
+# Override MML_API_BASE_URL only if the backend is deployed under a different name.
+
+services:
+  - type: worker                          # no inbound port, Render does not sleep it
+    name: mml-telegram-bot
+    runtime: docker
+    region: oregon                        # same region as the backend for low latency
+    plan: starter                         # 512 MB RAM, free tier eligible
+    dockerfilePath: telegram-bot/Dockerfile
+    dockerContext: telegram-bot
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false                       # set manually in the dashboard (secret)
+      - key: MML_API_BASE_URL
+        value: https://madeye-moody-backend.onrender.com/api/v1
+      - key: MML_API_KEY
+        sync: false                       # optional: match a key in the backend's MML_API_KEYS
+      - key: BOT_ALLOWED_CHAT_IDS
+        sync: false                       # optional: comma-separated chat IDs

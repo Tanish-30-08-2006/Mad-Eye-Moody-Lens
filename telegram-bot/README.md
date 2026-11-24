@@ -10,6 +10,24 @@ A Telegram front end for the shared Mad-Eye Moody Lens backend (`functional-ui-m
 
 Commands: `/start`, `/help`, `/status` (API readiness and loaded models) and `/privacy`.
 
+## Deploy to Render (always-on, no local server)
+
+The bot is a lightweight worker (no models, no GPU, ~50 MB RAM) that connects to the already-deployed backend at `madeye-moody-backend.onrender.com`. Once deployed it stays running — just message your bot on Telegram anytime.
+
+### One-time setup
+
+1. **Create a bot** — open Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, follow the prompts, copy the token.
+2. **Deploy on Render**:
+   - Go to [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → connect this repo.
+   - Render reads [`telegram-bot/render.yaml`](render.yaml) and creates a **Background Worker** called `mml-telegram-bot`.
+   - In the service's **Environment** tab, paste your `TELEGRAM_BOT_TOKEN`.
+   - Click **Manual Deploy** → **Deploy latest commit**.
+3. **Message your bot** on Telegram — send `/start`, then send a photo, voice note or video.
+
+The [`render.yaml`](render.yaml) file configures everything. The bot calls the production API at `https://madeye-moody-backend.onrender.com/api/v1` — no local backend needed.
+
+> **Tip:** Render's free-tier workers stay running 24/7 (workers are not suspended like free web services). The bot uses long polling, so it needs no inbound port.
+
 ## Run it with the full stack (Docker)
 
 The bot is an optional service in `functional-ui-models-backend/docker-compose.prod.yml`, under the `telegram` profile:
