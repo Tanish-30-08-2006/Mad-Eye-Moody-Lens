@@ -7,9 +7,10 @@ import "../Sha256Page.css";
 interface Sha256PageProps {
   onNavigateHome?: () => void;
   onNavigateDuplicate?: () => void;
+  onNavigateExif?: () => void;
 }
 
-export function Sha256Page({ onNavigateHome, onNavigateDuplicate }: Sha256PageProps) {
+export function Sha256Page({ onNavigateHome, onNavigateDuplicate, onNavigateExif }: Sha256PageProps) {
   const [activeTab, setActiveTab] = useState<"generate" | "compare" | "manifest">("generate");
 
   return (
@@ -47,6 +48,22 @@ export function Sha256Page({ onNavigateHome, onNavigateDuplicate }: Sha256PagePr
             }}
           >
             Duplicate Image Detector
+          </a>
+
+          <a
+            href="#exif-viewer"
+            className="sha256-back-link"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onNavigateExif) onNavigateExif();
+              else {
+                window.location.hash = "#exif-viewer";
+                window.history.pushState(null, "", "/exif-viewer");
+                window.dispatchEvent(new PopStateEvent("popstate"));
+              }
+            }}
+          >
+            Image Metadata &amp; EXIF Viewer
           </a>
         </div>
 
