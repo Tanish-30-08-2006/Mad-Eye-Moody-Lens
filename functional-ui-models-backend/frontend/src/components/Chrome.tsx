@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useScrolled } from "../hooks/useReveal";
 import type { BackendState } from "../hooks/useModels";
 
@@ -38,6 +38,57 @@ const LINKS = [
 export function Nav({ state }: { state: BackendState }) {
   const scrolled = useScrolled();
   const [utilitiesOpen, setUtilitiesOpen] = useState(false);
+  const dropdownRef = useRef<HTMLLIElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const handleMouseEnter = () => {
+    clearCloseTimer();
+    setUtilitiesOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    clearCloseTimer();
+    // 180ms grace period so cursor moving across gap does not prematurely close menu
+    closeTimerRef.current = window.setTimeout(() => {
+      setUtilitiesOpen(false);
+    }, 180);
+  };
+
+  const closeMenuImmediately = () => {
+    clearCloseTimer();
+    setUtilitiesOpen(false);
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        closeMenuImmediately();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && utilitiesOpen) {
+        closeMenuImmediately();
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+      clearCloseTimer();
+    };
+  }, [utilitiesOpen]);
 
   return (
     <header className={`nav ${scrolled ? "is-scrolled" : ""}`}>
@@ -54,33 +105,77 @@ export function Nav({ state }: { state: BackendState }) {
             </li>
 
             <li
+              ref={dropdownRef}
               className="nav__dropdown"
-              onMouseEnter={() => setUtilitiesOpen(true)}
-              onMouseLeave={() => setUtilitiesOpen(false)}
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
             >
               <button
+                ref={buttonRef}
                 type="button"
                 className="nav__dropdown-btn"
-                onClick={() => setUtilitiesOpen((v) => !v)}
+                onClick={() => {
+                  clearCloseTimer();
+                  setUtilitiesOpen((v) => !v);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    clearCloseTimer();
+                    setUtilitiesOpen((v) => !v);
+                  } else if (e.key === "ArrowDown" && !utilitiesOpen) {
+                    e.preventDefault();
+                    clearCloseTimer();
+                    setUtilitiesOpen(true);
+                  }
+                }}
                 aria-expanded={utilitiesOpen}
                 aria-haspopup="true"
+                aria-controls="forensic-utilities-menu"
               >
                 Forensic Utilities <span style={{ fontSize: "8px" }} aria-hidden="true">▼</span>
               </button>
               {utilitiesOpen && (
-                <ul className="nav__dropdown-menu">
-                  <li className="nav__dropdown-item">
-                    <a href="#duplicate-detection" onClick={() => setUtilitiesOpen(false)}>
+                <ul
+                  id="forensic-utilities-menu"
+                  className="nav__dropdown-menu"
+                  role="menu"
+                  onMouseEnter={clearCloseTimer}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <li className="nav__dropdown-item" role="none">
+                    <a
+                      href="#duplicate-detection"
+                      role="menuitem"
+                      onClick={() => {
+                        closeMenuImmediately();
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
                       Duplicate Image Detector
                     </a>
                   </li>
-                  <li className="nav__dropdown-item">
-                    <a href="#sha256-generator" onClick={() => setUtilitiesOpen(false)}>
+                  <li className="nav__dropdown-item" role="none">
+                    <a
+                      href="#sha256-generator"
+                      role="menuitem"
+                      onClick={() => {
+                        closeMenuImmediately();
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
                       SHA-256 Generator &amp; Comparator
                     </a>
                   </li>
-                  <li className="nav__dropdown-item">
-                    <a href="#exif-viewer" onClick={() => setUtilitiesOpen(false)}>
+                  <li className="nav__dropdown-item" role="none">
+                    <a
+                      href="#exif-viewer"
+                      role="menuitem"
+                      onClick={() => {
+                        closeMenuImmediately();
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
                       Image Metadata &amp; EXIF Viewer
                     </a>
                   </li>
@@ -101,6 +196,74 @@ export function Nav({ state }: { state: BackendState }) {
         </div>
       </div>
     </header>
+  );
+}
+
+export function ForensicNav({
+  active,
+  onNavigate,
+}: {
+  active: "duplicate" | "sha256" | "exif";
+  onNavigate: (view: "main" | "duplicate" | "sha256" | "exif") => void;
+}) {
+  return (
+    <div className="forensic-nav-bar">
+      <a
+        href="#analyse"
+        className="forensic-nav-btn forensic-nav-btn--back"
+        onClick={(e) => {
+          e.preventDefault();
+          window.location.hash = "";
+          window.history.pushState(null, "", "/");
+          onNavigate("main");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      >
+        ← Back to Deepfake Analyser
+      </a>
+
+      <div className="forensic-nav-group">
+        <a
+          href="#duplicate-detection"
+          className={`forensic-nav-btn ${active === "duplicate" ? "is-active" : ""}`}
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.hash = "#duplicate-detection";
+            window.history.pushState(null, "", "/duplicate-detection");
+            onNavigate("duplicate");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        >
+          Duplicate Image Detector
+        </a>
+        <a
+          href="#sha256-generator"
+          className={`forensic-nav-btn ${active === "sha256" ? "is-active" : ""}`}
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.hash = "#sha256-generator";
+            window.history.pushState(null, "", "/sha256-generator");
+            onNavigate("sha256");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        >
+          SHA-256 Generator &amp; Comparator
+        </a>
+        <a
+          href="#exif-viewer"
+          className={`forensic-nav-btn ${active === "exif" ? "is-active" : ""}`}
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.hash = "#exif-viewer";
+            window.history.pushState(null, "", "/exif-viewer");
+            onNavigate("exif");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        >
+          Image Metadata &amp; EXIF Viewer
+        </a>
+      </div>
+    </div>
   );
 }
 

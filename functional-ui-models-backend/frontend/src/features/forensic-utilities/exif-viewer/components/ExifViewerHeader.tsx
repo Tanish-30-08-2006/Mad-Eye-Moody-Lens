@@ -8,64 +8,9 @@ interface ExifViewerHeaderProps {
   onNavigateSha256?: () => void;
 }
 
-export function ExifViewerHeader({
-  onNavigateHome,
-  onNavigateDuplicate,
-  onNavigateSha256,
-}: ExifViewerHeaderProps) {
+export function ExifViewerHeader(_props: ExifViewerHeaderProps = {}) {
   return (
     <div className="exif-header-wrap">
-      {/* Navigation Breadcrumb Bar */}
-      <div className="exif-nav-bar">
-        <a
-          href="#analyse"
-          className="exif-back-link"
-          onClick={(e) => {
-            e.preventDefault();
-            if (onNavigateHome) onNavigateHome();
-            else {
-              window.location.hash = "";
-              window.history.pushState(null, "", "/");
-              window.dispatchEvent(new PopStateEvent("popstate"));
-            }
-          }}
-        >
-          ← Back to Deepfake Analyser
-        </a>
-
-        <a
-          href="#duplicate-detection"
-          className="exif-back-link"
-          onClick={(e) => {
-            e.preventDefault();
-            if (onNavigateDuplicate) onNavigateDuplicate();
-            else {
-              window.location.hash = "#duplicate-detection";
-              window.history.pushState(null, "", "/duplicate-detection");
-              window.dispatchEvent(new PopStateEvent("popstate"));
-            }
-          }}
-        >
-          Duplicate Image Detector
-        </a>
-
-        <a
-          href="#sha256-generator"
-          className="exif-back-link"
-          onClick={(e) => {
-            e.preventDefault();
-            if (onNavigateSha256) onNavigateSha256();
-            else {
-              window.location.hash = "#sha256-generator";
-              window.history.pushState(null, "", "/sha256-generator");
-              window.dispatchEvent(new PopStateEvent("popstate"));
-            }
-          }}
-        >
-          SHA-256 Generator &amp; Comparator
-        </a>
-      </div>
-
       {/* Main Title & Description */}
       <div className="exif-title-section">
         <div className="exif-tag">

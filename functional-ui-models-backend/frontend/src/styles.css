@@ -224,7 +224,7 @@ h3 {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 100;
   padding-top: 32px;
   border-bottom: 1px solid transparent;
   transition:
@@ -272,6 +272,8 @@ h3 {
 
 .nav__links {
   display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 32px;
   list-style: none;
   margin: 0;
@@ -285,6 +287,7 @@ h3 {
   letter-spacing: 0.3em;
   text-decoration: none;
   color: var(--subtle);
+  white-space: nowrap;
   transition: color var(--dur) var(--ease);
 }
 
@@ -312,6 +315,7 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   transition: color var(--dur) var(--ease);
 }
 
@@ -321,17 +325,27 @@ h3 {
 
 .nav__dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 0;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 6px 0;
-  min-width: 220px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  min-width: 250px;
+  box-shadow: 0 12px 28px rgba(28, 28, 28, 0.08);
   list-style: none;
-  z-index: 1000;
+  z-index: 1001;
   margin: 0;
+}
+
+/* Hover bridge to prevent mouseleave firing across the gap */
+.nav__dropdown-menu::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
 }
 
 .nav__dropdown-item {
@@ -340,19 +354,20 @@ h3 {
 
 .nav__dropdown-item a {
   display: block;
-  padding: 8px 16px !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-size: 13px !important;
-  text-transform: none !important;
-  letter-spacing: normal !important;
-  color: #374151 !important;
+  padding: 10px 18px !important;
+  font-family: var(--mono) !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  color: var(--subtle) !important;
   text-decoration: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .nav__dropdown-item a:hover {
-  background: #f3f4f6 !important;
-  color: #000000 !important;
+  background: var(--bg) !important;
+  color: var(--fg) !important;
 }
 
 .nav__status {
@@ -1874,4 +1889,238 @@ h3 {
 @keyframes scaleUp {
   from { opacity: 0; transform: scale(0.97) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ---------- Forensic Utilities Common Layout & Theme Alignment ---------- */
+
+.utility-page-wrapper {
+  min-height: 100vh;
+  padding-top: 112px;
+  padding-bottom: 96px;
+  position: relative;
+  z-index: 1;
+}
+
+.forensic-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.forensic-nav-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.forensic-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--subtle);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur) var(--ease);
+}
+
+.forensic-nav-btn:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+.forensic-nav-btn.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+}
+
+.forensic-nav-btn--back {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* Forensic Utilities Theme Harmonization (aligned with Home Page Design System) */
+
+.bonsai-page,
+.sha256-page,
+.exif-page {
+  background: transparent !important;
+  color: var(--fg) !important;
+  font-family: var(--sans) !important;
+  padding: 0 0 48px 0 !important;
+  min-height: auto !important;
+}
+
+.bonsai-container,
+.sha256-container,
+.exif-container {
+  max-width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Headings styled with Playfair Display (Serif) */
+.bonsai-title,
+.sha256-title,
+.exif-title {
+  font-family: var(--serif) !important;
+  font-weight: 400 !important;
+  color: var(--fg) !important;
+  font-size: clamp(2rem, 3.5vw, 2.75rem) !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.15 !important;
+  margin: 0 0 12px 0 !important;
+}
+
+.bonsai-desc,
+.sha256-desc,
+.exif-desc {
+  font-family: var(--sans) !important;
+  color: var(--subtle) !important;
+  font-size: 1.05rem !important;
+  line-height: 1.6 !important;
+  max-width: 720px !important;
+}
+
+/* Badges and Tags styled with Space Mono and 1px crisp borders */
+.bonsai-tag,
+.sha256-tag,
+.exif-tag {
+  font-family: var(--mono) !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.2em !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--surface) !important;
+  color: var(--subtle) !important;
+  padding: 4px 12px !important;
+}
+
+/* Primary Action Buttons styled with var(--primary) and var(--mono) */
+.bonsai-btn-primary,
+.sha256-btn-primary,
+.exif-btn-primary {
+  font-family: var(--mono) !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.25em !important;
+  background: var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+  border-radius: var(--radius) !important;
+  color: var(--primary-ink) !important;
+  box-shadow: none !important;
+  transition: letter-spacing var(--dur) var(--ease), background var(--dur) var(--ease) !important;
+}
+
+.bonsai-btn-primary:hover:not(:disabled),
+.sha256-btn-primary:hover:not(:disabled),
+.exif-btn-primary:hover:not(:disabled) {
+  letter-spacing: 0.35em !important;
+  background: #2f5953 !important;
+  border-color: #2f5953 !important;
+}
+
+/* Secondary Buttons styled with transparent bg and 1px crisp border */
+.bonsai-btn-secondary,
+.sha256-btn-secondary,
+.exif-btn-secondary {
+  font-family: var(--mono) !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.2em !important;
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  color: var(--fg) !important;
+  box-shadow: none !important;
+  transition: all var(--dur) var(--ease) !important;
+}
+
+.bonsai-btn-secondary:hover:not(:disabled),
+.sha256-btn-secondary:hover:not(:disabled),
+.exif-btn-secondary:hover:not(:disabled) {
+  border-color: var(--fg) !important;
+  color: var(--fg) !important;
+}
+
+/* Dropzones styled to match home page .dropzone */
+.bonsai-upload-box,
+.sha256-dropzone,
+.exif-dropzone {
+  border: 1px dashed var(--muted) !important;
+  border-radius: var(--radius) !important;
+  background: rgba(255, 255, 255, 0.4) !important;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease) !important;
+}
+
+.bonsai-upload-box:hover,
+.bonsai-upload-box.is-dragging,
+.sha256-dropzone:hover,
+.sha256-dropzone--active,
+.exif-dropzone:hover,
+.exif-dropzone.is-dragging {
+  background: var(--surface) !important;
+  border-color: var(--primary) !important;
+}
+
+/* Cards, Sections, and Summary Blocks */
+.bonsai-summary-card,
+.sha256-card,
+.bonsai-section,
+.exif-card,
+.exif-meta-card,
+.exif-overview-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
+}
+
+.bonsai-card-val,
+.sha256-stat-val,
+.exif-overview-value {
+  font-family: var(--mono) !important;
+  letter-spacing: -0.02em !important;
+}
+
+.bonsai-card-label,
+.sha256-stat-label,
+.exif-overview-label {
+  font-family: var(--mono) !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  color: var(--subtle) !important;
+}
+
+/* Tabs */
+.sha256-tab-btn,
+.exif-tab-pill {
+  font-family: var(--mono) !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  border-radius: var(--radius) !important;
+}
+
+.sha256-tab-btn--active,
+.exif-tab-pill.is-active {
+  color: var(--primary) !important;
+  border-bottom-color: var(--primary) !important;
 }

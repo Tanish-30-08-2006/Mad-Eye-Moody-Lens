@@ -10,63 +10,12 @@ interface Sha256PageProps {
   onNavigateExif?: () => void;
 }
 
-export function Sha256Page({ onNavigateHome, onNavigateDuplicate, onNavigateExif }: Sha256PageProps) {
+export function Sha256Page(_props: Sha256PageProps = {}) {
   const [activeTab, setActiveTab] = useState<"generate" | "compare" | "manifest">("generate");
 
   return (
     <div className="sha256-page">
       <div className="sha256-container">
-        {/* Navigation Breadcrumbs */}
-        <div className="sha256-nav-bar">
-          <a
-            href="#"
-            className="sha256-back-link"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onNavigateHome) onNavigateHome();
-              else {
-                window.location.hash = "";
-                window.history.pushState(null, "", "/");
-                window.dispatchEvent(new PopStateEvent("popstate"));
-              }
-            }}
-          >
-            ← Back to Deepfake Analyser
-          </a>
-
-          <a
-            href="#duplicate-detection"
-            className="sha256-back-link"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onNavigateDuplicate) onNavigateDuplicate();
-              else {
-                window.location.hash = "#duplicate-detection";
-                window.history.pushState(null, "", "/duplicate-detection");
-                window.dispatchEvent(new PopStateEvent("popstate"));
-              }
-            }}
-          >
-            Duplicate Image Detector
-          </a>
-
-          <a
-            href="#exif-viewer"
-            className="sha256-back-link"
-            onClick={(e) => {
-              e.preventDefault();
-              if (onNavigateExif) onNavigateExif();
-              else {
-                window.location.hash = "#exif-viewer";
-                window.history.pushState(null, "", "/exif-viewer");
-                window.dispatchEvent(new PopStateEvent("popstate"));
-              }
-            }}
-          >
-            Image Metadata &amp; EXIF Viewer
-          </a>
-        </div>
-
         {/* Page Header */}
         <header className="sha256-header">
           <span className="sha256-tag">Forensic Utilities · Cryptographic Integrity</span>
