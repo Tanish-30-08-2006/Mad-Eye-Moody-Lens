@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import os
 import sys
 import tempfile
@@ -78,6 +79,8 @@ def _bot_client(app):
 
 
 def test_image_audio_and_status_through_the_real_api(host_app):
+    from mml_bot.reports import scan_report_json
+
     mod, client = _bot_client(host_app)
     png = io.BytesIO()
     Image.new("RGB", (96, 96), (120, 30, 200)).save(png, "PNG")
@@ -88,15 +91,20 @@ def test_image_audio_and_status_through_the_real_api(host_app):
     async def run():
         image = await client.analyze("image", png.getvalue())
         audio = await client.analyze("audio", wav.getvalue())
+        stored_audio = await client.get_analysis(audio["analysis_id"])
         ready, _ = await client.ready()
         models = await client.models()
         with pytest.raises(mod.ApiError) as bad:
             await client.analyze("image", b"not an image at all")
         await client.aclose()
-        return image, audio, ready, models, bad.value
+        return image, audio, stored_audio, ready, models, bad.value
 
-    image, audio, ready, models, bad = asyncio.run(run())
+    image, audio, stored_audio, ready, models, bad = asyncio.run(run())
     assert image["media_type"] == "image" and image["verdict"] in {"likely_real", "uncertain", "likely_fake"}
     assert audio["details"]["duration_s"] == 5.0 and audio["segments"]
+    report = json.loads(scan_report_json(stored_audio))
+    assert report["coverage"] == {"duration_s": 5.0}
+    assert report["segment_type"] == "speech_window"
+    assert report["segments"][0]["fake_probability"] == audio["segments"][0]["fake_probability"]
     assert ready is True and {m["key"] for m in models} >= {"image", "face", "audio"}
     assert bad.status == 415 and bad.message  # the API's own plain-language message

@@ -90,6 +90,19 @@ class MoodyLensClient:
             raise _error_from(response)
         return response.json()
 
+    async def get_analysis(self, analysis_id: str) -> dict[str, Any]:
+        """Fetch a completed result while it is within the server's retention period."""
+        response = await self._request("GET", f"/analyses/{analysis_id}")
+        if response.status_code != 200:
+            raise _error_from(response)
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise ApiError("The detection service returned an invalid report.", 502) from exc
+        if not isinstance(result, dict) or result.get("analysis_id") != analysis_id:
+            raise ApiError("The detection service returned an invalid report.", 502)
+        return result
+
     async def start_video(self, data: bytes) -> dict[str, Any]:
         """Video: the API answers 202 with a JobStatus to poll."""
         files = {"file": (_UPLOAD_NAME["video"], data, "application/octet-stream")}

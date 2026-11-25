@@ -10,6 +10,12 @@ A Telegram front end for the shared Mad-Eye Moody Lens backend (`functional-ui-m
 
 Commands: `/start`, `/help`, `/status` (API readiness and loaded models) and `/privacy`.
 
+## Download a scan report
+
+Send a photo, audio clip, or video in a direct chat with the bot. When the scan completes, tap **Download scan report** on the result. The bot replies with a JSON file containing the verdict, scores by check, available audio windows or video segments, and coverage details such as sampled frame counts.
+
+The button uses the saved result for the account and chat that submitted the scan. Reports are available while the result is stored by the server, typically for seven days. The file contains structured result fields only.
+
 ## Run it with the full stack (Docker)
 
 The bot is an optional service in `functional-ui-models-backend/docker-compose.prod.yml`, under the `telegram` profile:

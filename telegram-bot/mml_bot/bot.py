@@ -16,15 +16,24 @@ import time
 from html import escape
 from typing import Any
 
-from telegram import BotCommand, Message, Update
-from telegram.constants import ChatAction, ParseMode
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, Message, Update
+from telegram.constants import ChatAction, ChatType, ParseMode
 from telegram.error import BadRequest, TelegramError
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 from mml_bot.client import ApiError, MoodyLensClient
 from mml_bot.config import BotSettings, load_settings
 from mml_bot.format import format_progress, format_result, format_status
 from mml_bot.limits import UserLimiter
+from mml_bot.reports import REPORT_FILENAME, REPORT_PREFIX, report_analysis_id, report_button_data, scan_report_json
 
 log = logging.getLogger("mml.telegram")
 
@@ -38,6 +47,7 @@ HELP = (
     "• a <b>video</b>: face check on 24 sampled frames, plus the soundtrack\n\n"
     "Tip: send photos <i>as a file</i> to skip Telegram's compression.\n"
     "Telegram lets bots download files up to {max_mb} MB.\n\n"
+    "In a direct chat, tap <b>Download scan report</b> on a completed result to save the evidence as JSON.\n\n"
     "/status: is the detection service ready?\n"
     "/privacy: what happens to your files\n\n"
     "<i>Results are probabilistic estimates from pretrained models, not forensic proof.</i>"
@@ -93,8 +103,10 @@ def _allowed(update: Update, settings: BotSettings) -> bool:
     return not settings.allowed_chat_ids or (chat is not None and chat.id in settings.allowed_chat_ids)
 
 
-async def _reply(message: Message, text: str) -> Message:
-    return await message.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+async def _reply(message: Message, text: str, *, reply_markup: InlineKeyboardMarkup | None = None) -> Message:
+    return await message.reply_text(
+        text, parse_mode=ParseMode.HTML, disable_web_page_preview=True, reply_markup=reply_markup
+    )
 
 
 def _api_error_text(exc: ApiError) -> str:
@@ -102,6 +114,54 @@ def _api_error_text(exc: ApiError) -> str:
     if exc.retry_after:
         text += f"\nTry again in <code>{exc.retry_after} s</code>."
     return text
+
+
+def _report_markup(
+    result: dict[str, Any], message: Message, settings: BotSettings, user_id: int
+) -> InlineKeyboardMarkup | None:
+    # The API uses the analysis ID to retrieve stored evidence. Keep that ID
+    # out of Telegram group markup, where it would be visible to other members.
+    if message.chat.type != ChatType.PRIVATE:
+        return None
+    data = report_button_data(result.get("analysis_id"), token=settings.token, chat_id=message.chat_id, user_id=user_id)
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Download scan report", callback_data=data)]]) if data else None
+
+
+async def on_report_download(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    message = query.message
+    settings = _settings(context)
+    try:
+        if not isinstance(message, Message) or message.chat.type != ChatType.PRIVATE or not _allowed(update, settings):
+            await query.answer("Open the scan in its original direct chat to download the report.", show_alert=True)
+            return
+        analysis_id = report_analysis_id(
+            query.data, token=settings.token, chat_id=message.chat_id, user_id=query.from_user.id
+        )
+        if analysis_id is None:
+            await query.answer("This report button belongs to the original scan and sender.", show_alert=True)
+            return
+        await query.answer()
+    except TelegramError:
+        return  # Telegram can expire an unanswered callback before it reaches the bot.
+
+    try:
+        result = await _client(context).get_analysis(analysis_id)
+        await message.reply_document(InputFile(scan_report_json(result), filename=REPORT_FILENAME), do_quote=True)
+    except ApiError as exc:
+        if exc.status == 404:
+            text = "This scan report is unavailable. Send the media again to create a new report."
+        elif exc.status == 429 and exc.retry_after:
+            text = f"The report service is busy. Try again in {exc.retry_after} seconds."
+        else:
+            text = "The report service is temporarily unavailable. Tap Download scan report to try again."
+    except TelegramError:
+        text = "Telegram could not send the report. Tap Download scan report to try again."
+    else:
+        return
+    await _reply(message, text)
 
 
 # -------------------------------------------------------------------- commands
@@ -172,10 +232,10 @@ async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         tg_file = await media.get_file()
         data = bytes(await tg_file.download_as_bytearray())
         if kind == "video":
-            await _run_video(message, context, data)
+            await _run_video(message, context, data, user.id)
         else:
             result = await _client(context).analyze(kind, data)
-            await _reply(message, format_result(result))
+            await _reply(message, format_result(result), reply_markup=_report_markup(result, message, settings, user.id))
         log.info("analysis_done kind=%s", kind)
     except ApiError as exc:
         log.info("analysis_refused kind=%s status=%s", kind, exc.status)
@@ -191,17 +251,18 @@ async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         limiter.prune()
 
 
-async def _run_video(message: Message, context: ContextTypes.DEFAULT_TYPE, data: bytes) -> None:
+async def _run_video(message: Message, context: ContextTypes.DEFAULT_TYPE, data: bytes, user_id: int) -> None:
     client, settings = _client(context), _settings(context)
     status = await _reply(message, "🎞️ Uploading the video…")
     job = await client.start_video(data)
-    shown = {"text": "", "at": 0.0}
+    shown_text, shown_at = "", 0.0
 
     async def on_progress(job: dict[str, Any]) -> None:
+        nonlocal shown_text, shown_at
         text = format_progress(job)
         now = time.monotonic()
-        if text != shown["text"] and now - shown["at"] >= EDIT_EVERY_S:
-            shown.update(text=text, at=now)
+        if text != shown_text and now - shown_at >= EDIT_EVERY_S:
+            shown_text, shown_at = text, now
             try:
                 await status.edit_text(text, parse_mode=ParseMode.HTML)
             except TelegramError:
@@ -212,7 +273,9 @@ async def _run_video(message: Message, context: ContextTypes.DEFAULT_TYPE, data:
     except ApiError as exc:
         await status.edit_text(_api_error_text(exc), parse_mode=ParseMode.HTML)
         return
-    await status.edit_text(format_result(result), parse_mode=ParseMode.HTML)
+    await status.edit_text(
+        format_result(result), parse_mode=ParseMode.HTML, reply_markup=_report_markup(result, message, settings, user_id)
+    )
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -260,6 +323,7 @@ def build_application(settings: BotSettings) -> Application:
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("privacy", cmd_privacy))
+    app.add_handler(CallbackQueryHandler(on_report_download, pattern=f"^{REPORT_PREFIX}"))
     media = (
         filters.PHOTO
         | filters.VOICE
@@ -280,7 +344,7 @@ def main() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     settings = load_settings()
     log.info("bot_start api=%s", settings.api_base_url)
-    build_application(settings).run_polling(allowed_updates=["message"])
+    build_application(settings).run_polling(allowed_updates=["message", "callback_query"])
 
 
 if __name__ == "__main__":
