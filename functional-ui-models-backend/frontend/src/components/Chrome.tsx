@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useScrolled } from "../hooks/useReveal";
 import type { BackendState } from "../hooks/useModels";
+import type { UserProfile } from "../api/auth";
 
 export function GridBackground() {
   return (
@@ -35,9 +36,37 @@ const LINKS = [
   ["Limitations", "#limitations"],
 ] as const;
 
-export function Nav({ state }: { state: BackendState }) {
+export function Nav({
+  state,
+  user,
+  onOpenStakeholderModal,
+}: {
+  state: BackendState;
+  user?: UserProfile;
+  onOpenStakeholderModal?: () => void;
+}) {
   const scrolled = useScrolled();
   const [utilitiesOpen, setUtilitiesOpen] = useState(false);
+
+  const isGuest = !user || user.role === "public" || user.is_anonymous;
+
+  const roleEmoji =
+    user?.role === "govt_officer"
+      ? "🏛️"
+      : user?.role === "enterprise_admin"
+      ? "🛡️"
+      : user?.role === "journalist"
+      ? "🔍"
+      : "👤";
+
+  const roleShortName =
+    user?.role === "govt_officer"
+      ? "Govt Official"
+      : user?.role === "enterprise_admin"
+      ? "Social Media Platform"
+      : user?.role === "journalist"
+      ? "Journalist Pro"
+      : "Guest";
 
   return (
     <header className={`nav ${scrolled ? "is-scrolled" : ""}`}>
@@ -95,9 +124,28 @@ export function Nav({ state }: { state: BackendState }) {
             ))}
           </ul>
         </nav>
-        <div className="nav__status" role="status" aria-live="polite">
-          <StatusDot state={state} />
-          <span className="label">{STATE_TEXT[state]}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div className="nav__status" role="status" aria-live="polite">
+            <StatusDot state={state} />
+            <span className="label">{STATE_TEXT[state]}</span>
+          </div>
+          {onOpenStakeholderModal && (
+            <button
+              type="button"
+              className={`nav__signin-tab ${isGuest ? "" : "nav__signin-tab--authenticated"}`}
+              onClick={onOpenStakeholderModal}
+              title={isGuest ? "Sign In" : `Signed in: ${user?.email}`}
+            >
+              {isGuest ? (
+                "Sign In"
+              ) : (
+                <>
+                  <span>{roleEmoji}</span>
+                  <span>{roleShortName}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </header>

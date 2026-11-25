@@ -211,3 +211,10 @@ class OAuthCallbackRequest(BaseModel):
     provider: str
     code: str
     role: UserRoleType | None = None
+    redirect_uri: str | None = None
+
+
+class GoogleOAuthRequest(BaseModel):
+    code: str
+    redirect_uri: str
+    role: str = "public"

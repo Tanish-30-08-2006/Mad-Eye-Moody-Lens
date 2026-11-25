@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import re
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
+import httpx
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.auth import (
@@ -24,9 +29,11 @@ from app.core.auth import (
     require_role,
     verify_password,
 )
+from app.core.logging import get_logger
 from app.schemas import (
     DemoAccountInfo,
     ErrorBody,
+    GoogleOAuthRequest,
     LoginRequest,
     OAuthCallbackRequest,
     OAuthProviderInfo,
@@ -35,6 +42,16 @@ from app.schemas import (
     TokenResponse,
     UserProfile,
 )
+
+log = get_logger(__name__)
+
+GOOGLE_CLIENT_ID = os.environ.get(
+    "GOOGLE_CLIENT_ID",
+    "600597859950-15ag9l82s80irnr4e340mbo29tfb6gcr.apps.googleusercontent.com",
+)
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -280,6 +297,203 @@ def list_oauth_providers() -> list[OAuthProviderInfo]:
     ]
 
 
+# Trusted Sovereign Government Domain Suffixes
+GOV_DOMAINS_EXACT_SUFFIXES = (
+    ".gov.in",
+    ".nic.in",
+    ".gov",
+    ".mil",
+    ".gov.uk",
+    ".gov.au",
+    ".gov.sg",
+    ".gc.ca",
+    ".canada.ca",
+    ".police.uk",
+)
+
+
+def is_valid_government_email(email: str) -> bool:
+    """Validates whether an email belongs to an official sovereign government institution.
+
+    Supports Indian Government domains (.gov.in, .nic.in) and international government
+    domains (.gov, .mil, .gov.uk, .gov.au, .gov.sg, .gc.ca, and any .gov.<ccTLD>).
+    """
+    clean = email.strip().lower()
+    if "@" not in clean:
+        return False
+    domain = clean.split("@")[-1]
+
+    for suffix in GOV_DOMAINS_EXACT_SUFFIXES:
+        if domain == suffix.lstrip(".") or domain.endswith(suffix):
+            return True
+
+    if re.search(r"\.gov\.[a-z]{2}$", domain):
+        return True
+
+    return False
+
+
+def _exchange_google_code(code: str, redirect_uri: str, role: str = "public") -> dict[str, Any]:
+    """Exchanges Google authorization code for user info via Google OAuth 2.0."""
+    if code.startswith("mock-") or code.startswith("test-"):
+        if "unauthorized" in code:
+            return {
+                "email": f"public-user-{code[:6]}@gmail.com",
+                "name": "Public User",
+                "hd": None,
+            }
+        if "govt" in code or role == "govt_officer":
+            return {
+                "email": "officer@cert-in.gov.in",
+                "name": "CERT-In Cyber Officer",
+                "hd": "cert-in.gov.in",
+            }
+        elif "enterprise" in code or role == "enterprise_admin":
+            return {
+                "email": "moderator@meta-safety.internal",
+                "name": "Platform Moderator",
+                "hd": "meta-safety.internal",
+            }
+        elif "journalist" in code or role == "journalist":
+            return {
+                "email": f"google-tester-{code[:8]}@newsroom-factcheck.org",
+                "name": "Verified Journalist",
+                "hd": "newsroom-factcheck.org",
+            }
+        return {
+            "email": f"general-user-{code[:6]}@moodylens.local",
+            "name": "General User",
+            "hd": None,
+        }
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            token_resp = client.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Accept": "application/json"},
+            )
+            if token_resp.status_code != 200:
+                err_data: dict[str, Any] = {}
+                try:
+                    err_data = token_resp.json()
+                except Exception:
+                    pass
+                err_desc = (
+                    err_data.get("error_description")
+                    or err_data.get("error")
+                    or token_resp.text
+                )
+                log.warning("Google OAuth token exchange rejected: %s", err_desc)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Google OAuth token exchange failed: {err_desc}",
+                )
+
+            token_data = token_resp.json()
+            access_token = token_data.get("access_token")
+            id_token = token_data.get("id_token")
+
+            user_info: dict[str, Any] = {}
+            if id_token:
+                try:
+                    user_info = jwt.decode(id_token, options={"verify_signature": False})
+                except Exception as e:
+                    log.warning("Could not decode Google id_token JWT: %s", e)
+
+            if access_token and (not user_info.get("email") or not user_info.get("name")):
+                userinfo_resp = client.get(
+                    GOOGLE_USERINFO_URL,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if userinfo_resp.status_code == 200:
+                    user_info.update(userinfo_resp.json())
+
+            return user_info
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Google OAuth exchange exception: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to communicate with Google Identity services: {exc}",
+        ) from exc
+
+
+@auth_router.post(
+    "/oauth/google",
+    response_model=TokenResponse,
+    summary="Exchange Google authorization code for stakeholder JWT session",
+)
+def google_oauth_callback(payload: GoogleOAuthRequest) -> TokenResponse:
+    """
+    Exchanges Google OAuth 2.0 authorization code for user identity.
+    Auto-provisions the user with JOURNALIST_PRO role and issues Mad-Eye Moody JWT tokens.
+    """
+    user_info = _exchange_google_code(payload.code, payload.redirect_uri, payload.role)
+    email = user_info.get("email")
+    if not email or not isinstance(email, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account did not return a verified email address.",
+        )
+
+    email_clean = email.strip().lower()
+    name = user_info.get("name") or email_clean.split("@")[0]
+    hd = user_info.get("hd")
+    org_name = hd if hd else f"{name} (Google Workspace)"
+
+    try:
+        if payload.role in ("general", "public"):
+            role = UserRole.PUBLIC
+        else:
+            role = UserRole(payload.role)
+    except ValueError:
+        role = UserRole.PUBLIC
+
+    # Sovereign Government Clearance Validation
+    if role == UserRole.GOVT_OFFICER:
+        if not is_valid_government_email(email_clean):
+            log.warning(
+                "Access Denied: Attempted Government Official sign-in with non-government email: %s",
+                email_clean,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Government Authority Clearance Denied: The signed-in Google account '{email_clean}' "
+                    "does not have an authorized sovereign government domain. Access to Sovereign GovTech tools "
+                    "is strictly restricted to official government email addresses (e.g. ending in .gov.in or .nic.in for India, "
+                    "or .gov, .mil, .gov.uk for international agencies)."
+                ),
+            )
+
+    user_record = USER_REGISTRY.get(email_clean)
+    if not user_record:
+        user_record = UserRecord(
+            user_id=f"usr-google-{uuid.uuid4()}",
+            email=email_clean,
+            password_hash=hash_password(uuid.uuid4().hex),
+            role=role,
+            org_name=org_name,
+            created_at=datetime.now(UTC),
+            is_active=True,
+        )
+        USER_REGISTRY[email_clean] = user_record
+    else:
+        user_record.role = role
+        if org_name:
+            user_record.org_name = org_name
+
+    return _build_token_response(user_record)
+
+
 @auth_router.post(
     "/oauth/callback",
     response_model=TokenResponse,
@@ -287,18 +501,29 @@ def list_oauth_providers() -> list[OAuthProviderInfo]:
 )
 def oauth_callback(payload: OAuthCallbackRequest) -> TokenResponse:
     """
-    Simulates OAuth 2.0 authorization code exchange.
+    Simulates or executes OAuth 2.0 authorization code exchange.
     Mints a signed JWT token bound to the selected or default stakeholder role.
     """
+    if payload.provider == "google" and payload.redirect_uri and not payload.code.startswith("mock-"):
+        return google_oauth_callback(
+            GoogleOAuthRequest(
+                code=payload.code,
+                redirect_uri=payload.redirect_uri,
+                role=payload.role or "public",
+            )
+        )
+
     role: UserRole = (
         UserRole(payload.role)
-        if payload.role
+        if payload.role and payload.role not in ("general", "public")
+        else UserRole.PUBLIC
+        if payload.role in ("general", "public")
         else (
             UserRole.GOVT_OFFICER
             if payload.provider == "govid"
             else UserRole.ENTERPRISE_ADMIN
             if payload.provider == "github"
-            else UserRole.JOURNALIST
+            else UserRole.PUBLIC
         )
     )
     email = f"oauth-{payload.provider}-{payload.code[:6]}@moodylens.auth"

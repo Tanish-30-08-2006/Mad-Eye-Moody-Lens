@@ -12,8 +12,11 @@ import { History } from "./components/History";
 import { Limitations } from "./components/Limitations";
 import { ModelStats } from "./components/ModelStats";
 import { ResultCard } from "./components/ResultCard";
+import { StakeholderModal } from "./components/StakeholderModal";
+import { StakeholderWorkspace } from "./components/StakeholderWorkspace";
 import { TextReveal } from "./components/TextReveal";
 import { Workflow } from "./components/Workflow";
+import { useAuth } from "./hooks/useAuth";
 import { useExternalProviderConfig } from "./hooks/useExternalProviderConfig";
 import { useHistory } from "./hooks/useHistory";
 import { useJobPolling } from "./hooks/useJobPolling";
@@ -24,7 +27,11 @@ export default function App() {
   const { models, state, byKey } = useModels();
   const history = useHistory();
   const externalProvider = useExternalProviderConfig();
+  const auth = useAuth();
 
+  const [stakeholderModalOpen, setStakeholderModalOpen] = useState(() => {
+    return typeof window !== "undefined" && window.location.hash === "#stakeholder-modal";
+  });
   const [phase, setPhase] = useState<Phase>({ stage: "idle" });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -90,6 +97,61 @@ export default function App() {
       window.removeEventListener("hashchange", checkHash);
       window.removeEventListener("popstate", checkHash);
     };
+  }, []);
+
+  // Google OAuth callback listener: handles code returned from Google Account chooser
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const state = params.get("state");
+    const isGoogleCallback =
+      window.location.pathname.includes("/oauth/callback") ||
+      window.location.pathname.includes("/auth/google/callback") ||
+      (code !== null && code.length > 0);
+
+    if (code && isGoogleCallback) {
+      const redirectUri = `${window.location.origin}/oauth/callback`;
+      const cleanPath = window.location.pathname
+        .replace(/\/oauth\/callback/, "")
+        .replace(/\/auth\/google\/callback/, "") || "/";
+      window.history.replaceState({}, document.title, cleanPath);
+
+      // Retrieve authority chosen before Google redirection
+      let targetRole: "public" | "journalist" | "enterprise_admin" | "govt_officer" = "public";
+      const sessionRole = sessionStorage.getItem("mml_selected_authority");
+      if (
+        sessionRole === "govt_officer" ||
+        sessionRole === "enterprise_admin" ||
+        sessionRole === "journalist"
+      ) {
+        targetRole = sessionRole;
+      } else if (state && state.includes(":::")) {
+        const stateRole = state.split(":::")[1];
+        if (
+          stateRole === "govt_officer" ||
+          stateRole === "enterprise_admin" ||
+          stateRole === "journalist"
+        ) {
+          targetRole = stateRole;
+        }
+      }
+      sessionStorage.removeItem("mml_selected_authority");
+
+      auth
+        .loginWithGoogle(code, redirectUri, targetRole)
+        .then((userProfile) => {
+          console.info("Google OAuth login successful:", userProfile.email, "as", userProfile.role);
+          setStakeholderModalOpen(false);
+        })
+        .catch((err: unknown) => {
+          console.error("Google OAuth error:", err);
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Google OAuth authentication failed. Please retry."
+          );
+        });
+    }
   }, []);
 
   const job = useJobPolling(jobId);
@@ -175,7 +237,16 @@ export default function App() {
     <>
       <GridBackground />
       <div className="app">
-        <Nav state={state} />
+        <Nav
+          state={state}
+          user={auth.user}
+          onOpenStakeholderModal={() => setStakeholderModalOpen(true)}
+        />
+        <StakeholderWorkspace
+          user={auth.user}
+          onOpenModal={() => setStakeholderModalOpen(true)}
+          onLogout={auth.logout}
+        />
         <main>
           {view === "exif" ? (
             <div style={{ background: "#ffffff", minHeight: "100vh" }}>
@@ -446,6 +517,16 @@ export default function App() {
         onSave={externalProvider.save}
         onClear={externalProvider.clear}
         invitationMessage={invitationMessage}
+      />
+
+      <StakeholderModal
+        isOpen={stakeholderModalOpen}
+        onClose={() => setStakeholderModalOpen(false)}
+        currentUser={auth.user}
+        demoAccounts={auth.demoAccounts}
+        onSwitchDemoRole={auth.switchDemoRole}
+        onLogin={auth.login}
+        onLogout={auth.logout}
       />
     </>
   );
