@@ -21,12 +21,24 @@ def _normalize_api_url(raw: str) -> str:
     return url
 
 
+def _model_mode(raw: str) -> str:
+    mode = raw.strip().lower()
+    if mode in ("", "real", "lightweight", "local"):
+        return "real"
+    if mode in ("backend", "api", "remote"):
+        return "backend"
+    if mode == "stub":
+        return "stub"
+    raise SystemExit(f"Invalid MODEL_MODE={raw!r}. Expected 'real', 'backend', or 'stub'.")
+
+
 @dataclass(frozen=True)
 class BotSettings:
     token: str
     # Inside docker compose the API is http://api:8000; locally http://localhost:8000.
     api_base_url: str = "http://api:8000/api/v1"
     api_key: str | None = None
+    model_mode: str = "real"
     requests_per_min: int = 6
     video_timeout_s: int = 360  # worker hard limit 300 s + queue headroom
     # Telegram's Bot API lets bots download files up to 20 MB.
@@ -56,6 +68,7 @@ def load_settings() -> BotSettings:
         token=token,
         api_base_url=_normalize_api_url(raw_url),
         api_key=os.getenv("MML_API_KEY") or None,
+        model_mode=_model_mode(os.getenv("MODEL_MODE", BotSettings.model_mode)),
         requests_per_min=_int("BOT_REQUESTS_PER_MIN", BotSettings.requests_per_min),
         video_timeout_s=_int("BOT_VIDEO_TIMEOUT_S", BotSettings.video_timeout_s),
         max_download_mb=_int("BOT_MAX_DOWNLOAD_MB", BotSettings.max_download_mb),

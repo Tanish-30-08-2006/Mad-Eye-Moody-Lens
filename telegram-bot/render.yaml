@@ -2,8 +2,8 @@
 # a lightweight /health HTTP endpoint so Render's port check passes at $0/month.
 # Deploy from the repository root; set TELEGRAM_BOT_TOKEN in the Render dashboard.
 #
-# The bot calls https://madeye-moody-backend.onrender.com/api/v1 by default.
-# Override MML_API_BASE_URL (or BACKEND_URL) if the backend is deployed elsewhere.
+# MODEL_MODE defaults to "real" (lightweight in-process forensic scorer, ~100 MB RAM).
+# Set MODEL_MODE=backend only if pointing MML_API_BASE_URL at a real-model backend.
 
 services:
   - type: web
@@ -17,6 +17,8 @@ services:
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false                       # set manually in the dashboard (secret)
+      - key: MODEL_MODE
+        value: real                       # "real" (default), "backend", or "stub"
       - key: MML_API_BASE_URL
         value: https://madeye-moody-backend.onrender.com/api/v1
       - key: MML_API_KEY

@@ -26,6 +26,7 @@ from mml_bot.client import ApiError, MoodyLensClient
 from mml_bot.config import BotSettings, load_settings
 from mml_bot.format import format_progress, format_result, format_status
 from mml_bot.limits import UserLimiter
+from mml_bot.scorer import LightweightForensicScorer, StubScorer
 
 log = logging.getLogger("mml.telegram")
 
@@ -81,8 +82,12 @@ def _settings(context: ContextTypes.DEFAULT_TYPE) -> BotSettings:
     return context.application.bot_data["settings"]
 
 
-def _client(context: ContextTypes.DEFAULT_TYPE) -> MoodyLensClient:
-    return context.application.bot_data["client"]
+def _client(context: ContextTypes.DEFAULT_TYPE) -> MoodyLensClient | None:
+    return context.application.bot_data.get("client")
+
+
+def _scorer(context: ContextTypes.DEFAULT_TYPE) -> LightweightForensicScorer | StubScorer | None:
+    return context.application.bot_data.get("scorer")
 
 
 def _limiter(context: ContextTypes.DEFAULT_TYPE) -> UserLimiter:
@@ -130,7 +135,14 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     message = update.effective_message
     if message is None:
         return
+    scorer = _scorer(context)
+    if scorer is not None:
+        ready, body = await scorer.ready()
+        models = await scorer.models()
+        await _reply(message, format_status(ready, body, models))
+        return
     client = _client(context)
+    assert client is not None
     try:
         ready, body = await client.ready()
         models = await client.models()
@@ -167,17 +179,25 @@ async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await _reply(message, "⏳ Your previous video is still being analysed. Please wait for its result.")
         return
 
-    log.info("analysis_requested kind=%s", kind)
+    log.info("analysis_requested kind=%s mode=%s", kind, settings.model_mode)
     try:
         await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
         tg_file = await media.get_file()
         data = bytes(await tg_file.download_as_bytearray())
+        scorer = _scorer(context)
         if kind == "video":
             await _run_video(message, context, data)
-        else:
-            result = await _client(context).analyze(kind, data)
+        elif scorer is not None:
+            fn = scorer.analyze_image_sync if kind == "image" else scorer.analyze_audio_sync
+            result = await asyncio.to_thread(fn, data)
             await _reply(message, format_result(result))
-        log.info("analysis_done kind=%s", kind)
+        else:
+            client = _client(context)
+            assert client is not None
+            result = await client.analyze(kind, data)
+            _warn_if_backend_stub(result)
+            await _reply(message, format_result(result))
+        log.info("analysis_done kind=%s mode=%s", kind, settings.model_mode)
     except ApiError as exc:
         log.info("analysis_refused kind=%s status=%s", kind, exc.status)
         await _reply(message, _api_error_text(exc))
@@ -192,8 +212,27 @@ async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         limiter.prune()
 
 
+def _warn_if_backend_stub(result: dict[str, Any]) -> None:
+    versions = result.get("model_versions") or {}
+    if any(str(v).lower() == "stub" for v in versions.values()):
+        log.warning("backend_returned_stub_scores note='Remote backend is running in stub mode'")
+
+
 async def _run_video(message: Message, context: ContextTypes.DEFAULT_TYPE, data: bytes) -> None:
-    client, settings = _client(context), _settings(context)
+    settings = _settings(context)
+    scorer = _scorer(context)
+    if scorer is not None:
+        status = await _reply(message, "🎞️ Analysing the video…")
+        try:
+            result = await asyncio.to_thread(scorer.analyze_video_sync, data)
+        except ApiError as exc:
+            await status.edit_text(_api_error_text(exc), parse_mode=ParseMode.HTML)
+            return
+        await status.edit_text(format_result(result), parse_mode=ParseMode.HTML)
+        return
+
+    client = _client(context)
+    assert client is not None
     status = await _reply(message, "🎞️ Uploading the video…")
     job = await client.start_video(data)
     shown = {"text": "", "at": 0.0}
@@ -213,6 +252,7 @@ async def _run_video(message: Message, context: ContextTypes.DEFAULT_TYPE, data:
     except ApiError as exc:
         await status.edit_text(_api_error_text(exc), parse_mode=ParseMode.HTML)
         return
+    _warn_if_backend_stub(result)
     await status.edit_text(format_result(result), parse_mode=ParseMode.HTML)
 
 
@@ -258,7 +298,15 @@ async def _handle_health(reader: asyncio.StreamReader, writer: asyncio.StreamWri
 # ------------------------------------------------------------------- lifecycle
 async def _post_init(app: Application) -> None:
     settings: BotSettings = app.bot_data["settings"]
-    app.bot_data["client"] = MoodyLensClient(settings.api_base_url, settings.api_key)
+    if settings.model_mode == "real":
+        app.bot_data["scorer"] = LightweightForensicScorer()
+        app.bot_data["client"] = None
+    elif settings.model_mode == "stub":
+        app.bot_data["scorer"] = StubScorer()
+        app.bot_data["client"] = None
+    else:
+        app.bot_data["scorer"] = None
+        app.bot_data["client"] = MoodyLensClient(settings.api_base_url, settings.api_key)
     app.bot_data["limiter"] = UserLimiter(settings.requests_per_min)
     if settings.port is not None:
         app.bot_data["health_server"] = await asyncio.start_server(_handle_health, "0.0.0.0", settings.port)
@@ -278,6 +326,9 @@ async def _post_shutdown(app: Application) -> None:
     if server is not None:
         server.close()
         await server.wait_closed()
+    scorer = app.bot_data.get("scorer")
+    if scorer is not None:
+        await scorer.aclose()
     client: MoodyLensClient | None = app.bot_data.get("client")
     if client is not None:
         await client.aclose()
@@ -317,7 +368,7 @@ def main() -> None:
     # httpx logs every request URL at INFO, and Telegram URLs contain the bot token.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     settings = load_settings()
-    log.info("bot_start api=%s", settings.api_base_url)
+    log.info("bot_start mode=%s api=%s", settings.model_mode, settings.api_base_url)
     build_application(settings).run_polling(allowed_updates=["message"])
 
 
