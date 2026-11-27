@@ -199,3 +199,107 @@ def test_zero_login_public_image_analysis_unaffected(client: TestClient):
     body = res.json()
     assert "verdict" in body
     assert "fake_probability" in body
+
+
+def test_sovereign_government_domain_validator():
+    """Unit test for is_valid_government_email across international and adversarial domains."""
+    from app.api.auth_routes import is_valid_government_email
+
+    # Valid Indian and international government email addresses
+    valid_emails = [
+        "officer@cert-in.gov.in",
+        "director@nic.in",
+        "secretary@meity.gov.in",
+        "agent@fbi.gov",
+        "analyst@cisa.gov",
+        "officer@navy.mil",
+        "official@cabinetoffice.gov.uk",
+        "investigator@met.police.uk",
+        "cyber@defence.gov.au",
+        "officer@gov.sg",
+        "agent@rcmp-grc.gc.ca",
+        "official@policia.gov.br",
+    ]
+    for email in valid_emails:
+        assert is_valid_government_email(email) is True, f"Expected {email} to be recognized as valid sovereign gov email."
+
+    # Adversarial, personal, and spoofed domains
+    invalid_emails = [
+        "user@gmail.com",
+        "user@yahoo.co.in",
+        "hacker@fakegov.in",
+        "attacker@notgov.in",
+        "phishing@cert.gov.in.evil.com",
+        "spoof@gov.in.attacker.org",
+        "badactor@nic.in.fraudster.net",
+        "invalid-email-no-at-sign",
+        "",
+    ]
+    for email in invalid_emails:
+        assert is_valid_government_email(email) is False, f"Expected {email} to be rejected as non-government email."
+
+
+def test_google_oauth_sovereign_clearance_enforcement(client: TestClient):
+    """
+    Test Google OAuth 2.0 exchange with Sovereign Clearance:
+    1. Negative: Government role selected with personal/unauthorized email -> 403 Forbidden.
+    2. Positive: Government role selected with .gov.in email -> 200 OK + sovereign_govtech tier.
+    3. Enterprise role -> 200 OK + enterprise_suite tier.
+    4. Default fallback (no role or 'general') -> 200 OK + public role (community tier).
+    """
+    # 1. Negative clearance test
+    neg_res = client.post(
+        "/api/v1/auth/oauth/google",
+        json={
+            "code": "mock-unauthorized-session-001",
+            "redirect_uri": "http://localhost:5173/oauth/callback",
+            "role": "govt_officer",
+        },
+    )
+    assert neg_res.status_code == 403
+    assert "Government Authority Clearance Denied" in neg_res.json()["error"]
+
+    # 2. Positive clearance test
+    pos_res = client.post(
+        "/api/v1/auth/oauth/google",
+        json={
+            "code": "mock-govt-authorized-certin",
+            "redirect_uri": "http://localhost:5173/oauth/callback",
+            "role": "govt_officer",
+        },
+    )
+    assert pos_res.status_code == 200
+    pos_data = pos_res.json()
+    assert pos_data["user"]["role"] == "govt_officer"
+    assert pos_data["user"]["subscription_tier"] == "sovereign_govtech"
+    assert "gov:manage_cases" in pos_data["user"]["permissions"]
+
+    # 3. Enterprise Moderator test
+    ent_res = client.post(
+        "/api/v1/auth/oauth/google",
+        json={
+            "code": "mock-enterprise-moderator-session",
+            "redirect_uri": "http://localhost:5173/oauth/callback",
+            "role": "enterprise_admin",
+        },
+    )
+    assert ent_res.status_code == 200
+    ent_data = ent_res.json()
+    assert ent_data["user"]["role"] == "enterprise_admin"
+    assert ent_data["user"]["subscription_tier"] == "enterprise_suite"
+    assert "action:issue_warning" in ent_data["user"]["permissions"]
+
+    # 4. Default fallback to public
+    pub_res = client.post(
+        "/api/v1/auth/oauth/google",
+        json={
+            "code": "mock-general-citizen-session",
+            "redirect_uri": "http://localhost:5173/oauth/callback",
+            "role": "general",
+        },
+    )
+    assert pub_res.status_code == 200
+    pub_data = pub_res.json()
+    assert pub_data["user"]["role"] == "public"
+    assert pub_data["user"]["subscription_tier"] == "community"
+
