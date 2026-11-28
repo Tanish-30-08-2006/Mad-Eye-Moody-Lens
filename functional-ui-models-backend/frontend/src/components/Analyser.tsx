@@ -16,6 +16,7 @@ interface Props {
   error: string | null;
   byKey: (key: string) => ModelInfo | undefined;
   onSubmit: (type: MediaType, file: File) => void;
+  onZeroTrueSubmit: (file: File, apiKey: string) => void;
   externalConfig?: ExternalProviderConfig;
   isExternalConfigured?: boolean;
   onExternalSubmit?: (file: File) => void;
@@ -72,6 +73,7 @@ export function Analyser({
   error,
   byKey,
   onSubmit,
+  onZeroTrueSubmit,
   externalConfig,
   isExternalConfigured = false,
   onExternalSubmit,
@@ -84,6 +86,8 @@ export function Analyser({
   const [localError, setLocalError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
+  const [audioProvider, setAudioProvider] = useState<"local" | "zerotrue">("local");
+  const [zeroTrueKey, setZeroTrueKey] = useState("");
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const busy = phase.stage !== "idle";
@@ -142,7 +146,7 @@ export function Analyser({
       <div className="container">
         <div className="section-head">
           <h2 id="analyse-h">Analyse a file</h2>
-          <p>Files are deleted from the server as soon as the analysis finishes. Results are kept only in this browser.</p>
+          <p>Files are deleted from this server as soon as analysis finishes. Cloud providers receive files for processing; results are kept in this browser.</p>
         </div>
 
         <div className="tabs" role="tablist" aria-label="Media type">
@@ -224,7 +228,7 @@ export function Analyser({
               {busy && (
                 <div className="status-line" aria-live="polite">
                   <div className="status-line__row">
-                    <span className="label">{statusText(phase, type)}</span>
+                    <span className="label">{type === "audio" && audioProvider === "zerotrue" && phase.stage === "analysing" ? "Analysing with ZeroTrue" : statusText(phase, type)}</span>
                     {typeof progressValue === "number" && (
                       <span className="mono" style={{ fontSize: 11 }}>
                         {Math.round(progressValue * 100)}%
@@ -250,13 +254,32 @@ export function Analyser({
                 </div>
               )}
 
+              {type === "audio" && (
+                <div className="form-group" style={{ marginTop: 16 }}>
+                  <label className="label" htmlFor="audio-provider">Audio detection</label>
+                  <select id="audio-provider" className="form-input" value={audioProvider} disabled={busy}
+                    onChange={(event) => setAudioProvider(event.target.value as "local" | "zerotrue")}>
+                    <option value="local">Local model</option>
+                    <option value="zerotrue">ZeroTrue cloud API</option>
+                  </select>
+                  {audioProvider === "zerotrue" && (
+                    <>
+                      <label className="label" htmlFor="zerotrue-audio-key">ZeroTrue API key</label>
+                      <input id="zerotrue-audio-key" className="form-input mono" type="password" autoComplete="off"
+                        value={zeroTrueKey} disabled={busy} onChange={(event) => setZeroTrueKey(event.target.value)} />
+                      <span className="form-help">The key stays in this page until it is closed or refreshed. The audio and key are sent through this server to ZeroTrue for this scan.</span>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className={type === "image" ? "analyser__actions" : ""}>
                 <button
                   className="btn btn--block"
-                  disabled={!file || busy || isExternalBusy}
-                  onClick={() => file && onSubmit(type, file)}
+                  disabled={!file || busy || isExternalBusy || (type === "audio" && audioProvider === "zerotrue" && !zeroTrueKey.trim())}
+                  onClick={() => file && (type === "audio" && audioProvider === "zerotrue" ? onZeroTrueSubmit(file, zeroTrueKey.trim()) : onSubmit(type, file))}
                 >
-                  <span>{busy ? "Analysing" : `Analyse ${type}`}</span>
+                  <span>{busy ? "Analysing" : type === "audio" && audioProvider === "zerotrue" ? "Analyse with ZeroTrue" : `Analyse ${type}`}</span>
                 </button>
 
                 {type === "image" && (
@@ -280,6 +303,13 @@ export function Analyser({
             </div>
 
             <div className="analyser__side">
+              {type === "audio" && audioProvider === "zerotrue" ? (
+                <>
+                  <span className="label">Selected provider</span>
+                  <div className="pipeline__name" style={{ marginTop: 12 }}>ZeroTrue cloud audio detection</div>
+                  <p className="note">ZeroTrue analyses the uploaded clip and returns an overall score. The local model is not used for this scan.</p>
+                </>
+              ) : (<>
               <span className="label">What runs on {type === "image" ? "an" : "a"} {type}</span>
               <ol className="pipeline">
                 {spec.pipeline.map((k, i) => {
@@ -307,6 +337,7 @@ export function Analyser({
                 })}
               </ol>
               <p className="note">{spec.pipelineNote}</p>
+              </>)}
             </div>
           </div>
 
@@ -327,7 +358,7 @@ export function Analyser({
             <div className="benefit">
               <span className="label">Output</span>
               <span className="benefit__value">
-                {type === "image" ? "Score per check" : type === "audio" ? "Timeline per 4 s window" : `Timeline over ${VIDEO_FRAMES} frames`}
+                {type === "image" ? "Score per check" : type === "audio" ? (audioProvider === "zerotrue" ? "Overall cloud score" : "Timeline per 4 s window") : `Timeline over ${VIDEO_FRAMES} frames`}
               </span>
               <p>Overall score is the highest individual check.</p>
             </div>

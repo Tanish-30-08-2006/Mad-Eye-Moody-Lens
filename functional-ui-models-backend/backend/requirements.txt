@@ -11,6 +11,7 @@ pydantic-settings>=2.4,<3
 structlog>=24.1
 prometheus-client>=0.20
 filetype>=1.2
+requests>=2.32,<3
 
 # --- persistence and queueing
 sqlalchemy>=2.0.30,<2.1

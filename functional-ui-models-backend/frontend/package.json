@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/externalProvider.test.mjs tests/duplicateDetector.test.mjs tests/forensicReport.test.mjs tests/sha256.test.mjs tests/comparison.test.mjs tests/manifest.test.mjs tests/exif-gps.test.mjs tests/exif-validation.test.mjs tests/exif-metadata.test.mjs",
+    "test": "node --test tests/externalProvider.test.mjs tests/duplicateDetector.test.mjs tests/forensicReport.test.mjs tests/sha256.test.mjs tests/comparison.test.mjs tests/manifest.test.mjs tests/exif-gps.test.mjs tests/exif-validation.test.mjs tests/exif-metadata.test.mjs tests/zerotrueAudio.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

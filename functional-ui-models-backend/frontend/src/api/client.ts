@@ -198,10 +198,11 @@ async function getJson<T>(path: string): Promise<T> {
  * Multipart upload via XHR so the UI can show real upload progress
  * (fetch has no upload progress events) — matters for 100 MB videos.
  */
-function upload<T>(path: string, file: File, onProgress?: (fraction: number) => void): Promise<T> {
+function upload<T>(path: string, file: File, onProgress?: (fraction: number) => void, headers?: Record<string, string>): Promise<T> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}${path}`);
+    for (const [name, value] of Object.entries(headers ?? {})) xhr.setRequestHeader(name, value);
     xhr.responseType = "json";
     if (onProgress) {
       xhr.upload.onprogress = (e) => {
@@ -226,6 +227,8 @@ export const analyzeImage = (f: File, p?: Progress) =>
   upload<AnalysisResult>("/api/v1/analyze/image", f, p);
 export const analyzeAudio = (f: File, p?: Progress) =>
   upload<AnalysisResult>("/api/v1/analyze/audio", f, p);
+export const analyzeZeroTrueAudio = (f: File, apiKey: string, p?: Progress) =>
+  upload<unknown>("/api/v1/analyze/audio/zerotrue", f, p, { "X-ZeroTrue-Key": apiKey });
 /** 202 Accepted — poll getJob() until status is done or failed. */
 export const startVideoJob = (f: File, p?: Progress) =>
   upload<JobStatus>("/api/v1/analyze/video", f, p);
