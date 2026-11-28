@@ -50,9 +50,10 @@ let _session      = null;
 let _riskEngine   = null;
 let _reconnectTimer = null;
 let _reconnectAttempts = 0;
-const MAX_RECONNECT = 10;
 const _pendingDeepAnalysisResolvers = new Map();
+let _deepAnalysisCounter = 0;
 let _playbackCaptureRunning = false;
+let _playbackSourceUrl = "";
 let _modelMetadata = {
   modelName:    "SSL Anti-Spoofing (wav2vec 2.0 + AASIST)",
   modelVersion: "1.0",
@@ -63,20 +64,9 @@ let _modelMetadata = {
 // ---------------------------------------------------------------------------
 // Platform detection
 // ---------------------------------------------------------------------------
-const MEETING_PLATFORMS = {
-  "meet.google.com":    "Google Meet",
-  "zoom.us":            "Zoom Web",
-  "teams.microsoft.com":"Microsoft Teams",
-  "app.webex.com":      "Cisco Webex",
-  "whereby.com":        "Whereby",
-};
-
 function detectPlatform(url) {
   try {
-    const hostname = new URL(url).hostname.replace(/^www\./, "");
-    for (const [domain, name] of Object.entries(MEETING_PLATFORMS)) {
-      if (hostname.includes(domain)) return name;
-    }
+    return new URL(url).hostname;
   } catch {}
   return "Unknown";
 }
@@ -206,7 +196,7 @@ function handleServerMessage(msg) {
       break;
 
     case "deep_analysis_result":
-      handleDeepAnalysisResult(msg);
+      handleDeepAnalysisResult(msg).catch(error => console.error("[audio-manager] Could not save audio result:", error));
       break;
 
     case "buffering":
@@ -313,28 +303,38 @@ export async function startMonitoring(tabId) {
   }
 
   if (!tab || !/^https?:/.test(tab.url || "")) {
-    throw new Error("Please open a Zoom, meeting, or media tab first.");
+    throw new Error("Please open an HTTP or HTTPS tab first.");
   }
   const platform = detectPlatform(tab.url);
 
   // Create offscreen document
   await ensureOffscreenDocument();
 
-  // Capture tab audio stream (Zoom screen share, meeting sound, media playback)
+  try {
+  // Capture tab audio stream (meeting sound or media playback)
   const streamId = await new Promise((resolve, reject) => {
     chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      if (chrome.runtime.lastError) {
+        const message = chrome.runtime.lastError.message || "Could not capture this tab.";
+        if (/not been invoked|activeTab permission/i.test(message)) {
+          reject(new Error("Open the page you want to record, click the Mad Eye Moody Lens toolbar icon on that tab, then start capture again."));
+        } else {
+          reject(new Error(message));
+        }
+      }
       else resolve(id);
     });
   });
 
   // Start audio processing in offscreen document
-  await chrome.runtime.sendMessage({
+  const { audioEngineMode = "auto" } = await chrome.storage.local.get("audioEngineMode");
+  const captureResponse = await chrome.runtime.sendMessage({
     target:        "offscreen-audio",
     type:          "AUDIO_START",
     streamId,
-    tabSampleRate: 48000,
+    streamLocalAudio: audioEngineMode === "auto" || audioEngineMode === "local",
   });
+  if (!captureResponse?.ok) throw new Error(captureResponse?.error || "Could not start audio capture.");
 
   // Initialise session and risk engine
   _session     = new AudioSession({ tabId: tabId || 0, platform, url: tab?.url || "" });
@@ -342,6 +342,14 @@ export async function startMonitoring(tabId) {
   _monitoringTab = { tabId, url: tab?.url || "", platform };
 
   await AudioStorage.saveSession(_session.toSummary());
+  } catch (error) {
+    await chrome.runtime.sendMessage({ target: "offscreen-audio", type: "AUDIO_STOP" }).catch(() => {});
+    await closeOffscreenDocument();
+    _session = null;
+    _riskEngine = null;
+    _monitoringTab = null;
+    throw error;
+  }
 
   // Connect WebSocket if local server is available (do not block for ZeroTrue online users)
   if (!_ws || _ws.readyState === WebSocket.CLOSED || _ws.readyState === WebSocket.CLOSING) {
@@ -388,7 +396,7 @@ export async function stopMonitoring() {
   // Finalise session
   if (_session) {
     _session.end();
-    await AudioStorage.updateSession(_session.toSummary());
+    await AudioStorage.finaliseSession(_session.toSummary());
   }
 
   _monitoringTab = null;
@@ -423,10 +431,15 @@ export async function getStatus() {
   });
 }
 
+export function isMonitoringTab(tabId) {
+  return _monitoringTab?.tabId === tabId;
+}
+
 // ---------------------------------------------------------------------------
 // Timed Tab Playback Capture API (Play audio until finished or 30s cap)
 // ---------------------------------------------------------------------------
 export async function startTabPlaybackCapture(tabId, maxDurationSec = 30) {
+  if (_playbackCaptureRunning) throw new Error("An audio capture is already running.");
   if (!tabId) {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     tabId = active?.id;
@@ -436,7 +449,15 @@ export async function startTabPlaybackCapture(tabId, maxDurationSec = 30) {
   // If tab audio monitoring is not active, initialize it
   if (!_monitoringTab) {
     await startMonitoring(tabId);
+  } else if (_monitoringTab.tabId !== tabId) {
+    if (_playbackCaptureRunning) throw new Error("A capture is already running on another tab.");
+    await stopMonitoring();
+    await startMonitoring(tabId);
   }
+
+  // Capture the page URL now, so later tab changes cannot change this scan's source.
+  const captureTab = await chrome.tabs.get(tabId);
+  _playbackSourceUrl = captureTab.url || "";
 
   // Inject ended/pause media listeners into the tab
   try {
@@ -503,7 +524,14 @@ export async function stopTabPlaybackCapture(reason = "user_stopped") {
   return { ok: true, playbackCaptureActive: false };
 }
 
+export function handlePlaybackCaptureCancelled() {
+  _playbackCaptureRunning = false;
+  broadcastStatus();
+}
+
 export async function handlePlaybackCaptureFinished(data) {
+  const sourceUrl = _playbackSourceUrl;
+  _playbackSourceUrl = "";
   _playbackCaptureRunning = false;
   broadcastStatus();
 
@@ -520,6 +548,8 @@ export async function handlePlaybackCaptureFinished(data) {
       pcm_b64: data.pcm_b64,
       sample_rate: data.sample_rate,
       duration_sec: data.duration_sec,
+      audioSource: "Tab capture",
+      sourceUrl,
     });
     return { ok: true, report };
   } catch (err) {
@@ -537,6 +567,12 @@ export async function handlePlaybackCaptureFinished(data) {
 // ---------------------------------------------------------------------------
 export async function triggerDeepAnalysis(params = 30) {
   let pcm_b64, sample_rate, duration_sec;
+  const historySource = {
+    fileName: typeof params?.fileName === "string" ? params.fileName.slice(0, 255) : "",
+    audioSource: params?.audioSource === "Tab capture" || typeof params !== "object" ? "Tab capture" : "",
+    sourceUrl: params?.audioSource === "Tab capture" ? params.sourceUrl :
+      typeof params !== "object" ? _monitoringTab?.url : "",
+  };
   if (typeof params === "object" && params?.pcm_b64) {
     // Direct audio file payload (from tab playback capture or file drop)
     pcm_b64 = params.pcm_b64;
@@ -580,7 +616,7 @@ export async function triggerDeepAnalysis(params = 30) {
     console.info(`[audio-manager] Dispatching ${durNum}s audio to the Mad-Eye Moody Lens server...`);
     const result = await MoodyLens.analyzeBlob("audio", pcmToWavBlob(float32Data, rate), serverCfg);
     const report = MoodyLens.toAudioReport(result, durNum);
-    handleDeepAnalysisResult(report);
+    await handleDeepAnalysisResult(report, historySource);
     return report;
   }
 
@@ -636,7 +672,7 @@ export async function triggerDeepAnalysis(params = 30) {
       ] : [],
     };
 
-    handleDeepAnalysisResult(report);
+    await handleDeepAnalysisResult(report, historySource);
     return report;
   }
 
@@ -648,7 +684,7 @@ export async function triggerDeepAnalysis(params = 30) {
     );
   }
 
-  const requestId = `deep-scan-${Date.now()}`;
+  const requestId = `deep-scan-${Date.now()}-${++_deepAnalysisCounter}`;
 
   // Send deep_analysis request over WebSocket
   const promise = new Promise((resolve, reject) => {
@@ -657,7 +693,7 @@ export async function triggerDeepAnalysis(params = 30) {
       reject(new Error("Deep forensic analysis timed out after 90 seconds."));
     }, 90000);
 
-    _pendingDeepAnalysisResolvers.set(requestId, { resolve, reject, timer });
+    _pendingDeepAnalysisResolvers.set(requestId, { resolve, reject, timer, historySource });
   });
 
   _ws.send(JSON.stringify({
@@ -672,18 +708,27 @@ export async function triggerDeepAnalysis(params = 30) {
   return promise;
 }
 
-function handleDeepAnalysisResult(msg) {
+async function handleDeepAnalysisResult(msg, historySource = {}) {
   const reqId = msg.requestId;
-  if (reqId && _pendingDeepAnalysisResolvers.has(reqId)) {
-    const { resolve, reject, timer } = _pendingDeepAnalysisResolvers.get(reqId);
+  const pending = reqId && _pendingDeepAnalysisResolvers.get(reqId);
+  if (pending) {
+    const { reject, timer } = pending;
     clearTimeout(timer);
     _pendingDeepAnalysisResolvers.delete(reqId);
     if (msg.status === "error") {
       reject(new Error(msg.message || "Deep analysis failed on server"));
       return;
     }
-    resolve(msg);
   }
+
+  if (msg.status === "error") return;
+  try {
+    await AudioStorage.addDetection(msg, pending?.historySource || historySource);
+  } catch (error) {
+    if (pending) pending.reject(error);
+    throw error;
+  }
+  if (pending) pending.resolve(msg);
 
   // Store last report in storage for sidepanel forensic review
   chrome.storage.local.set({ lastAudioForensicReport: msg }).catch(() => {});

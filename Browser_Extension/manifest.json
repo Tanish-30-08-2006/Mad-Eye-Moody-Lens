@@ -9,6 +9,7 @@
     "sidePanel",
     "scripting",
     "tabs",
+    "activeTab",
     "tabCapture",
     "offscreen"
   ],
@@ -36,22 +37,5 @@
   "side_panel": {
     "default_path": "frontend/sidepanel.html"
   },
-  "options_page": "frontend/options.html",
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "frontend/audio/audio-processor.js",
-        "frontend/audio/audio-alert.js",
-        "frontend/audio/audio-alert.css"
-      ],
-      "matches": [
-        "https://meet.google.com/*",
-        "https://*.zoom.us/*",
-        "https://teams.microsoft.com/*",
-        "https://app.webex.com/*",
-        "https://whereby.com/*",
-        "https://*/*"
-      ]
-    }
-  ]
+  "options_page": "frontend/options.html"
 }

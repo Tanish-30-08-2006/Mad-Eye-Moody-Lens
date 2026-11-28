@@ -140,17 +140,19 @@ test("image and video histories stay separate; old video message names still wor
   assert.deepEqual(store.videoDetectionHistory, []);
 });
 
-test("extension panels can clear saved image and video history without changing other storage", async () => {
+test("extension panels can clear saved image, audio and video history without changing other storage", async () => {
   for (const page of ["popup.html", "sidepanel.html"]) {
     store.recentDetections = [{ time: 1, verdict: "likely_ai" }];
     store.videoDetectionHistory = [{ id: "video-scan", timestamp: 2 }];
-    const expected = { ...structuredClone(store), recentDetections: [], videoDetectionHistory: [] };
+    store.audioDetectionHistory = [{ timestamp: 3, verdict: "Likely natural speech" }];
+    const expected = { ...structuredClone(store), recentDetections: [], videoDetectionHistory: [], audioDetectionHistory: [] };
 
     const response = await send({ type: "CLEAR_DETECTION_HISTORY" }, { url: EXT_URL + "frontend/" + page });
 
     assert.deepEqual(response, { ok: true });
     assert.deepEqual(await send({ type: "GET_HISTORY" }), { items: [] });
     assert.deepEqual((await send({ type: "VIDEO_GET_HISTORY" })).data, []);
+    assert.deepEqual((await send({ type: "AUDIO_GET_HISTORY" })).items, []);
     assert.deepEqual(store, expected);
   }
 });
