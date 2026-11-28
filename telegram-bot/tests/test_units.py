@@ -108,3 +108,101 @@ def test_pick_media_routes_by_attachment_type():
     doc = SimpleNamespace(mime_type="video/webm")
     assert pick_media(msg(document=doc)) == ("video", doc)
     assert pick_media(msg(document=SimpleNamespace(mime_type="application/pdf"))) is None
+
+
+def test_load_settings_supports_env_aliases_and_port(monkeypatch):
+    from mml_bot.config import load_settings
+
+    for k in ("TELEGRAM_BOT_TOKEN", "BOT_TOKEN", "MML_API_BASE_URL", "BACKEND_URL", "MODEL_MODE", "PORT"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("BOT_TOKEN", "123:abc")
+    monkeypatch.setenv("BACKEND_URL", "https://example.onrender.com/")
+    monkeypatch.setenv("PORT", "10000")
+
+    s = load_settings()
+    assert s.token == "123:abc"
+    assert s.api_base_url == "https://example.onrender.com/api/v1"
+    assert s.model_mode == "real"
+    assert s.port == 10000
+
+    monkeypatch.setenv("MODEL_MODE", "stub")
+    assert load_settings().model_mode == "stub"
+
+    monkeypatch.setenv("MODEL_MODE", "invalid_mode")
+    with pytest.raises(SystemExit):
+        load_settings()
+
+
+def test_lightweight_scorer_produces_input_dependent_image_and_audio_scores():
+    import io
+    import wave
+
+    import numpy as np
+    from PIL import Image, PngImagePlugin
+
+    from mml_bot.scorer import LightweightForensicScorer
+
+    scorer = LightweightForensicScorer()
+    rng = np.random.default_rng(42)
+
+    # 1. Natural camera-like photo: broadband texture + sensor noise + camera EXIF tags.
+    yy, xx = np.mgrid[0:128, 0:128]
+    base = 120.0 + 40.0 * np.sin(xx / 11.0) * np.cos(yy / 13.0)
+    natural_rgb = np.clip(
+        np.stack([base, base * 0.95, base * 0.9], axis=-1) + rng.normal(0.0, 9.0, (128, 128, 3)),
+        0,
+        255,
+    ).astype(np.uint8)
+    nat_buf = io.BytesIO()
+    exif = Image.Exif()
+    exif[271] = "Canon"
+    exif[272] = "EOS R6"
+    exif[33434] = (1, 125)
+    Image.fromarray(natural_rgb).save(nat_buf, format="JPEG", quality=92, exif=exif)
+
+    # 2. Synthetic AI-marked smooth image with periodic grid artifact.
+    grid = 128.0 + 30.0 * ((xx % 4 == 0) & (yy % 4 == 0)).astype(np.float32)
+    synth_rgb = np.clip(np.stack([grid, grid, grid], axis=-1), 0, 255).astype(np.uint8)
+    syn_buf = io.BytesIO()
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text("Software", "Stable Diffusion Automatic1111")
+    Image.fromarray(synth_rgb).save(syn_buf, format="PNG", pnginfo=meta)
+
+    res_real = scorer.analyze_image_sync(nat_buf.getvalue())
+    res_synth = scorer.analyze_image_sync(syn_buf.getvalue())
+
+    assert res_real["fake_probability"] != res_synth["fake_probability"]
+    assert res_real["fake_probability"] < res_synth["fake_probability"]
+    assert res_synth["verdict"] == "likely_fake"
+    assert res_real["verdict"] in {"likely_real", "uncertain"}
+    assert "Likely" in format_result(res_real) or "Uncertain" in format_result(res_real)
+    assert "Likely AI-generated" in format_result(res_synth)
+
+    # Invalid bytes must raise ApiError, never silently fall back to stub.
+    with pytest.raises(ApiError):
+        scorer.analyze_image_sync(b"not an image")
+
+    # 3. Audio: natural noisy waveform vs pure synthetic digital-silence tone.
+    sr = 16000
+    t = np.linspace(0, 2.0, sr * 2, endpoint=False)
+    natural_wav = np.clip(
+        0.15 * np.sin(2 * np.pi * 240 * t) + 0.06 * np.sin(2 * np.pi * 1700 * t) + rng.normal(0.0, 0.025, t.size),
+        -1.0,
+        1.0,
+    )
+    synth_wav = np.zeros_like(t)
+    synth_wav[sr // 2 : sr] = 0.25 * np.sin(2 * np.pi * 220 * t[sr // 2 : sr])
+
+    def to_wav(samples: np.ndarray) -> bytes:
+        out = io.BytesIO()
+        with wave.open(out, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sr)
+            wf.writeframes((samples * 32767.0).astype(np.int16).tobytes())
+        return out.getvalue()
+
+    a_real = scorer.analyze_audio_sync(to_wav(natural_wav))
+    a_synth = scorer.analyze_audio_sync(to_wav(synth_wav))
+    assert a_real["fake_probability"] != a_synth["fake_probability"]
+    assert a_real["segments"] and a_synth["segments"]

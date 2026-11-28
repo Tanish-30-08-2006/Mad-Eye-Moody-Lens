@@ -50,9 +50,12 @@ def _detail_lines(result: dict[str, Any]) -> list[str]:
         lines.append(f"Duration: <code>{float(d['duration_s']):.1f} s</code>")
     if kind == "video":
         if "frames_sampled" in d:
-            lines.append(
-                f"Frames with a face: <code>{int(d.get('frames_with_face', 0))}/{int(d['frames_sampled'])}</code>"
-            )
+            if "frames_with_face" in d:
+                lines.append(
+                    f"Frames with a face: <code>{int(d['frames_with_face'])}/{int(d['frames_sampled'])}</code>"
+                )
+            else:
+                lines.append(f"Frames sampled: <code>{int(d['frames_sampled'])}</code>")
         if "fraction_flagged" in d:
             lines.append(f"Frames flagged: <code>{pct(float(d['fraction_flagged']))}</code>")
         # Contract: key absent = no usable audio track; False = the audio check failed.

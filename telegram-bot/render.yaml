@@ -1,0 +1,27 @@
+# Render free-tier web service: runs the long-polling Telegram bot alongside
+# a lightweight /health HTTP endpoint so Render's port check passes at $0/month.
+# Deploy from the repository root; set TELEGRAM_BOT_TOKEN in the Render dashboard.
+#
+# MODEL_MODE defaults to "real" (lightweight in-process forensic scorer, ~100 MB RAM).
+# Set MODEL_MODE=backend only if pointing MML_API_BASE_URL at a real-model backend.
+
+services:
+  - type: web
+    name: mml-telegram-bot
+    runtime: docker
+    region: oregon
+    plan: free
+    dockerfilePath: telegram-bot/Dockerfile
+    dockerContext: telegram-bot
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false                       # set manually in the dashboard (secret)
+      - key: MODEL_MODE
+        value: real                       # "real" (default), "backend", or "stub"
+      - key: MML_API_BASE_URL
+        value: https://madeye-moody-backend.onrender.com/api/v1
+      - key: MML_API_KEY
+        sync: false                       # optional: match a key in the backend's MML_API_KEYS
+      - key: BOT_ALLOWED_CHAT_IDS
+        sync: false                       # optional: comma-separated chat IDs

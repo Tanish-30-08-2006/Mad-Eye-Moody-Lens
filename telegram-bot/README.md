@@ -10,6 +10,24 @@ A Telegram front end for the shared Mad-Eye Moody Lens backend (`functional-ui-m
 
 Commands: `/start`, `/help`, `/status` (API readiness and loaded models) and `/privacy`.
 
+## Deploy to Render (always-on, no local server)
+
+The bot is a lightweight worker (no models, no GPU, ~50 MB RAM) that connects to the already-deployed backend at `madeye-moody-backend.onrender.com`. Once deployed it stays running — just message your bot on Telegram anytime.
+
+### One-time setup
+
+1. **Create a bot** — open Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, follow the prompts, copy the token.
+2. **Deploy on Render**:
+   - Go to [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → connect this repo.
+   - Render reads [`telegram-bot/render.yaml`](render.yaml) and creates a **Background Worker** called `mml-telegram-bot`.
+   - In the service's **Environment** tab, paste your `TELEGRAM_BOT_TOKEN`.
+   - Click **Manual Deploy** → **Deploy latest commit**.
+3. **Message your bot** on Telegram — send `/start`, then send a photo, voice note or video.
+
+The [`render.yaml`](render.yaml) file configures everything. The bot calls the production API at `https://madeye-moody-backend.onrender.com/api/v1` — no local backend needed.
+
+> **Tip:** Render's free-tier workers stay running 24/7 (workers are not suspended like free web services). The bot uses long polling, so it needs no inbound port.
+
 ## Run it with the full stack (Docker)
 
 The bot is an optional service in `functional-ui-models-backend/docker-compose.prod.yml`, under the `telegram` profile:
@@ -36,9 +54,11 @@ python -m mml_bot.bot
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | (required) | Token from @BotFather |
-| `MML_API_BASE_URL` | `http://api:8000/api/v1` | Backend API base URL |
+| `TELEGRAM_BOT_TOKEN` | (required) | Token from @BotFather (`BOT_TOKEN` alias also accepted) |
+| `MODEL_MODE` | `real` | `real` (lightweight Pillow+NumPy forensic scorer, ~100 MB RAM), `backend` (forward to `MML_API_BASE_URL`), or `stub` (fixed placeholder scores) |
+| `MML_API_BASE_URL` | `http://api:8000/api/v1` | Backend API base URL when `MODEL_MODE=backend` (`BACKEND_URL` alias also accepted) |
 | `MML_API_KEY` | none | Sent as `X-API-Key`. If the key is in the API's `MML_API_KEYS`, the bot gets the higher rate limits. Recommended, because all users share the bot's one address. |
+| `PORT` | unset | Optional HTTP port for `/health` check (set automatically by Render Web Services) |
 | `BOT_REQUESTS_PER_MIN` | 6 | Files per user per minute |
 | `BOT_VIDEO_TIMEOUT_S` | 360 | Give up and cancel a video job after this long |
 | `BOT_MAX_DOWNLOAD_MB` | 20 | Telegram's download cap for bots |
