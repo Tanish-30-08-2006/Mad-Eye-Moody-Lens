@@ -5,21 +5,19 @@
  * Collects Float32 PCM samples from the meeting tab's audio stream and
  * sends them in fixed-size chunks to the offscreen document main thread.
  *
- * Chunk size: 4096 samples at 48 kHz ≈ 85 ms.
+ * Chunk size: 2048 samples at the AudioContext's native sample rate.
  * The Python server accumulates these chunks in its AudioBuffer until
  * TARGET_LEN (64600) samples are ready, then runs inference.
  *
- * No audio data leaves this worklet except toward the local inference
- * service on 127.0.0.1.
+ * The offscreen document handles buffering and analysis requests.
  */
 
-const CHUNK_SAMPLES = 2048; // 2048 samples at 16kHz ≈ 128 ms
+const CHUNK_SAMPLES = 2048;
 
 class AudioChunkProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this._buffer = [];
-    this._totalSamples = 0;
   }
 
   process(inputs, outputs) {
@@ -50,7 +48,6 @@ class AudioChunkProcessor extends AudioWorkletProcessor {
 
     // Accumulate
     for (let i = 0; i < mono.length; i++) this._buffer.push(mono[i]);
-    this._totalSamples += mono.length;
 
     // Flush when we have CHUNK_SAMPLES
     while (this._buffer.length >= CHUNK_SAMPLES) {

@@ -21,12 +21,6 @@
   let lastAlertTime = 0;
   let currentOverlay = null;
 
-  // Link the CSS
-  const link = document.createElement("link");
-  link.rel  = "stylesheet";
-  link.href = chrome.runtime.getURL("frontend/audio/audio-alert.css");
-  document.head.appendChild(link);
-
   // ---------------------------------------------------------------------------
   // Listen for inference results forwarded by background.js
   // ---------------------------------------------------------------------------

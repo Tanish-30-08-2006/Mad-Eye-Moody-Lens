@@ -14,13 +14,14 @@
 "use strict";
 
 const TARGET_SAMPLE_RATE = 16000; // Model target sample rate
-const MAX_RING_SAMPLES   = 48000 * 30; // Rolling 30-second buffer (supports up to 48kHz native)
+const RING_DURATION_SEC = 30;
 
 let audioContext = null;
 let sourceNode   = null;
 let workletNode  = null;
 let mediaStream  = null;
 let isActive     = false;
+let streamLocalAudio = false;
 
 let ringChunks   = [];
 let ringSamples  = 0;
@@ -30,8 +31,9 @@ let playbackCaptureActive  = false;
 let playbackChunks         = [];
 let playbackSamples        = 0;
 let playbackSpeechDetected = false;
-let playbackSilenceFrames  = 0;
+let playbackSilenceSamples = 0;
 let playbackMaxSamples     = 48000 * 30;
+let playbackMaxDurationSec = 30;
 let lastProgressTime       = 0;
 
 function uint8ToBase64(bytes) {
@@ -53,7 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   switch (message.type) {
     case "AUDIO_START":
-      startCapture(message.streamId, message.tabSampleRate || TARGET_SAMPLE_RATE)
+      startCapture(message.streamId, message.streamLocalAudio)
         .then(() => sendResponse({ ok: true, sampleRate: audioContext ? audioContext.sampleRate : TARGET_SAMPLE_RATE }))
         .catch(err => sendResponse({ ok: false, error: err.message }));
       return true; // async
@@ -112,11 +114,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 // Start audio capture (Zoom Screen Share / Tab Audio Loopback)
 // ---------------------------------------------------------------------------
-async function startCapture(streamId, sampleRate) {
+async function startCapture(streamId, enableLocalStream) {
   if (isActive) {
     console.warn("[offscreen] Already capturing; ignoring duplicate start.");
     return;
   }
+  streamLocalAudio = Boolean(enableLocalStream);
 
   // Tab audio capture (Zoom screen share, meeting sound, media playback)
   mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -161,10 +164,19 @@ async function startCapture(streamId, sampleRate) {
     // 1. Maintain rolling ring buffer
     ringChunks.push(pcm);
     ringSamples += pcm.length;
-    while (ringSamples > MAX_RING_SAMPLES && ringChunks.length > 1) {
+    while (ringSamples > audioContext.sampleRate * RING_DURATION_SEC && ringChunks.length > 1) {
       const dropped = ringChunks.shift();
       ringSamples -= dropped.length;
     }
+
+    // The worker forwards these only when the local model is authenticated.
+    if (streamLocalAudio) chrome.runtime.sendMessage({
+      type: "AUDIO_CHUNK_DATA",
+      pcm_b64: uint8ToBase64(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)),
+      sample_rate: audioContext.sampleRate,
+      channels: 1,
+      num_samples: pcm.length,
+    }).catch(() => {});
 
     // 2. Playback Capture Handler (Captures played tab audio until finished or 30s cap)
     if (playbackCaptureActive) {
@@ -186,12 +198,11 @@ async function startCapture(streamId, sampleRate) {
           chrome.runtime.sendMessage({ type: "PLAYBACK_AUDIO_STARTED" }).catch(() => {});
         }
         playbackSpeechDetected = true;
-        playbackSilenceFrames = 0;
+        playbackSilenceSamples = 0;
       } else if (playbackSpeechDetected) {
         // Audio was actively playing and now went quiet
-        playbackSilenceFrames++;
-        // 2048 samples at ~48kHz ≈ 42.6ms. 30 frames ≈ 1.3 seconds of sustained silence
-        if (playbackSilenceFrames >= 30 && durSec >= 1.5) {
+        playbackSilenceSamples += pcm.length;
+        if (playbackSilenceSamples >= sr * 1.3 && durSec >= 1.5) {
           console.log("[offscreen] Audio playback ended (silence detected). Triggering deepfake analysis.");
           finishPlaybackCapture("audio_finished");
           return;
@@ -204,7 +215,7 @@ async function startCapture(streamId, sampleRate) {
         chrome.runtime.sendMessage({
           type: "PLAYBACK_CAPTURE_PROGRESS",
           durationSec: durSec,
-          maxSec: 30,
+          maxSec: playbackMaxDurationSec,
           speechDetected: playbackSpeechDetected,
           rms: Number(rms.toFixed(4)),
         }).catch(() => {});
@@ -235,9 +246,10 @@ function startPlaybackCapture(maxDurationSec = 30) {
   playbackChunks         = [];
   playbackSamples        = 0;
   playbackSpeechDetected = false;
-  playbackSilenceFrames  = 0;
+  playbackSilenceSamples = 0;
   lastProgressTime       = Date.now();
   const sr = audioContext ? audioContext.sampleRate : 48000;
+  playbackMaxDurationSec = maxDurationSec;
   playbackMaxSamples     = Math.round(maxDurationSec * sr);
   console.log(`[offscreen] Tab playback capture started (max ${maxDurationSec}s @ ${sr}Hz).`);
 }

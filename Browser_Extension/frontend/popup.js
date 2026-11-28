@@ -695,7 +695,7 @@ chrome.runtime.onMessage.addListener(message => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HISTORY (Image & Video History Records)
+// HISTORY (Image, audio and video records)
 // ─────────────────────────────────────────────────────────────────────────────
 
 let historyLoadId = 0;
@@ -707,19 +707,22 @@ async function loadHistory() {
   listEl.textContent = "Loading records…";
 
   try {
-    const [imgRes, vidRes] = await Promise.all([
+    const [imgRes, vidRes, audioRes] = await Promise.all([
       send({ type: "GET_HISTORY" }).catch(() => null),
-      send({ type: "VIDEO_GET_HISTORY" }).catch(() => null)
+      send({ type: "VIDEO_GET_HISTORY" }).catch(() => null),
+      send({ type: "AUDIO_GET_HISTORY" }).catch(() => null)
     ]);
     if (loadId !== historyLoadId) return;
 
     const imageHistory = !imgRes?.error && Array.isArray(imgRes?.items) ? imgRes.items : null;
     const videoHistory = vidRes?.ok === true && Array.isArray(vidRes.data) ? vidRes.data : null;
-    const unavailable = [imageHistory === null && "image", videoHistory === null && "video"].filter(Boolean).join(" and ");
+    const audioHistory = audioRes?.ok === true && Array.isArray(audioRes.items) ? audioRes.items : null;
+    const unavailable = [imageHistory === null && "image", videoHistory === null && "video", audioHistory === null && "audio"].filter(Boolean).join(", ");
     const imgItems = (imageHistory ?? []).map(i => ({ ...i, mediaType: "Image", timestamp: i?.time }));
     const vidItems = (videoHistory ?? []).map(v => ({ ...v, mediaType: "Video", timestamp: v?.timestamp }));
+    const audioItems = (audioHistory ?? []).map(a => ({ ...a, mediaType: "Audio" }));
 
-    const combined = [...imgItems, ...vidItems]
+    const combined = [...imgItems, ...vidItems, ...audioItems]
       .filter(x => x && (x.timestamp || x.time))
       .sort((a, b) => (b.timestamp || b.time || 0) - (a.timestamp || a.time || 0))
       .slice(0, 10);
@@ -751,13 +754,27 @@ async function loadHistory() {
       sub.className = "history-item-sub";
       const dateStr = item.dateFormatted || new Date(item.timestamp || item.time).toLocaleTimeString();
       const modelStr = item.model || item.provider || "";
-      sub.textContent = `${dateStr}${modelStr ? " · " + modelStr : ""}`;
+      const audioSource = item.mediaType === "Audio" ? (item.fileName || item.audioSource || "") : "";
+      sub.textContent = [audioSource, dateStr, modelStr].filter(Boolean).join(" · ");
 
       left.append(title, sub);
+      if (item.mediaType === "Audio" && item.sourceUrl) {
+        try {
+          const url = new URL(item.sourceUrl);
+          if (url.protocol === "http:" || url.protocol === "https:") {
+            const link = document.createElement("a");
+            link.href = url.href;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = "Open captured page";
+            left.appendChild(link);
+          }
+        } catch {}
+      }
 
       const pill = document.createElement("span");
       pill.className = `pill ${item.isAI ? "bad" : item.isAI === false ? "good" : "muted"}`;
-      pill.textContent = item.confidence ? `${Math.round(item.confidence <= 1 ? item.confidence * 100 : item.confidence)}%` : "Done";
+      pill.textContent = item.confidence != null ? `${Math.round(item.confidence <= 1 ? item.confidence * 100 : item.confidence)}%` : "Done";
 
       row.append(left, pill);
       listEl.appendChild(row);
@@ -770,7 +787,7 @@ async function loadHistory() {
 $("refreshHistory")?.addEventListener("click", loadHistory);
 
 $("clearHistory")?.addEventListener("click", async event => {
-  if (!confirm("Clear saved image and video detection history?")) return;
+  if (!confirm("Clear saved image, audio and video detection history?")) return;
   const button = event.currentTarget;
   button.disabled = true;
   ++historyLoadId;

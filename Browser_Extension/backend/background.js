@@ -26,6 +26,8 @@ import {
   startTabPlaybackCapture,
   stopTabPlaybackCapture,
   handlePlaybackCaptureFinished,
+  handlePlaybackCaptureCancelled,
+  isMonitoringTab,
   AUDIO_ENGINE_MODES,
 } from "./audio/audio-manager.js";
 import { AudioStorage } from "./audio/audio-storage.js";
@@ -1879,13 +1881,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "AUDIO_GET_HISTORY") {
+    AudioStorage.getDetections().then(items => sendResponse({ ok: true, items }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message.type === "CLEAR_DETECTION_HISTORY") {
     // Content scripts can share the extension ID, so require an extension document URL.
     if (typeof sender?.url !== "string" || !sender.url.startsWith(chrome.runtime.getURL(""))) {
       sendResponse({ ok: false, error: "Open the extension to clear detection history." });
       return false;
     }
-    serializedStorageUpdate(() => chrome.storage.local.set({ recentDetections: [], videoDetectionHistory: [] }))
+    Promise.all([
+      serializedStorageUpdate(() => chrome.storage.local.set({ recentDetections: [], videoDetectionHistory: [] })),
+      AudioStorage.clearDetections(),
+    ])
       .then(() => sendResponse({ ok: true }))
       .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -1917,6 +1928,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "AUDIO_CHUNK_DATA") {
+    if (sender?.url !== chrome.runtime.getURL("frontend/audio/offscreen.html")) return false;
     forwardAudioChunk({
       pcm_b64:     message.pcm_b64,
       sample_rate: message.sample_rate,
@@ -1993,13 +2005,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "PLAYBACK_CAPTURE_FINISHED") {
+    if (sender?.url !== chrome.runtime.getURL("frontend/audio/offscreen.html")) return false;
     handlePlaybackCaptureFinished(message)
       .then(result => sendResponse({ ok: true, ...result }))
       .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 
+  if (message.type === "PLAYBACK_CAPTURE_CANCELLED" && sender?.url === chrome.runtime.getURL("frontend/audio/offscreen.html")) {
+    handlePlaybackCaptureCancelled();
+    return false;
+  }
+
   if (message.type === "TAB_MEDIA_ENDED") {
+    if (!sender?.tab?.id || !isMonitoringTab(sender.tab.id)) return false;
     chrome.runtime.sendMessage({
       target: "offscreen-audio",
       type:   "TAB_MEDIA_ENDED",
