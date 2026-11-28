@@ -95,7 +95,7 @@ export function Nav({ state }: { state: BackendState }) {
             ))}
           </ul>
         </nav>
-        <div className="nav__status" role="status" aria-live="polite">
+        <div className="nav__status" role="status" aria-live="polite" aria-label={STATE_TEXT[state]}>
           <StatusDot state={state} />
           <span className="label">{STATE_TEXT[state]}</span>
         </div>
