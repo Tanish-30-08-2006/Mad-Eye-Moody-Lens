@@ -6,13 +6,17 @@ suite runs in CI in seconds (design doc Section 12).
 
 from __future__ import annotations
 
+# Configure BEFORE any app import: settings are read once at import time.
+import datetime
 import io
 import os
 import shutil
 import subprocess
 import tempfile
 
-# Configure BEFORE any app import: settings are read once at import time.
+if not hasattr(datetime, "UTC"):
+    datetime.UTC = datetime.timezone.utc  # type: ignore[attr-defined]
+
 _TMP = tempfile.mkdtemp(prefix="mml-test-")
 os.environ.update(
     {
@@ -23,6 +27,8 @@ os.environ.update(
         "MML_STORAGE_BACKEND": "local",
         "MML_STORAGE_ROOT": f"{_TMP}/store",
         "MML_TMP_DIR": f"{_TMP}/tmp",
+        "MML_JWT_SECRET": "test-super-secret-key-32-chars-long!",
+        "MML_ALLOW_MOCK_OAUTH": "true",
     }
 )
 
