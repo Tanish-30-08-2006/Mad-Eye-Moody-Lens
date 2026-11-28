@@ -272,10 +272,26 @@ h3 {
 
 .nav__links {
   display: flex;
-  gap: 32px;
+  align-items: center;
+  gap: clamp(8px, calc(4vw - 30px), 24px);
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.nav__links > li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Keep desktop text on one line without changing submenu typography. */
+.nav__links > li > a,
+.nav__dropdown-btn,
+.nav__status .label {
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: clamp(0.08em, calc(0.6vw - 5px), 0.2em);
 }
 
 .nav__links a {
@@ -304,7 +320,6 @@ h3 {
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.3em;
   text-decoration: none;
   color: var(--subtle);
   cursor: pointer;
@@ -361,6 +376,11 @@ h3 {
   gap: 8px;
 }
 
+/* The status container retains its accessible name when only the dot fits. */
+@media (max-width: 1240px) {
+  .nav__status .label { display: none; }
+}
+
 @media (max-width: 960px) {
   .nav__links { display: none; }
 }
@@ -369,7 +389,6 @@ h3 {
   .brand { font-size: 15px; gap: 8px; }
   .brand__bar--a { width: 12px; }
   .brand__bar--b { width: 16px; }
-  .nav__status .label { display: none; }
 }
 
 /* ---------- Status dot ---------- */

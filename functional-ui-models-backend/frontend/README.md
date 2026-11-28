@@ -50,7 +50,7 @@ Uploads use XHR rather than fetch so the UI shows real upload progress for large
 
 | Design section | App purpose |
 |---|---|
-| Nav + pulse badge | Backend / model load state (polls `/models` while warming or offline) |
+| Nav + pulse badge | Centred, single-line desktop links with responsive spacing; links hide at 960px and below. Backend / model load state (polls `/models` while warming or offline); at 1240px and below only the dot is visible, with the state retained as the live status's accessible name. |
 | Statistics grid | One cell per media type: limit + the models that run on it |
 | Use-case tabs | **Analyse** screen — image / audio / video upload, preview, pipeline, progress |
 | Result card | Verdict (colour + glyph + text), probability scale with bands, per-check scores, timeline, details, disclaimer |
