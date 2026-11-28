@@ -1060,32 +1060,57 @@ chrome.runtime.onMessage.addListener(msg => {
 // HISTORY (Image & Video Detection History)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const RECENT_HISTORY_LIMIT = 15;
+let showAllHistory = false;
+let historyLoadId = 0;
+
 async function loadHistory() {
   const el = $("history");
   if (!el) return;
+  const loadId = ++historyLoadId;
   el.textContent = "Loading detection history…";
 
   try {
     const [imgRes, vidRes] = await Promise.all([
-      send({ type: "GET_HISTORY" }).catch(() => ({ items: [] })),
-      send({ type: "VIDEO_GET_HISTORY" }).catch(() => ({ data: [] }))
+      send({ type: "GET_HISTORY" }).catch(() => null),
+      send({ type: "VIDEO_GET_HISTORY" }).catch(() => null)
     ]);
+    if (loadId !== historyLoadId) return;
 
-    const imgItems = (imgRes?.items || []).map(i => ({ ...i, mediaType: "Image", timestamp: i.time }));
-    const vidItems = (Array.isArray(vidRes?.data) ? vidRes.data : []).map(v => ({ ...v, mediaType: "Video", timestamp: v.timestamp }));
+    const imageHistory = !imgRes?.error && Array.isArray(imgRes?.items) ? imgRes.items : null;
+    const videoHistory = vidRes?.ok === true && Array.isArray(vidRes.data) ? vidRes.data : null;
+    const unavailable = [imageHistory === null && "image", videoHistory === null && "video"].filter(Boolean).join(" and ");
+    const imgItems = (imageHistory ?? []).map(i => ({ ...i, mediaType: "Image", timestamp: i?.time }));
+    const vidItems = (videoHistory ?? []).map(v => ({ ...v, mediaType: "Video", timestamp: v?.timestamp }));
 
     const combined = [...imgItems, ...vidItems]
       .filter(x => x && (x.timestamp || x.time))
-      .sort((a, b) => (b.timestamp || b.time || 0) - (a.timestamp || a.time || 0))
-      .slice(0, 15);
+      .sort((a, b) => (b.timestamp || b.time || 0) - (a.timestamp || a.time || 0));
 
-    if (!combined.length) {
+    const toggle = $("spToggleHistory");
+    const hasOlderScans = combined.length > RECENT_HISTORY_LIMIT;
+    showAllHistory = hasOlderScans && showAllHistory;
+    if (toggle) {
+      toggle.style.display = hasOlderScans ? "" : "none";
+      toggle.setAttribute("aria-expanded", String(showAllHistory));
+      const scanLabel = unavailable ? " available scans" : " saved scans";
+      toggle.textContent = showAllHistory ? "Show recent scans" : "Show all " + combined.length + scanLabel;
+    }
+
+    if (!combined.length && !unavailable) {
       el.textContent = "No detections recorded yet.";
       return;
     }
 
     el.replaceChildren();
-    for (const item of combined) {
+    if (unavailable) {
+      const notice = document.createElement("p");
+      notice.className = "message error";
+      notice.setAttribute("role", "status");
+      notice.textContent = "Could not load " + unavailable + " detection history. Select Refresh to try again.";
+      el.appendChild(notice);
+    }
+    for (const item of showAllHistory ? combined : combined.slice(0, RECENT_HISTORY_LIMIT)) {
       const row = document.createElement("div");
       row.className = "history-item";
 
@@ -1111,15 +1136,29 @@ async function loadHistory() {
       el.appendChild(row);
     }
   } catch (err) {
-    el.textContent = "Could not load history: " + err.message;
+    if (loadId === historyLoadId) el.textContent = "Could not load history: " + err.message;
   }
 }
 $("refreshHistory")?.addEventListener("click", loadHistory);
+$("spToggleHistory")?.addEventListener("click", () => {
+  showAllHistory = !showAllHistory;
+  return loadHistory();
+});
 
-$("spClearHistory")?.addEventListener("click", async () => {
-  if (confirm("Clear local detection history?")) {
-    await chrome.storage.local.set({ detectionHistory: [], videoDetectionHistory: [] });
+$("spClearHistory")?.addEventListener("click", async event => {
+  if (!confirm("Clear saved image and video detection history?")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  ++historyLoadId;
+  try {
+    const response = await send({ type: "CLEAR_DETECTION_HISTORY" });
+    if (!response?.ok) throw new Error(response?.error || "The extension did not confirm the clear.");
     await loadHistory();
+  } catch (error) {
+    const el = $("history");
+    if (el) el.textContent = "Could not clear detection history. " + (error?.message || String(error));
+  } finally {
+    button.disabled = false;
   }
 });
 

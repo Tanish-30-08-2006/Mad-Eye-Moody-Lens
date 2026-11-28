@@ -315,9 +315,10 @@
       <section id="paneHistory" class="sp-pane" role="tabpanel">
         <div class="card">
           <div class="result-heading">
-            <h2>Recent Detection Records</h2>
+            <h2>Detection History</h2>
             <button id="refreshHistory" class="text-button">Refresh</button>
           </div>
+          <button id="spToggleHistory" type="button" class="text-button" aria-controls="history" aria-expanded="false" style="display: none;">Show all saved scans</button>
           <div id="history" class="history">No detections recorded yet.</div>
           <div class="actions" style="margin-top: 10px;">
             <button id="spClearHistory" class="secondary full">Clear Detection History</button>

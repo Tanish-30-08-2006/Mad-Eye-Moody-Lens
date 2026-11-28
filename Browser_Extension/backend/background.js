@@ -667,14 +667,16 @@ async function analyzeImage(image, source, requestedProvider) {
       await writePersistentCache(image, cacheKey, result);
     }
 
-    const latest = await getStored();
-    const history = Array.isArray(latest.recentDetections) ? latest.recentDetections : [];
     const item = {
       time: Date.now(), provider: response.provider, providerName: response.providerName,
       model: response.model, isAI: response.isAI, verdict: response.verdict,
       confidence: response.confidence, similarity: response.similarity, source
     };
-    await chrome.storage.local.set({ recentDetections: [item, ...history].slice(0, 30) });
+    await serializedStorageUpdate(async () => {
+      const { recentDetections } = await getStored();
+      const history = Array.isArray(recentDetections) ? recentDetections : [];
+      await chrome.storage.local.set({ recentDetections: [item, ...history].slice(0, 30) });
+    });
     return result;
   })();
   inFlight.set(cacheKey, task);
@@ -1874,6 +1876,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_HISTORY") {
     getStored().then(settings => sendResponse({ items: settings.recentDetections || [] }))
       .catch(error => sendResponse({ items: [], error: error.message }));
+    return true;
+  }
+
+  if (message.type === "CLEAR_DETECTION_HISTORY") {
+    // Content scripts can share the extension ID, so require an extension document URL.
+    if (typeof sender?.url !== "string" || !sender.url.startsWith(chrome.runtime.getURL(""))) {
+      sendResponse({ ok: false, error: "Open the extension to clear detection history." });
+      return false;
+    }
+    serializedStorageUpdate(() => chrome.storage.local.set({ recentDetections: [], videoDetectionHistory: [] }))
+      .then(() => sendResponse({ ok: true }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 
