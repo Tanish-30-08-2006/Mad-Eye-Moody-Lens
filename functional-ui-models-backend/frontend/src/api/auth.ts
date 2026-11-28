@@ -94,3 +94,17 @@ export async function exchangeGoogleCode(
   }
   return res.json();
 }
+
+export async function logoutUser(token: string): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/logout`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(data.error || data.detail || "Logout failed", res.status);
+  }
+  return res.json();
+}

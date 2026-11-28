@@ -182,7 +182,7 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: str
     password: str
-    role: UserRoleType = "public"
+    role: str = "public"
     org_name: str | None = None
 
 
@@ -195,7 +195,7 @@ class DemoAccountInfo(BaseModel):
     role: UserRoleType
     tier: SubscriptionTierType
     email: str
-    password: str
+    password: str = ""
     description: str
     unlocked_features: list[str]
 

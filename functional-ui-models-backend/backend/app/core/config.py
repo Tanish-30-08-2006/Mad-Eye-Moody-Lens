@@ -104,6 +104,11 @@ class Settings(BaseSettings):
     # Secret used to HMAC client IPs for rate limiting; IPs are never stored raw.
     client_hash_secret: str = "change-me-in-production"
 
+    # ----------------------------------------------------------------- security
+    jwt_secret: str | None = None
+    jwt_algorithm: str = "HS256"
+    allow_mock_oauth: bool = False
+
     # ---------------------------------------------------------- infrastructure
     database_url: str = "postgresql+psycopg://mml:mml@postgres:5432/mml"
     redis_url: str = "redis://redis:6379/0"

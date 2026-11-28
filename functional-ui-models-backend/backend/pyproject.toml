@@ -9,10 +9,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = ["E501", "B008"]  # B008: FastAPI File(...) defaults are the idiom
+ignore = ["E501", "B008", "UP017", "UP042", "B905"]  # B008: FastAPI File(...) defaults; UP017/UP042/B905: Python 3.9 runtime compatibility
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
+"app/db/models.py" = ["UP007", "UP045"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

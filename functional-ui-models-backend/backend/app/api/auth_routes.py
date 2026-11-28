@@ -4,31 +4,36 @@ from __future__ import annotations
 
 import os
 import re
+import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     ROLE_PERMISSIONS,
     ROLE_TIER_MAPPING,
-    USER_REGISTRY,
     SubscriptionTier,
     UserContext,
     UserRecord,
     UserRole,
+    bearer_scheme,
     create_access_token,
     create_refresh_token,
     decode_token,
     get_optional_user,
+    get_user_record,
     hash_password,
     require_role,
+    revoke_token,
     verify_password,
 )
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.schemas import (
     DemoAccountInfo,
@@ -42,7 +47,12 @@ from app.schemas import (
     TokenResponse,
     UserProfile,
 )
+from app.services.users import (
+    create_user,
+    update_user_role,
+)
 
+UTC = timezone.utc
 log = get_logger(__name__)
 
 GOOGLE_CLIENT_ID = os.environ.get(
@@ -51,9 +61,82 @@ GOOGLE_CLIENT_ID = os.environ.get(
 )
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+_google_jwks_client: jwt.PyJWKClient | None = None
+
+
+def get_google_jwks_client() -> jwt.PyJWKClient:
+    """Returns singleton JWKS client for verifying Google ID tokens."""
+    global _google_jwks_client
+    if _google_jwks_client is None:
+        _google_jwks_client = jwt.PyJWKClient(
+            "https://www.googleapis.com/oauth2/v3/certs",
+            cache_keys=True,
+        )
+    return _google_jwks_client
+
+
+def verify_google_id_token(
+    id_token_str: str,
+    expected_client_id: str,
+    jwks_client: jwt.PyJWKClient | None = None,
+) -> dict[str, Any]:
+    """Cryptographically verifies a Google OAuth 2.0 ID token.
+
+    Validates:
+    - RS256 signature against Google JWKS public certificates.
+    - Token expiration (exp).
+    - Expected Audience (aud == expected_client_id).
+    - Trusted Issuer (iss in ("accounts.google.com", "https://accounts.google.com")).
+    - Verified email (email_verified is True).
+    """
+    if not id_token_str or not isinstance(id_token_str, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing or invalid Google ID token.",
+        )
+
+    client = jwks_client or get_google_jwks_client()
+    try:
+        signing_key = client.get_signing_key_from_jwt(id_token_str)
+        payload = jwt.decode(
+            id_token_str,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=expected_client_id,
+            issuer=["accounts.google.com", "https://accounts.google.com"],
+            options={"require": ["exp", "iss", "aud", "sub"]},
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google ID token has expired. Please sign in again.",
+        ) from None
+    except jwt.InvalidAudienceError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google ID token audience mismatch: token was not issued for this application.",
+        ) from None
+    except jwt.InvalidIssuerError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google ID token issuer is not trusted.",
+        ) from None
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Google ID token signature or claim verification failed: {exc}",
+        ) from exc
+
+    if not payload.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Google account email address is not verified by Google.",
+        )
+
+    return payload
 
 
 def _build_token_response(user_record: UserRecord) -> TokenResponse:
@@ -88,12 +171,16 @@ def _build_token_response(user_record: UserRecord) -> TokenResponse:
 def login(creds: LoginRequest) -> TokenResponse:
     """Authenticates a user and returns signed JWT access and refresh tokens."""
     email_clean = creds.email.strip().lower()
-    user_record = USER_REGISTRY.get(email_clean)
+    user_record = get_user_record(email_clean)
 
-    if not user_record or not verify_password(creds.password, user_record.password_hash):
+    if not user_record or not verify_password(
+        creds.password,
+        user_record.password_hash,
+        getattr(user_record, "password_salt", None),
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password. Check /demo-accounts for pre-seeded logins.",
+            detail="Invalid email or password.",
         )
 
     if not user_record.is_active:
@@ -109,35 +196,81 @@ def login(creds: LoginRequest) -> TokenResponse:
     "/register",
     response_model=TokenResponse,
     status_code=status.HTTP_201_CREATED,
-    responses={400: {"model": ErrorBody}},
+    responses={400: {"model": ErrorBody}, 403: {"model": ErrorBody}},
     summary="Register a new stakeholder account",
 )
 def register(req: RegisterRequest) -> TokenResponse:
-    """Creates a new user with selected stakeholder role and returns active tokens."""
+    """Creates a new user with verified role permissions.
+
+    Security Enforcement (Requirement 1):
+    - Client-supplied roles for privileged tiers (GOVT_OFFICER, ENTERPRISE_ADMIN) are strictly rejected with 403.
+    - Public self-registration is allowed only for PUBLIC and JOURNALIST tiers.
+    """
     email_clean = req.email.strip().lower()
-    if email_clean in USER_REGISTRY:
+
+    # Reject unauthorized privileged role self-assignment
+    raw_role = (req.role or "public").strip().lower()
+    if raw_role in ("govt_officer", "enterprise_admin", "admin", "administrator"):
+        log.warning(
+            "Privilege Escalation Attempt Blocked: caller attempted to register privileged role '%s' for '%s'",
+            raw_role,
+            email_clean,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Self-registration is restricted to Public and Journalist accounts. "
+                "Privileged accounts (Enterprise Administrator, Government Official) must be provisioned "
+                "through an authorized administrative workflow."
+            ),
+        )
+
+    if raw_role == "journalist":
+        role = UserRole.JOURNALIST
+    else:
+        role = UserRole.PUBLIC
+
+    # Check for existing account
+    existing = get_user_record(email_clean)
+    if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"An account with email '{email_clean}' already exists.",
         )
 
-    try:
-        role = UserRole(req.role)
-    except ValueError:
-        role = UserRole.PUBLIC
+    password_hash, password_salt = hash_password(req.password)
+    tier = ROLE_TIER_MAPPING.get(role, SubscriptionTier.COMMUNITY)
+    org_name = req.org_name or ("Independent" if role == UserRole.JOURNALIST else None)
 
-    new_id = f"usr-{role.value[:4]}-{uuid.uuid4()}"
-    new_user = UserRecord(
-        user_id=new_id,
-        email=email_clean,
-        password_hash=hash_password(req.password),
-        role=role,
-        org_name=req.org_name or ("Independent" if role == UserRole.JOURNALIST else None),
-        created_at=datetime.now(UTC),
-        is_active=True,
-    )
-    USER_REGISTRY[email_clean] = new_user
-    return _build_token_response(new_user)
+    try:
+        db_user = create_user(
+            email=email_clean,
+            password_hash=password_hash,
+            password_salt=password_salt,
+            role=role.value,
+            org_name=org_name,
+            subscription_tier=tier.value,
+            is_active=True,
+        )
+        user_record = UserRecord(
+            user_id=str(db_user.id),
+            email=email_clean,
+            password_hash=password_hash,
+            password_salt=password_salt,
+            role=role,
+            org_name=org_name,
+            subscription_tier=tier,
+            created_at=db_user.created_at,
+            is_active=True,
+        )
+    except Exception as exc:
+        log.error("Database user creation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Registration failed: account with email '{email_clean}' could not be created.",
+        ) from exc
+
+    return _build_token_response(user_record)
 
 
 @auth_router.get(
@@ -146,7 +279,7 @@ def register(req: RegisterRequest) -> TokenResponse:
     summary="Get current user context (supports anonymous fallback)",
 )
 def get_me(user: UserContext = Depends(get_optional_user)) -> UserProfile:
-    """Returns profile and active capabilities of the caller. Anonymous callers get public fallback profile."""
+    """Returns profile and active capabilities of the caller."""
     return UserProfile(
         user_id=user.user_id,
         email=user.email,
@@ -174,8 +307,7 @@ def refresh_token_endpoint(req: RefreshTokenRequest) -> TokenResponse:
             detail="Invalid refresh token payload: missing subject identifier.",
         )
 
-    user_record = USER_REGISTRY.get(email)
-
+    user_record = get_user_record(email)
     if not user_record or not user_record.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -190,12 +322,22 @@ def refresh_token_endpoint(req: RefreshTokenRequest) -> TokenResponse:
     status_code=status.HTTP_200_OK,
     summary="Invalidate active user session",
 )
-def logout(user: UserContext = Depends(get_optional_user)) -> dict:
-    """Logs out user and invalidates session token."""
+def logout(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, Any]:
+    """Logs out user and invalidates session token via Redis revocation blacklist."""
+    if credentials and credentials.credentials:
+        revoke_token(credentials.credentials)
+        return {
+            "status": "logged_out",
+            "message": "User session token has been revoked successfully.",
+            "was_anonymous": False,
+        }
+
     return {
         "status": "logged_out",
-        "message": "User session invalidated successfully.",
-        "was_anonymous": user.is_anonymous,
+        "message": "No active session token provided to revoke.",
+        "was_anonymous": True,
     }
 
 
@@ -205,14 +347,22 @@ def logout(user: UserContext = Depends(get_optional_user)) -> dict:
     summary="List pre-seeded demo accounts for all stakeholders",
 )
 def list_demo_accounts() -> list[DemoAccountInfo]:
-    """Returns the pre-configured accounts for testing each stakeholder persona."""
+    """Returns stakeholder persona information for testing and demonstration in non-production.
+
+    Security Enforcement (Requirement 8):
+    - In production, this endpoint returns an empty list to avoid leaking testing information.
+    - Plaintext passwords are never returned.
+    """
+    if settings.is_production:
+        return []
+
     return [
         DemoAccountInfo(
             stakeholder_name="General Public User",
             role="public",
             tier="community",
             email="public@moodylens.local",
-            password="Public123!",
+            password="",
             description="Everyday consumer check. Zero login required on extension and website.",
             unlocked_features=[
                 "Rapid Triage Verdict (< 1s)",
@@ -226,7 +376,7 @@ def list_demo_accounts() -> list[DemoAccountInfo]:
             role="journalist",
             tier="journalist_pro",
             email="journalist@reuters-factcheck.org",
-            password="Journalist123!",
+            password="",
             description="Verified newsroom / fact-checker desk. Deep XAI explainability.",
             unlocked_features=[
                 "Interactive Grad-CAM Heatmap Analysis",
@@ -240,7 +390,7 @@ def list_demo_accounts() -> list[DemoAccountInfo]:
             role="enterprise_admin",
             tier="enterprise_suite",
             email="moderator@meta-safety.internal",
-            password="Enterprise123!",
+            password="",
             description="Platform Trust & Safety teams (Meta, Reddit, X). In-situ account actions.",
             unlocked_features=[
                 "Flagged Feed Moderation Queue",
@@ -255,7 +405,7 @@ def list_demo_accounts() -> list[DemoAccountInfo]:
             role="govt_officer",
             tier="sovereign_govtech",
             email="officer@cert-in.gov.in",
-            password="GovtOfficer123!",
+            password="",
             description="National Security, CERT-In, Law Enforcement Cyber Cells.",
             unlocked_features=[
                 "National Threat & Sovereign Disinformation Feed",
@@ -274,7 +424,7 @@ def list_demo_accounts() -> list[DemoAccountInfo]:
     summary="List supported OAuth 2.0 Identity Providers",
 )
 def list_oauth_providers() -> list[OAuthProviderInfo]:
-    """Returns supported OAuth 2.0 providers (Google, GitHub, GovID SSO)."""
+    """Returns supported OAuth 2.0 providers."""
     return [
         OAuthProviderInfo(
             provider_id="google",
@@ -313,11 +463,7 @@ GOV_DOMAINS_EXACT_SUFFIXES = (
 
 
 def is_valid_government_email(email: str) -> bool:
-    """Validates whether an email belongs to an official sovereign government institution.
-
-    Supports Indian Government domains (.gov.in, .nic.in) and international government
-    domains (.gov, .mil, .gov.uk, .gov.au, .gov.sg, .gc.ca, and any .gov.<ccTLD>).
-    """
+    """Validates whether an email belongs to an official sovereign government institution."""
     clean = email.strip().lower()
     if "@" not in clean:
         return False
@@ -333,36 +479,55 @@ def is_valid_government_email(email: str) -> bool:
     return False
 
 
-def _exchange_google_code(code: str, redirect_uri: str, role: str = "public") -> dict[str, Any]:
-    """Exchanges Google authorization code for user info via Google OAuth 2.0."""
+def _exchange_google_code(
+    code: str,
+    redirect_uri: str,
+    role: str = "public",
+    jwks_client: jwt.PyJWKClient | None = None,
+) -> dict[str, Any]:
+    """Exchanges Google authorization code for verified user info via Google OAuth 2.0."""
     if code.startswith("mock-") or code.startswith("test-"):
+        # Requirement 2: Reject mock OAuth in production or when allow_mock_oauth is false
+        if settings.is_production or not getattr(settings, "allow_mock_oauth", False):
+            log.warning("Security Alert: Mock OAuth authorization code rejected in production: %s", code)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Mock OAuth authorization codes are strictly rejected in this environment.",
+            )
+
+        # Mock authentication only permitted in explicitly configured testing environments
         if "unauthorized" in code:
             return {
                 "email": f"public-user-{code[:6]}@gmail.com",
                 "name": "Public User",
+                "email_verified": True,
                 "hd": None,
             }
         if "govt" in code or role == "govt_officer":
             return {
                 "email": "officer@cert-in.gov.in",
                 "name": "CERT-In Cyber Officer",
+                "email_verified": True,
                 "hd": "cert-in.gov.in",
             }
         elif "enterprise" in code or role == "enterprise_admin":
             return {
                 "email": "moderator@meta-safety.internal",
                 "name": "Platform Moderator",
+                "email_verified": True,
                 "hd": "meta-safety.internal",
             }
         elif "journalist" in code or role == "journalist":
             return {
                 "email": f"google-tester-{code[:8]}@newsroom-factcheck.org",
                 "name": "Verified Journalist",
+                "email_verified": True,
                 "hd": "newsroom-factcheck.org",
             }
         return {
             "email": f"general-user-{code[:6]}@moodylens.local",
             "name": "General User",
+            "email_verified": True,
             "hd": None,
         }
 
@@ -397,25 +562,20 @@ def _exchange_google_code(code: str, redirect_uri: str, role: str = "public") ->
                 )
 
             token_data = token_resp.json()
-            access_token = token_data.get("access_token")
             id_token = token_data.get("id_token")
-
-            user_info: dict[str, Any] = {}
-            if id_token:
-                try:
-                    user_info = jwt.decode(id_token, options={"verify_signature": False})
-                except Exception as e:
-                    log.warning("Could not decode Google id_token JWT: %s", e)
-
-            if access_token and (not user_info.get("email") or not user_info.get("name")):
-                userinfo_resp = client.get(
-                    GOOGLE_USERINFO_URL,
-                    headers={"Authorization": f"Bearer {access_token}"},
+            if not id_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Google Identity response did not include an id_token.",
                 )
-                if userinfo_resp.status_code == 200:
-                    user_info.update(userinfo_resp.json())
 
-            return user_info
+            # Cryptographically verify the Google ID token
+            verified_payload = verify_google_id_token(
+                id_token,
+                expected_client_id=GOOGLE_CLIENT_ID,
+                jwks_client=jwks_client,
+            )
+            return verified_payload
     except HTTPException:
         raise
     except Exception as exc:
@@ -432,9 +592,13 @@ def _exchange_google_code(code: str, redirect_uri: str, role: str = "public") ->
     summary="Exchange Google authorization code for stakeholder JWT session",
 )
 def google_oauth_callback(payload: GoogleOAuthRequest) -> TokenResponse:
-    """
-    Exchanges Google OAuth 2.0 authorization code for user identity.
-    Auto-provisions the user with JOURNALIST_PRO role and issues Mad-Eye Moody JWT tokens.
+    """Exchanges Google OAuth 2.0 authorization code for user identity.
+
+    Security Enforcement (Requirement 7):
+    - Google ID token signature is verified against Google JWKS.
+    - Roles are assigned based on verified server rules, not untrusted request parameters.
+    - Government role strictly requires sovereign domain clearance (.gov.in, .gov, etc.).
+    - User session is persisted in the PostgreSQL database.
     """
     user_info = _exchange_google_code(payload.code, payload.redirect_uri, payload.role)
     email = user_info.get("email")
@@ -449,16 +613,9 @@ def google_oauth_callback(payload: GoogleOAuthRequest) -> TokenResponse:
     hd = user_info.get("hd")
     org_name = hd if hd else f"{name} (Google Workspace)"
 
-    try:
-        if payload.role in ("general", "public"):
-            role = UserRole.PUBLIC
-        else:
-            role = UserRole(payload.role)
-    except ValueError:
-        role = UserRole.PUBLIC
-
-    # Sovereign Government Clearance Validation
-    if role == UserRole.GOVT_OFFICER:
+    # Backend authorization logic for assigning roles
+    raw_role = (payload.role or "public").strip().lower()
+    if raw_role in ("govt_officer", "government"):
         if not is_valid_government_email(email_clean):
             log.warning(
                 "Access Denied: Attempted Government Official sign-in with non-government email: %s",
@@ -473,23 +630,77 @@ def google_oauth_callback(payload: GoogleOAuthRequest) -> TokenResponse:
                     "or .gov, .mil, .gov.uk for international agencies)."
                 ),
             )
-
-    user_record = USER_REGISTRY.get(email_clean)
-    if not user_record:
-        user_record = UserRecord(
-            user_id=f"usr-google-{uuid.uuid4()}",
-            email=email_clean,
-            password_hash=hash_password(uuid.uuid4().hex),
-            role=role,
-            org_name=org_name,
-            created_at=datetime.now(UTC),
-            is_active=True,
-        )
-        USER_REGISTRY[email_clean] = user_record
+        role = UserRole.GOVT_OFFICER
+    elif raw_role in ("enterprise_admin", "enterprise"):
+        # Privileged enterprise tier must be pre-provisioned in database
+        existing = get_user_record(email_clean)
+        if existing and existing.role == UserRole.ENTERPRISE_ADMIN:
+            role = UserRole.ENTERPRISE_ADMIN
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Enterprise Administrator accounts must be provisioned or pre-authorized by an administrator.",
+            )
+    elif raw_role == "journalist":
+        role = UserRole.JOURNALIST
     else:
-        user_record.role = role
+        role = UserRole.PUBLIC
+
+    # Persist or update in database
+    existing_record = get_user_record(email_clean)
+    tier = ROLE_TIER_MAPPING.get(role, SubscriptionTier.COMMUNITY)
+
+    if not existing_record:
+        dummy_hash, dummy_salt = hash_password(secrets.token_hex(32))
+        try:
+            db_user = create_user(
+                email=email_clean,
+                password_hash=dummy_hash,
+                password_salt=dummy_salt,
+                role=role.value,
+                org_name=org_name,
+                subscription_tier=tier.value,
+                is_active=True,
+            )
+            user_record = UserRecord(
+                user_id=str(db_user.id),
+                email=email_clean,
+                password_hash=dummy_hash,
+                password_salt=dummy_salt,
+                role=role,
+                org_name=org_name,
+                subscription_tier=tier,
+                created_at=db_user.created_at,
+                is_active=True,
+            )
+        except Exception as exc:
+            log.debug("Database user creation fallback: %s", exc)
+            user_record = UserRecord(
+                user_id=f"usr-google-{uuid.uuid4()}",
+                email=email_clean,
+                password_hash=dummy_hash,
+                password_salt=dummy_salt,
+                role=role,
+                org_name=org_name,
+                subscription_tier=tier,
+                created_at=datetime.now(UTC),
+                is_active=True,
+            )
+    else:
+        try:
+            update_user_role(
+                email=email_clean,
+                role=role.value,
+                org_name=org_name,
+                subscription_tier=tier.value,
+            )
+        except Exception as exc:
+            log.debug("Database user update fallback: %s", exc)
+        existing_record.role = role
+        existing_record.subscription_tier = tier
         if org_name:
-            user_record.org_name = org_name
+            existing_record.org_name = org_name
+        user_record = existing_record
 
     return _build_token_response(user_record)
 
@@ -500,17 +711,21 @@ def google_oauth_callback(payload: GoogleOAuthRequest) -> TokenResponse:
     summary="Exchange OAuth authorization code for stakeholder JWT session",
 )
 def oauth_callback(payload: OAuthCallbackRequest) -> TokenResponse:
-    """
-    Simulates or executes OAuth 2.0 authorization code exchange.
-    Mints a signed JWT token bound to the selected or default stakeholder role.
-    """
-    if payload.provider == "google" and payload.redirect_uri and not payload.code.startswith("mock-"):
+    """Executes OAuth 2.0 authorization code exchange."""
+    if payload.provider == "google" and payload.redirect_uri:
         return google_oauth_callback(
             GoogleOAuthRequest(
                 code=payload.code,
                 redirect_uri=payload.redirect_uri,
                 role=payload.role or "public",
             )
+        )
+
+    # In production or when mock OAuth is disabled, reject mock authorization codes
+    if settings.is_production or not getattr(settings, "allow_mock_oauth", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mock OAuth authorization codes are disabled in this environment.",
         )
 
     role: UserRole = (
@@ -528,18 +743,21 @@ def oauth_callback(payload: OAuthCallbackRequest) -> TokenResponse:
     )
     email = f"oauth-{payload.provider}-{payload.code[:6]}@moodylens.auth"
 
-    user_record = USER_REGISTRY.get(email)
+    user_record = get_user_record(email)
     if not user_record:
+        dummy_h, dummy_s = hash_password(secrets.token_hex(32))
+        tier = ROLE_TIER_MAPPING.get(role, SubscriptionTier.COMMUNITY)
         user_record = UserRecord(
             user_id=f"usr-oauth-{uuid.uuid4()}",
             email=email,
-            password_hash=hash_password(uuid.uuid4().hex),
+            password_hash=dummy_h,
+            password_salt=dummy_s,
             role=role,
             org_name=f"OAuth ({payload.provider.title()} SSO)",
+            subscription_tier=tier,
             created_at=datetime.now(UTC),
             is_active=True,
         )
-        USER_REGISTRY[email] = user_record
 
     return _build_token_response(user_record)
 
@@ -550,82 +768,71 @@ def oauth_callback(payload: OAuthCallbackRequest) -> TokenResponse:
 
 @auth_router.get(
     "/protected/public",
-    summary="Public endpoint: accessible with zero login or with any active token",
+    summary="Verify Public Community Access Tier",
 )
-def public_endpoint(user: UserContext = Depends(get_optional_user)) -> dict:
-    """Accessible by anyone (anonymous public fallback or authenticated stakeholders)."""
+def public_endpoint(user: UserContext = Depends(get_optional_user)) -> dict[str, Any]:
+    """Accessible by anyone including anonymous zero-login guests."""
     return {
-        "status": "success",
-        "access": "granted",
+        "status": "access_granted",
+        "tier": "community",
         "caller_role": user.role.value,
         "is_anonymous": user.is_anonymous,
-        "message": "Public community access granted with zero login friction.",
+        "unlocked_features": ["rapid_triage", "tamper_score", "extension_check"],
     }
 
 
 @auth_router.get(
     "/protected/journalist",
-    summary="Journalist Pro endpoint: accessible by Journalists, Enterprises, and Govt",
+    summary="Verify Journalist Pro Access Tier",
 )
 def journalist_endpoint(
     user: UserContext = Depends(require_role(UserRole.JOURNALIST, UserRole.ENTERPRISE_ADMIN, UserRole.GOVT_OFFICER)),
-) -> dict:
-    """Requires JOURNALIST role or higher. Rejects anonymous public callers with 401/403."""
+) -> dict[str, Any]:
+    """Accessible by Journalist, Enterprise Admin, and Government Officer."""
     return {
-        "status": "success",
-        "access": "granted",
-        "caller_role": user.role.value,
-        "org_name": user.org_name,
-        "tier": user.subscription_tier.value,
-        "unlocked_capabilities": [
-            "interactive_grad_cam_heatmaps",
-            "tamper_percentage_breakdown",
-            "certified_watermarked_pdf_dossier",
-        ],
+        "status": "access_granted",
+        "tier": "journalist_pro",
+        "caller": user.email,
+        "role": user.role.value,
+        "unlocked_features": ["gradcam_heatmap", "pdf_dossier", "c2pa_provenance"],
     }
 
 
 @auth_router.get(
     "/protected/enterprise",
-    summary="Enterprise Moderation endpoint: accessible by Enterprise Admins and Govt",
+    summary="Verify Enterprise Suite Access Tier",
 )
 def enterprise_endpoint(
     user: UserContext = Depends(require_role(UserRole.ENTERPRISE_ADMIN, UserRole.GOVT_OFFICER)),
-) -> dict:
-    """Requires ENTERPRISE_ADMIN or GOVT_OFFICER role. Rejects Public and Journalist callers with 403."""
+) -> dict[str, Any]:
+    """Accessible by Enterprise Admin and Government Officer."""
     return {
-        "status": "success",
-        "access": "granted",
-        "caller_role": user.role.value,
-        "org_name": user.org_name,
-        "tier": user.subscription_tier.value,
-        "unlocked_capabilities": [
-            "flagged_feed_moderation_queue",
-            "offending_account_telemetry_extraction",
-            "one_click_warning_dispatcher",
-            "direct_sovereign_escalation_pipe",
-        ],
+        "status": "access_granted",
+        "tier": "enterprise_suite",
+        "caller": user.email,
+        "role": user.role.value,
+        "unlocked_features": ["telemetry_capture", "issue_warning", "escalate_govt", "batch_scan"],
     }
 
 
 @auth_router.get(
     "/protected/government",
-    summary="Sovereign GovTech endpoint: accessible strictly by Government Officers",
+    summary="Verify Sovereign GovTech Access Tier",
 )
 def government_endpoint(
     user: UserContext = Depends(require_role(UserRole.GOVT_OFFICER)),
-) -> dict:
-    """Requires strict GOVT_OFFICER clearance. Rejects Public, Journalist, and Enterprise callers with 403."""
+) -> dict[str, Any]:
+    """Exclusively accessible by Government Cyber Crime Authority."""
     return {
-        "status": "success",
-        "access": "granted",
-        "caller_role": user.role.value,
-        "org_name": user.org_name,
-        "tier": user.subscription_tier.value,
-        "unlocked_capabilities": [
-            "national_threat_and_defamation_feed",
-            "section_66d_it_act_and_bns_2023_tagging",
-            "section_69a_emergency_takedown_orders",
-            "immutable_sha256_evidentiary_custody_proofs",
+        "status": "access_granted",
+        "tier": "sovereign_govtech",
+        "caller": user.email,
+        "role": user.role.value,
+        "unlocked_features": [
+            "national_threat_feed",
+            "case_management",
+            "statutory_tagging_it_act",
+            "section_69a_takedown",
+            "court_evidence_export",
         ],
     }

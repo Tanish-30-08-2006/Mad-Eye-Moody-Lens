@@ -14,7 +14,12 @@ Cross-cutting concerns live here:
 
 from __future__ import annotations
 
+import datetime
 import time
+
+if not hasattr(datetime, "UTC"):
+    datetime.UTC = datetime.timezone.utc  # type: ignore[attr-defined]
+
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, File, Request, UploadFile
@@ -26,6 +31,7 @@ from starlette.exceptions import HTTPException
 from app import __version__
 from app.api.auth_routes import auth_router
 from app.api.routes import router
+from app.core.auth import validate_jwt_secret_on_startup
 from app.core.config import settings
 from app.core.errors import INTERNAL_ERROR_MESSAGE, AnalysisError
 from app.core.logging import bind_context, clear_context, configure_logging, get_logger, new_request_id, request_id_var
@@ -44,6 +50,7 @@ SECURITY_HEADERS = {
 @asynccontextmanager
 async def lifespan(_app: FastAPI):  # type: ignore[no-untyped-def]
     configure_logging(settings.log_level, json_logs=settings.is_production)
+    validate_jwt_secret_on_startup()
     log.info("api_start", version=__version__, env=settings.env, storage=settings.storage_backend)
     yield
     log.info("api_stop")

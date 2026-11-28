@@ -5,6 +5,7 @@ import {
   fetchDemoAccounts,
   fetchMe,
   loginUser,
+  logoutUser,
   UserProfile,
   UserRoleType,
 } from "../api/auth";
@@ -18,13 +19,6 @@ const DEFAULT_ANONYMOUS_USER: UserProfile = {
   subscription_tier: "community",
   permissions: ["analyze:basic", "compare:duplicate", "read:verdict"],
   is_anonymous: true,
-};
-
-const FALLBACK_DEMO_CREDENTIALS: Record<UserRoleType, { email: string; pass: string }> = {
-  public: { email: "public@moodylens.local", pass: "Public123!" },
-  journalist: { email: "journalist@reuters-factcheck.org", pass: "Journalist123!" },
-  enterprise_admin: { email: "moderator@meta-safety.internal", pass: "Enterprise123!" },
-  govt_officer: { email: "officer@cert-in.gov.in", pass: "GovtOfficer123!" },
 };
 
 export function useAuth() {
@@ -111,16 +105,22 @@ export function useAuth() {
 
   const switchDemoRole = async (role: UserRoleType) => {
     if (role === "public") {
-      logout();
+      await logout();
       return;
     }
-    const cred = demoAccounts.find((a) => a.role === role) || FALLBACK_DEMO_CREDENTIALS[role];
-    if (!cred) return;
-    const password = "password" in cred ? cred.password : cred.pass;
-    await login(cred.email, password);
+    const cred = demoAccounts.find((a) => a.role === role);
+    if (!cred || !cred.password) return;
+    await login(cred.email, cred.password);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (token) {
+      try {
+        await logoutUser(token);
+      } catch (err) {
+        console.warn("Logout token revocation failed or server unreachable:", err);
+      }
+    }
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(DEFAULT_ANONYMOUS_USER);

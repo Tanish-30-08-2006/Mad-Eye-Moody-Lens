@@ -113,7 +113,7 @@ def _explain(faces: list[FaceScore], source: str, time_s: float | None, start_in
             fake_probability=round(f.fake_probability, 4),
             png=heatmap_to_png(cam),
         )
-        for i, (f, cam) in enumerate(zip(faces, cams, strict=True))
+        for i, (f, cam) in enumerate(zip(faces, cams))
     ]
 
 

@@ -506,7 +506,7 @@ export function StakeholderModal({
               </div>
             </div>
 
-            {/* Alternative: 1-Click Fast Demo Switch / Password Credentials */}
+            {/* Alternative: Stakeholder Credentials Login */}
             <div style={{ marginTop: "6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <button
@@ -515,27 +515,24 @@ export function StakeholderModal({
                   onClick={() => setShowManualLogin((v) => !v)}
                   style={{ fontSize: "12px", color: "var(--subtle)" }}
                 >
-                  {showManualLogin ? "Hide Demo & Credentials Login ▲" : "Or use pre-seeded test credentials ▼"}
+                  {showManualLogin ? "Hide Credentials Login ▲" : "Or sign in with email & password ▼"}
                 </button>
 
-                <button
-                  type="button"
-                  className="btn btn--outline btn--sm"
-                  onClick={() => handleQuickDemoSwitch(selectedRole)}
-                  disabled={busy}
-                  style={{ fontSize: "12px" }}
-                >
-                  ⚡ 1-Click Demo Switch to {activeAuthorityMeta?.title}
-                </button>
+                {demoAccounts.some((d) => d.role === selectedRole && Boolean(d.password)) && (
+                  <button
+                    type="button"
+                    className="btn btn--outline btn--sm"
+                    onClick={() => handleQuickDemoSwitch(selectedRole)}
+                    disabled={busy}
+                    style={{ fontSize: "12px" }}
+                  >
+                    ⚡ Test Switch to {activeAuthorityMeta?.title}
+                  </button>
+                )}
               </div>
 
               {showManualLogin && (
                 <div style={{ marginTop: "14px", padding: "16px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "var(--radius)" }}>
-                  {demoAccounts.length > 0 && (
-                    <p style={{ fontSize: "11px", color: "var(--subtle)", marginBottom: "10px" }}>
-                      Pre-seeded test login: <code>{demoAccounts.find((d) => d.role === selectedRole)?.email || "officer@cert-in.gov.in"}</code> (Password: <code>{selectedRole === "govt_officer" ? "GovtOfficer123!" : selectedRole === "enterprise_admin" ? "Enterprise123!" : "Journalist123!"}</code>)
-                    </p>
-                  )}
                   <form onSubmit={handleManualLogin} className="login-form">
                     <label className="field-label">
                       <span>Stakeholder Email Address</span>
