@@ -10,14 +10,16 @@ the event loop only ever streams uploads.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from fastapi import APIRouter, File, Request, Response, UploadFile
+from fastapi import APIRouter, File, Header, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.core.config import settings
+from app.core.errors import AnalysisError
 from app.core.logging import bind_context
 from app.core.ratelimit import check_rate_limit
 from app.core.redis import get_redis
@@ -32,7 +34,7 @@ from app.schemas import (
     JobStatus,
     ModelInfo,
 )
-from app.services import dispatch, duplicate_detector, heartbeat, jobs, results
+from app.services import dispatch, duplicate_detector, heartbeat, jobs, results, zerotrue_audio
 
 router = APIRouter(prefix="/api/v1")
 
@@ -105,6 +107,23 @@ async def analyze_image(request: Request, file: UploadFile = File(...)) -> Analy
 async def analyze_audio(request: Request, file: UploadFile = File(...)) -> AnalysisResult:
     """Windowed synthetic-speech check (4 s windows)."""
     return await _analyse_sync(request, file, "audio")
+
+
+@router.post("/analyze/audio/zerotrue", tags=["analysis"], responses=ERRORS)
+async def analyze_audio_zerotrue(
+    request: Request, file: UploadFile = File(...), x_zerotrue_key: str = Header(default="")
+) -> dict:
+    """Send a user-selected audio file and per-request key to ZeroTrue."""
+    key = x_zerotrue_key.strip()
+    if not key or len(key) > 512 or "\n" in key or "\r" in key:
+        raise AnalysisError("Enter a valid ZeroTrue API key.", 422)
+    await run_in_threadpool(check_rate_limit, request, "fast")
+    saved = await save_upload(file, "audio")
+    try:
+        return await run_in_threadpool(zerotrue_audio.analyze, saved, key)
+    finally:
+        if os.path.exists(saved.path):
+            os.remove(saved.path)
 
 
 @router.post("/analyze/video", response_model=JobStatus, status_code=202, tags=["analysis"], responses=ERRORS)

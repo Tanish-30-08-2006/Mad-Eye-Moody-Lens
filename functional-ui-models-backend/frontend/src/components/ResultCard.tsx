@@ -14,7 +14,8 @@ function detailRows(r: AnalysisResult): [string, string][] {
   }
   if (r.media_type === "audio") {
     if (typeof d.duration_s === "number") rows.push(["Duration", `${d.duration_s.toFixed(1)} s`]);
-    rows.push(["Windows scored", String(r.segments.length)]);
+    if (d.provider === "ZeroTrue") rows.push(["Provider", "ZeroTrue cloud"]);
+    else rows.push(["Windows scored", String(r.segments.length)]);
   }
   if (r.media_type === "video") {
     if (typeof d.frames_sampled === "number") rows.push(["Frames sampled", `${d.frames_sampled} / ${VIDEO_FRAMES}`]);
@@ -136,7 +137,7 @@ export function ResultCard({
                 <div className="check__name">{spec?.checkName ?? s.task}</div>
                 <div className="check__model">
                   <span>{s.model}</span>
-                  {spec && <span className={`tag ${spec.family === "CNN" ? "tag--cnn" : ""}`}>{spec.architecture}</span>}
+                  {spec && result.details?.provider !== "ZeroTrue" && <span className={`tag ${spec.family === "CNN" ? "tag--cnn" : ""}`}>{spec.architecture}</span>}
                 </div>
               </div>
               <div className="mini-bar" aria-hidden="true">

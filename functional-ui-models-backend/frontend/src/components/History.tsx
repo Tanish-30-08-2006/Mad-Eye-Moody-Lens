@@ -17,7 +17,7 @@ export function History({ entries, onOpen, onClear }: Props) {
         <div className="section-head">
           <h2 id="history-h">Previous results</h2>
           <div style={{ display: "grid", gap: 12, justifyItems: "end" }}>
-            <p>Stored only in this browser — the last 20 analyses. No media is kept anywhere.</p>
+            <p>The last 20 results are stored in this browser. Cloud providers may have their own media retention policies.</p>
             {entries.length > 0 && (
               <button className="link-btn" onClick={onClear}>
                 Clear history

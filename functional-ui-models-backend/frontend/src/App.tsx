@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { analyzeAudio, analyzeImage, AnalysisResult, MediaType, startVideoJob } from "./api/client";
+import { analyzeAudio, analyzeImage, analyzeZeroTrueAudio, AnalysisResult, MediaType, startVideoJob } from "./api/client";
 import { Analyser, Phase } from "./components/Analyser";
 import { Footer, GridBackground, Nav } from "./components/Chrome";
 import { DuplicateDetector } from "./components/DuplicateDetector/DuplicateDetector";
@@ -19,6 +19,7 @@ import { useHistory } from "./hooks/useHistory";
 import { useJobPolling } from "./hooks/useJobPolling";
 import { useModels } from "./hooks/useModels";
 import { callExternalProvider, ExternalAnalysisResult } from "./services/externalProvider";
+import { normalizeZeroTrueAudio } from "./services/zerotrueAudio";
 
 export default function App() {
   const { models, state, byKey } = useModels();
@@ -163,6 +164,25 @@ export default function App() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setExternalBusy(false);
+    }
+  };
+
+  const submitZeroTrueAudio = async (file: File, key: string) => {
+    setError(null);
+    setResult(null);
+    setExternalResult(null);
+    setFileName(file.name);
+    setResultFile(file);
+    setPhase({ stage: "uploading", fraction: 0 });
+    const started = performance.now();
+    try {
+      const raw = await analyzeZeroTrueAudio(file, key, (fraction) => {
+        setPhase(fraction >= 1 ? { stage: "analysing" } : { stage: "uploading", fraction });
+      });
+      finish(normalizeZeroTrueAudio(raw, Math.round(performance.now() - started)), file.name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPhase({ stage: "idle" });
     }
   };
 
@@ -401,6 +421,7 @@ export default function App() {
                 error={error}
                 byKey={byKey}
                 onSubmit={submit}
+                onZeroTrueSubmit={submitZeroTrueAudio}
                 externalConfig={externalProvider.config}
                 isExternalConfigured={externalProvider.isConfigured}
                 onExternalSubmit={submitExternal}
