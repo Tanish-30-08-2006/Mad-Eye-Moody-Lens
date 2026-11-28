@@ -321,7 +321,7 @@ h3 {
 
 .nav__dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 100%;
   left: 0;
   background: #ffffff;
   border: 1px solid #e5e7eb;

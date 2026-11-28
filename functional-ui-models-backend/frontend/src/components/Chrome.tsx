@@ -57,11 +57,20 @@ export function Nav({ state }: { state: BackendState }) {
               className="nav__dropdown"
               onMouseEnter={() => setUtilitiesOpen(true)}
               onMouseLeave={() => setUtilitiesOpen(false)}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setUtilitiesOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setUtilitiesOpen(false);
+                  event.currentTarget.querySelector("button")?.focus();
+                }
+              }}
             >
               <button
                 type="button"
                 className="nav__dropdown-btn"
-                onClick={() => setUtilitiesOpen((v) => !v)}
+                onClick={() => setUtilitiesOpen(true)}
                 aria-expanded={utilitiesOpen}
                 aria-haspopup="true"
               >
