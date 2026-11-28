@@ -3,10 +3,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
+from app.api import routes
 from app.core.errors import AnalysisError
 from app.core.uploads import SavedUpload
 from app.services import zerotrue_audio
-from app.api import routes
 
 
 class ZeroTrueAudioTests(unittest.TestCase):
